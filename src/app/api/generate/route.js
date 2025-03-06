@@ -1,9 +1,8 @@
 import OpenAI from "openai";
 import { streamText } from "ai";
 import { match } from "ts-pattern";
-// IMPORTANT! Set the runtime to edge: https://vercel.com/docs/functions/edge-functions/edge-runtime
-export const runtime = "edge";
 
+// export const runtime = "edge";
 export async function POST(req) {
   const apiKey = process.env.OPENAI_API_KEY;
   
@@ -18,7 +17,17 @@ export async function POST(req) {
     apiKey: apiKey
   });
 
-  const { prompt, option, command } = await req.json();
+  const { prompt, option = 'improve', command = '' } = await req.json();
+  
+  if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+    return new Response("Invalid or missing prompt", {
+      status: 400,
+    });
+  }
+
+  console.log(prompt, option, command);
+  
+
   const messages = match(option)
     .with("continue", () => [
       {
@@ -109,5 +118,11 @@ export async function POST(req) {
     presencePenalty: 0,
   });
 
-  return result.toDataStreamResponse();
+  return new Response(result, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive'
+    }
+  });
 }
