@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useStackApp, useUser } from "@stackframe/stack";
+import { useStackApp } from "@stackframe/stack";
 import { ArrowRight, Bot, Clock3, FileText, GitBranch, GitPullRequest, Globe, Loader2, Plus, RefreshCw, ShieldCheck, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { bootstrapWorkspace, getGithubStatus, getWorkspaces, type GithubStatus, type Workspace } from "@/lib/api";
+import { bootstrapWorkspace, getAuthMe, getGithubStatus, getWorkspaces, type GithubStatus, type Workspace } from "@/lib/api";
 
 function shortSha(value: string | null) {
 	return value ? value.slice(0, 7) : "pending";
@@ -14,7 +14,6 @@ function shortSha(value: string | null) {
 
 export function DashboardClient() {
 	const app = useStackApp();
-	useUser({ or: "redirect" });
 	const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
 	const [githubStatus, setGithubStatus] = useState<GithubStatus | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -28,6 +27,12 @@ export function DashboardClient() {
 	async function refresh() {
 		setLoading(true);
 		setError(null);
+
+		const auth = await getAuthMe();
+		if (!auth.authenticated) {
+			await app.redirectToSignIn();
+			return;
+		}
 
 		const [workspaceResult, githubResult] = await Promise.allSettled([getWorkspaces(), getGithubStatus()]);
 

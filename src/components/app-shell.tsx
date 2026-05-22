@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { UserButton, useUser } from "@stackframe/stack";
+import { useStackApp } from "@stackframe/stack";
 import {
 	Bot,
 	BookOpen,
@@ -13,7 +13,9 @@ import {
 	Globe,
 	Image,
 	LayoutDashboard,
+	LogOut,
 	Search,
+	Settings,
 	Share2,
 	Users,
 } from "lucide-react";
@@ -49,7 +51,7 @@ export function AppShell({
 	syncLabel?: string;
 	action?: ReactNode;
 }) {
-	const user = useUser();
+	const app = useStackApp();
 
 	return (
 		<div className="min-h-screen bg-[#f7f5f0] text-[#1f2328]">
@@ -107,7 +109,22 @@ export function AppShell({
 								</div>
 							) : null}
 							{action}
-							{user ? <UserButton /> : null}
+							<button
+								type="button"
+								onClick={() => void app.redirectToAccountSettings()}
+								className="grid size-9 place-items-center rounded-md border border-[#d6cec1] bg-white text-[#504a43] hover:bg-[#f0ece4]"
+								aria-label="Account settings"
+							>
+								<Settings aria-hidden className="size-4" strokeWidth={1.8} />
+							</button>
+							<button
+								type="button"
+								onClick={() => void app.signOut({ redirectUrl: "/" })}
+								className="grid size-9 place-items-center rounded-md border border-[#d6cec1] bg-white text-[#504a43] hover:bg-[#f0ece4]"
+								aria-label="Sign out"
+							>
+								<LogOut aria-hidden className="size-4" strokeWidth={1.8} />
+							</button>
 						</div>
 					</div>
 				</header>

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useUser } from "@stackframe/stack";
+import { useStackApp } from "@stackframe/stack";
 import type { AppState, BinaryFiles, ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
 import {
 	Bot,
@@ -20,7 +20,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { commitWorkspaceFiles, getSketch, type SketchLoadResponse, type SketchScene } from "@/lib/api";
+import { commitWorkspaceFiles, getAuthMe, getSketch, type SketchLoadResponse, type SketchScene } from "@/lib/api";
 import { getDraft, setDraft } from "@/lib/indexeddb";
 import { draftKey, humanizeSlug, normalizeScene, notesFilePath, projectFilePath, sketchFilePath } from "@/lib/sketchflow";
 
@@ -92,7 +92,7 @@ export function EditorClient({
 	projectId: string;
 	sketchId: string;
 }) {
-	useUser({ or: "redirect" });
+	const app = useStackApp();
 
 	const [data, setData] = useState<SketchLoadResponse | null>(null);
 	const [scene, setScene] = useState<SketchScene | null>(null);
@@ -112,6 +112,12 @@ export function EditorClient({
 
 		async function load() {
 			try {
+				const auth = await getAuthMe();
+				if (!auth.authenticated) {
+					await app.redirectToSignIn();
+					return;
+				}
+
 				const response = await getSketch({ workspaceId, projectId, sketchId });
 				const githubScene = normalizeScene(response.sketch);
 				const localDraft = await getDraft<DraftValue>(currentDraftKey);
@@ -146,7 +152,7 @@ export function EditorClient({
 				clearTimeout(saveTimer.current);
 			}
 		};
-	}, [currentDraftKey, projectId, sketchId, workspaceId]);
+	}, [app, currentDraftKey, projectId, sketchId, workspaceId]);
 
 	function queueDraftSave(nextScene: SketchScene) {
 		if (saveTimer.current) {

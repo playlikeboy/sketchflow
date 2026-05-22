@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useStackApp, useUser } from "@stackframe/stack";
+import { useStackApp } from "@stackframe/stack";
 import { ArrowRight, CheckCircle2, GitBranch, Loader2, LockKeyhole, Plus, RefreshCw, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { bootstrapWorkspace, getGithubStatus, getWorkspaces, type GithubStatus, type Workspace } from "@/lib/api";
+import { bootstrapWorkspace, getAuthMe, getGithubStatus, getWorkspaces, type AuthMeResponse, type GithubStatus, type Workspace } from "@/lib/api";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 
 export function HomeClient() {
 	const app = useStackApp();
-	const user = useUser();
 	const router = useRouter();
+	const [auth, setAuth] = useState<AuthMeResponse | null>(null);
 	const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
 	const [githubStatus, setGithubStatus] = useState<GithubStatus | null>(null);
 	const [loadState, setLoadState] = useState<LoadState>("idle");
@@ -23,24 +23,28 @@ export function HomeClient() {
 	const [bootstrapping, setBootstrapping] = useState(false);
 
 	const primaryWorkspace = useMemo(() => workspaces[0] ?? null, [workspaces]);
+	const user = auth?.user ?? null;
 
 	useEffect(() => {
-		if (!user) {
-			setLoadState("idle");
-			setWorkspaces([]);
-			setGithubStatus(null);
-			return;
-		}
-
 		let mounted = true;
 		setLoadState("loading");
 		setError(null);
 
-		Promise.allSettled([getWorkspaces(), getGithubStatus()]).then((results) => {
+		getAuthMe().then(async (authResponse) => {
 			if (!mounted) {
 				return;
 			}
 
+			setAuth(authResponse);
+
+			if (!authResponse.authenticated) {
+				setWorkspaces([]);
+				setGithubStatus(null);
+				setLoadState("ready");
+				return;
+			}
+
+			const results = await Promise.allSettled([getWorkspaces(), getGithubStatus()]);
 			const workspaceResult = results[0];
 			const githubResult = results[1];
 
@@ -57,12 +61,19 @@ export function HomeClient() {
 			}
 
 			setLoadState(workspaceResult.status === "fulfilled" ? "ready" : "error");
+		}).catch((authError) => {
+			if (!mounted) {
+				return;
+			}
+
+			setError(authError instanceof Error ? authError.message : "Could not load auth state");
+			setLoadState("error");
 		});
 
 		return () => {
 			mounted = false;
 		};
-	}, [user]);
+	}, []);
 
 	useEffect(() => {
 		if (primaryWorkspace) {
@@ -82,6 +93,10 @@ export function HomeClient() {
 		} finally {
 			setBootstrapping(false);
 		}
+	}
+
+	if (loadState === "loading") {
+		return <main className="min-h-screen bg-[#f7f5f0]" />;
 	}
 
 	if (!user) {
@@ -198,7 +213,7 @@ export function HomeClient() {
 								<h1 className="text-2xl font-semibold">Create or connect your Sketchflow repo</h1>
 								<p className="mt-1 text-sm text-[#655d54]">Sketches and docs will live in GitHub. Postgres keeps only app metadata.</p>
 							</div>
-							{loadState === "loading" ? <Loader2 aria-hidden className="size-5 animate-spin text-[#70675d]" /> : null}
+							{loadState === "idle" ? <Loader2 aria-hidden className="size-5 animate-spin text-[#70675d]" /> : null}
 						</div>
 
 						{primaryWorkspace ? (

@@ -10,6 +10,16 @@ export type Workspace = {
 	updatedAt: string;
 };
 
+export type AuthMeResponse = {
+	authenticated: boolean;
+	user: {
+		id: string;
+		primaryEmail: string | null;
+		displayName: string | null;
+		profileImageUrl: string | null;
+	} | null;
+};
+
 export type GithubStatus = {
 	connected: boolean;
 	github: {
@@ -97,6 +107,10 @@ export async function apiJson<T>(url: string, init: ApiInit = {}) {
 
 export function getWorkspaces() {
 	return apiJson<{ workspaces: Workspace[] }>("/api/workspaces");
+}
+
+export function getAuthMe() {
+	return apiJson<AuthMeResponse>("/api/auth/me");
 }
 
 export function getGithubStatus() {
