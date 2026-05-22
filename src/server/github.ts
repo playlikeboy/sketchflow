@@ -29,6 +29,17 @@ type GithubRef = {
 	};
 };
 
+type GithubContentFile = {
+	type: "file";
+	name: string;
+	path: string;
+	sha: string;
+	encoding: "base64" | string;
+	content: string;
+	html_url: string;
+	download_url: string | null;
+};
+
 type GithubCommit = {
 	sha: string;
 	tree: {
@@ -108,6 +119,41 @@ export async function getGithubRepository(accessToken: string, owner: string, re
 	return githubRequest<GithubRepository>(accessToken, repoApiPath(owner, repo));
 }
 
+export async function getBranchHeadSha(accessToken: string, owner: string, repo: string, branch: string) {
+	const ref = await githubRequest<GithubRef>(accessToken, repoApiPath(owner, repo, `/git/ref/heads/${branch}`));
+	return ref.object.sha;
+}
+
+export async function readGithubFileText(input: {
+	accessToken: string;
+	owner: string;
+	repo: string;
+	path: string;
+	ref: string;
+}) {
+	validateGithubFilePath(input.path);
+
+	const file = await githubRequest<GithubContentFile>(
+		input.accessToken,
+		repoApiPath(input.owner, input.repo, `/contents/${input.path.split("/").map(encodePathPart).join("/")}?ref=${encodeURIComponent(input.ref)}`),
+	);
+
+	if (file.type !== "file" || file.encoding !== "base64") {
+		throw new BadRequestError(`Unsupported GitHub content response for ${input.path}`);
+	}
+
+	const compactBase64 = file.content.replace(/\s/g, "");
+	const bytes = Uint8Array.from(atob(compactBase64), (char) => char.charCodeAt(0));
+
+	return {
+		path: file.path,
+		sha: file.sha,
+		htmlUrl: file.html_url,
+		downloadUrl: file.download_url,
+		content: new TextDecoder().decode(bytes),
+	};
+}
+
 export async function createUserRepository(accessToken: string, repoName: string, isPrivate: boolean) {
 	return githubRequest<GithubRepository>(accessToken, "/user/repos", {
 		method: "POST",
@@ -152,10 +198,20 @@ export function validateGithubRepoName(repoName: string) {
 	return repoName;
 }
 
-export function validateGithubFileChange(file: GithubFileChange) {
-	if (!file.path || file.path.startsWith("/") || file.path.includes("..") || file.path.includes("\\")) {
-		throw new BadRequestError(`Unsafe GitHub file path: ${file.path || "(empty)"}`);
+export function validateGithubPathSegment(segment: string) {
+	return validateGithubRepoName(segment);
+}
+
+export function validateGithubFilePath(path: string) {
+	if (!path || path.startsWith("/") || path.includes("..") || path.includes("\\")) {
+		throw new BadRequestError(`Unsafe GitHub file path: ${path || "(empty)"}`);
 	}
+
+	return path;
+}
+
+export function validateGithubFileChange(file: GithubFileChange) {
+	validateGithubFilePath(file.path);
 
 	const size = new TextEncoder().encode(file.content).byteLength;
 	if (size > MAX_FILE_BYTES) {

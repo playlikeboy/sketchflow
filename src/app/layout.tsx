@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { StackProvider, StackTheme } from "@stackframe/stack";
 import { stackServerApp } from "@/stack/server";
 import "./globals.css";
+import "@excalidraw/excalidraw/index.css";
 
 const geistSans = Geist({
 	variable: "--font-geist-sans",
