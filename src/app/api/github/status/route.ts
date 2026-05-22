@@ -1,4 +1,4 @@
-import { requireGithubAccessToken } from "@/server/auth";
+import { GithubAccessTokenError, requireGithubAccessToken } from "@/server/auth";
 import { upsertGithubConnection, upsertUser } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
 import { getAuthenticatedGithubUser } from "@/server/github";
@@ -19,6 +19,7 @@ export async function GET() {
 
 		return jsonOk({
 			connected: true,
+			scopes,
 			github: {
 				login: githubUser.login,
 				id: githubUser.id,
@@ -27,6 +28,15 @@ export async function GET() {
 			},
 		});
 	} catch (error) {
+		if (error instanceof GithubAccessTokenError) {
+			return jsonOk({
+				connected: false,
+				reason: error.code,
+				message: error.message,
+				scopes: getGithubOAuthScopes(),
+			});
+		}
+
 		return jsonError(error);
 	}
 }

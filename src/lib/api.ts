@@ -20,15 +20,23 @@ export type AuthMeResponse = {
 	} | null;
 };
 
-export type GithubStatus = {
-	connected: boolean;
-	github: {
-		login: string;
-		id: number;
-		avatarUrl: string | null;
-		htmlUrl: string;
-	};
-};
+export type GithubStatus =
+	| {
+			connected: true;
+			scopes: string[];
+			github: {
+				login: string;
+				id: number;
+				avatarUrl: string | null;
+				htmlUrl: string;
+			};
+	  }
+	| {
+			connected: false;
+			reason: "github_not_connected" | "github_oauth_app_required" | "github_token_unavailable";
+			message: string;
+			scopes: string[];
+	  };
 
 export type BootstrapResponse = {
 	workspace: Workspace;

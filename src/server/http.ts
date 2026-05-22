@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { UnauthorizedError } from "@/server/auth";
+import { GithubAccessTokenError, UnauthorizedError } from "@/server/auth";
 
 export class HttpError extends Error {
 	constructor(
@@ -33,6 +33,10 @@ export function jsonOk<T>(data: T, init?: ResponseInit) {
 export function jsonError(error: unknown) {
 	if (error instanceof UnauthorizedError) {
 		return NextResponse.json({ error: error.message }, { status: 401 });
+	}
+
+	if (error instanceof GithubAccessTokenError) {
+		return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
 	}
 
 	if (error instanceof HttpError) {
