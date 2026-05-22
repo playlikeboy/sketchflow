@@ -2,7 +2,13 @@ import { and, desc, eq, sql } from "drizzle-orm";
 
 import type { SketchflowUser } from "@/server/auth";
 import { getDb } from "@/server/db/client";
-import { sketchflowSyncEvents, sketchflowUsers, sketchflowWorkspaces, type WorkspaceRow } from "@/server/db/schema";
+import {
+	sketchflowGithubConnections,
+	sketchflowSyncEvents,
+	sketchflowUsers,
+	sketchflowWorkspaces,
+	type WorkspaceRow,
+} from "@/server/db/schema";
 
 export type WorkspaceVisibility = "private" | "public";
 
@@ -33,6 +39,12 @@ export type SyncEventInput = {
 	commitSha?: string | null;
 	message?: string | null;
 	metadata?: Record<string, unknown>;
+};
+
+export type GithubConnectionInput = {
+	githubLogin: string;
+	githubUserId: string;
+	scopes: string[];
 };
 
 function mapWorkspace(row: WorkspaceRow): WorkspaceRecord {
@@ -67,6 +79,29 @@ export async function upsertUser(user: SketchflowUser) {
 				email: user.primaryEmail,
 				displayName: user.displayName,
 				avatarUrl: user.profileImageUrl,
+				updatedAt: sql`now()`,
+			},
+		});
+}
+
+export async function upsertGithubConnection(stackUserId: string, input: GithubConnectionInput) {
+	const db = getDb();
+
+	await db
+		.insert(sketchflowGithubConnections)
+		.values({
+			id: crypto.randomUUID(),
+			stackUserId,
+			githubLogin: input.githubLogin,
+			githubUserId: input.githubUserId,
+			scopes: input.scopes,
+			updatedAt: sql`now()`,
+		})
+		.onConflictDoUpdate({
+			target: [sketchflowGithubConnections.stackUserId, sketchflowGithubConnections.githubLogin],
+			set: {
+				githubUserId: input.githubUserId,
+				scopes: input.scopes,
 				updatedAt: sql`now()`,
 			},
 		});

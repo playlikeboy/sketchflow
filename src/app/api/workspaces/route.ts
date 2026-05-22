@@ -1,7 +1,7 @@
 import { requireUser, normalizeStackUser } from "@/server/auth";
 import { upsertUser } from "@/server/db/repositories";
 import { listWorkspaces, upsertWorkspace, type WorkspaceVisibility } from "@/server/db/repositories";
-import { jsonError, jsonOk } from "@/server/http";
+import { BadRequestError, jsonError, jsonOk } from "@/server/http";
 import { isJsonObject, optionalString, requiredString } from "@/server/validation";
 
 function parseVisibility(value: string | undefined): WorkspaceVisibility {
@@ -13,7 +13,7 @@ function parseVisibility(value: string | undefined): WorkspaceVisibility {
 		return value;
 	}
 
-	throw new Error('Expected "visibility" to be "private" or "public"');
+	throw new BadRequestError('Expected "visibility" to be "private" or "public"');
 }
 
 export async function GET() {
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
 		const body = await request.json();
 		if (!isJsonObject(body)) {
-			throw new Error("Expected a JSON object body");
+			throw new BadRequestError("Expected a JSON object body");
 		}
 
 		const workspace = await upsertWorkspace(user.id, {
