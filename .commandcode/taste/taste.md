@@ -3,5 +3,5 @@
 [cmd]: https://commandcode.ai/
 
 # ui
-- Use shadcn/ui components for the application UI. Confidence: 0.55
+- Use shadcn/ui components for the application UI. Confidence: 0.80
 
