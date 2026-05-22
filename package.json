@@ -7,6 +7,9 @@
 		"build": "next build",
 		"start": "next start",
 		"lint": "next lint",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "drizzle-kit migrate",
+		"db:push": "drizzle-kit push",
 		"deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
 		"upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
 		"preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
@@ -16,9 +19,11 @@
 		"@neondatabase/serverless": "^1.1.0",
 		"@opennextjs/cloudflare": "^1.19.9",
 		"@stackframe/stack": "^2.8.95",
+		"drizzle-orm": "^0.45.2",
 		"next": "16.2.6",
 		"react": "^19.1.7",
-		"react-dom": "^19.1.7"
+		"react-dom": "^19.1.7",
+		"server-only": "^0.0.1"
 	},
 	"devDependencies": {
 		"@eslint/eslintrc": "^3",
@@ -26,6 +31,7 @@
 		"@types/node": "^25.9.1",
 		"@types/react": "^19.1.7",
 		"@types/react-dom": "^19.1.7",
+		"drizzle-kit": "^0.31.10",
 		"eslint": "^9",
 		"eslint-config-next": "16.2.6",
 		"tailwindcss": "^4",
