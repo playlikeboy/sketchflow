@@ -34,6 +34,7 @@ type StackUserLike = {
 	primaryEmail?: string | null;
 	displayName?: string | null;
 	profileImageUrl?: string | null;
+	listConnectedAccounts?: () => Promise<unknown[]>;
 	getConnectedAccount?: (
 		provider: string,
 		options?: { scopes?: string[]; or?: "redirect" | "throw" | "return-null" },
@@ -41,6 +42,8 @@ type StackUserLike = {
 };
 
 type OAuthConnectionLike = {
+	id?: string;
+	provider?: string;
 	getAccessToken: (options?: { scopes?: string[] }) => Promise<
 		| {
 				status: "ok";
@@ -49,6 +52,9 @@ type OAuthConnectionLike = {
 		| {
 				status: "error";
 				error: unknown;
+		  }
+		| {
+				accessToken: string;
 		  }
 	>;
 };
@@ -87,6 +93,53 @@ function githubTokenError(
 	return new GithubAccessTokenError("github_token_unavailable", message || fallback);
 }
 
+function isOAuthConnectionLike(account: unknown): account is OAuthConnectionLike {
+	return Boolean(
+		account &&
+			typeof account === "object" &&
+			"getAccessToken" in account &&
+			typeof account.getAccessToken === "function",
+	);
+}
+
+function isGithubConnection(account: OAuthConnectionLike) {
+	return account.provider === "github" || account.id === "github";
+}
+
+async function getGithubConnection(user: StackUserLike, scopes: string[]) {
+	if (user.listConnectedAccounts) {
+		const accounts = await user.listConnectedAccounts();
+		const githubAccount = accounts.find((account) => isOAuthConnectionLike(account) && isGithubConnection(account));
+
+		if (isOAuthConnectionLike(githubAccount)) {
+			return githubAccount;
+		}
+	}
+
+	if (!user.getConnectedAccount) {
+		return null;
+	}
+
+	return (await user.getConnectedAccount("github", {
+		scopes,
+		or: "return-null",
+	})) as OAuthConnectionLike | null;
+}
+
+async function getAccessTokenFromConnection(account: OAuthConnectionLike, scopes: string[]) {
+	const token = await account.getAccessToken({ scopes });
+
+	if ("status" in token) {
+		if (token.status === "ok") {
+			return token.data.accessToken;
+		}
+
+		throw githubTokenError(token.error);
+	}
+
+	return token.accessToken;
+}
+
 export function normalizeStackUser(user: StackUserLike): SketchflowUser {
 	return {
 		id: user.id,
@@ -114,16 +167,13 @@ export async function requireUser() {
 export async function requireGithubAccessToken(scopes: string[]) {
 	const user = await requireUser();
 
-	if (!user.getConnectedAccount) {
+	if (!user.listConnectedAccounts && !user.getConnectedAccount) {
 		throw new UnauthorizedError("GitHub account is not connected");
 	}
 
 	let account: OAuthConnectionLike | null;
 	try {
-		account = (await user.getConnectedAccount("github", {
-			scopes,
-			or: "return-null",
-		})) as OAuthConnectionLike | null;
+		account = await getGithubConnection(user, scopes);
 	} catch (error) {
 		throw githubTokenError(error, "GitHub account is not connected");
 	}
@@ -132,19 +182,18 @@ export async function requireGithubAccessToken(scopes: string[]) {
 		throw new GithubAccessTokenError("github_not_connected", "GitHub account is not connected");
 	}
 
-	let token: Awaited<ReturnType<OAuthConnectionLike["getAccessToken"]>>;
+	let accessToken: string;
 	try {
-		token = await account.getAccessToken({ scopes });
+		accessToken = await getAccessTokenFromConnection(account, scopes);
 	} catch (error) {
+		if (error instanceof GithubAccessTokenError) {
+			throw error;
+		}
 		throw githubTokenError(error);
 	}
 
-	if (token.status !== "ok") {
-		throw githubTokenError(token.error);
-	}
-
 	return {
-		accessToken: token.data.accessToken,
+		accessToken,
 		user: normalizeStackUser(user),
 	};
 }
