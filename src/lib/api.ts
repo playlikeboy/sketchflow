@@ -125,7 +125,7 @@ export function getGithubStatus() {
 	return apiJson<GithubStatus>("/api/github/status");
 }
 
-export function bootstrapWorkspace(input: { repoName: string; private: boolean }) {
+export function bootstrapWorkspace(input: { repoName: string; private?: boolean }) {
 	return apiJson<BootstrapResponse>("/api/workspaces/bootstrap", {
 		method: "POST",
 		json: input,

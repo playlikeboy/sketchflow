@@ -80,7 +80,7 @@ function AppSidebar() {
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.label}>
-                  <SidebarMenuButton asChild tooltip={item.label}>
+                  <SidebarMenuButton asChild>
                     <Link href={item.href}>
                       <item.icon />
                       <span>{item.label}</span>

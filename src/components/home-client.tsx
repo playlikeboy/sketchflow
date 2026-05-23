@@ -5,25 +5,30 @@ import { useRouter } from "next/navigation";
 import { useStackApp } from "@stackframe/stack";
 import {
   ArrowRight,
-  CheckCircle2,
+  ChevronDown,
+  ExternalLink,
   GitBranch,
   GitCommit,
   GitFork,
   HardDrive,
   Layout,
   Loader2,
-  LockKeyhole,
   PanelRight,
   PenTool,
   Plus,
   RefreshCw,
   ShieldCheck,
-  Users,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Card,
   CardContent,
@@ -37,6 +42,8 @@ import { bootstrapWorkspace, getAuthMe, getGithubStatus, getWorkspaces, type Aut
 import { connectGithubAccount } from "@/lib/github-connect";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
+
+const APP_URL = "https://sketchflow.shraj.workers.dev";
 
 const features = [
   {
@@ -71,6 +78,82 @@ const features = [
   },
 ];
 
+function connectionCopy(status: GithubStatus | null) {
+  if (status?.connected) {
+    return `Connected to ${status.github.login}`;
+  }
+
+  return "Connect GitHub to create a workspace repo.";
+}
+
+function friendlyError(message: string) {
+  if (message.toLowerCase().includes("github")) {
+    return "GitHub needs one more connection step. Reconnect and approve access to continue.";
+  }
+
+  return message;
+}
+
+function ProductPreview() {
+  return (
+    <div className="mx-auto mt-12 w-full max-w-5xl overflow-hidden rounded-xl border bg-card text-left shadow-sm">
+      <div className="flex h-10 items-center justify-between border-b px-4">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="size-2 rounded-full bg-foreground" />
+          GitHub workspace
+        </div>
+        <Badge variant="secondary" className="font-normal">
+          Synced
+        </Badge>
+      </div>
+      <div className="grid min-h-[340px] md:grid-cols-[220px_1fr_260px]">
+        <aside className="border-b bg-muted/30 p-4 md:border-r md:border-b-0">
+          {["Projects", "Sketches", "Docs", "Public pages"].map((item, index) => (
+            <div
+              key={item}
+              className={`mb-2 rounded-md px-3 py-2 text-sm ${index === 0 ? "bg-background font-medium shadow-xs" : "text-muted-foreground"}`}
+            >
+              {item}
+            </div>
+          ))}
+        </aside>
+        <div className="relative min-h-[260px] bg-background p-6">
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-[size:32px_32px] opacity-35" />
+          <div className="relative grid h-full place-items-center">
+            <div className="grid gap-4">
+              <div className="rounded-lg border bg-card px-5 py-3 text-sm font-medium shadow-sm">
+                Product flow
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-lg border bg-card px-4 py-3 text-xs text-muted-foreground shadow-sm">
+                  PRD.md
+                </div>
+                <div className="rounded-lg border bg-card px-4 py-3 text-xs text-muted-foreground shadow-sm">
+                  system-map.excalidraw.json
+                </div>
+              </div>
+              <div className="mx-auto h-8 w-px bg-border" />
+              <div className="rounded-lg border bg-card px-5 py-3 text-sm font-medium shadow-sm">
+                Commit snapshot
+              </div>
+            </div>
+          </div>
+        </div>
+        <aside className="border-t bg-muted/20 p-4 md:border-t-0 md:border-l">
+          <div className="mb-3 text-xs font-medium uppercase text-muted-foreground">
+            Project memory
+          </div>
+          {["README.md", "notes.md", "exports/", "share.json"].map((item) => (
+            <div key={item} className="mb-2 rounded-md border bg-background px-3 py-2 font-mono text-xs">
+              {item}
+            </div>
+          ))}
+        </aside>
+      </div>
+    </div>
+  );
+}
+
 export function HomeClient() {
   const app = useStackApp();
   const router = useRouter();
@@ -80,7 +163,8 @@ export function HomeClient() {
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [repoName, setRepoName] = useState("sketchflow-workspace");
-  const [isPrivate, setIsPrivate] = useState(true);
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [connectingGithub, setConnectingGithub] = useState(false);
 
@@ -114,16 +198,13 @@ export function HomeClient() {
         } else {
           setError(
             workspaceResult.reason instanceof Error
-              ? workspaceResult.reason.message
-              : "Could not load workspaces"
+              ? friendlyError(workspaceResult.reason.message)
+              : "Workspace data is temporarily unavailable"
           );
         }
 
         if (githubResult.status === "fulfilled") {
           setGithubStatus(githubResult.value);
-          if (!githubResult.value.connected && githubResult.value.reason === "github_oauth_app_required") {
-            setError(githubResult.value.message);
-          }
         } else {
           setGithubStatus(null);
         }
@@ -132,8 +213,8 @@ export function HomeClient() {
       })
       .catch((authError) => {
         if (!mounted) return;
-        setError(
-          authError instanceof Error ? authError.message : "Could not load auth state"
+      setError(
+          authError instanceof Error ? friendlyError(authError.message) : "Session is temporarily unavailable"
         );
         setLoadState("error");
       });
@@ -161,8 +242,8 @@ export function HomeClient() {
     } catch (bootstrapError) {
       setError(
         bootstrapError instanceof Error
-          ? bootstrapError.message
-          : "Could not create the workspace repo"
+          ? friendlyError(bootstrapError.message)
+          : "Workspace creation did not finish"
       );
     } finally {
       setBootstrapping(false);
@@ -179,13 +260,13 @@ export function HomeClient() {
       setGithubStatus(nextStatus);
 
       if (!nextStatus.connected) {
-        setError(nextStatus.message);
+        setError("GitHub needs one more connection step. Reconnect and approve access to continue.");
       }
     } catch (connectError) {
       setError(
         connectError instanceof Error
-          ? connectError.message
-          : "Could not start GitHub connection"
+          ? friendlyError(connectError.message)
+          : "GitHub connection did not finish"
       );
     } finally {
       setConnectingGithub(false);
@@ -224,37 +305,37 @@ export function HomeClient() {
         </header>
 
         {/* Hero */}
-        <section className="mx-auto max-w-6xl px-5 pt-20 pb-16 sm:px-8 sm:pt-28 sm:pb-20">
+        <section className="mx-auto max-w-6xl px-5 pt-18 pb-14 sm:px-8 sm:pt-24 sm:pb-18">
           <div className="mx-auto max-w-3xl text-center">
             <Badge variant="secondary" className="mb-6 gap-1.5 px-3 py-1 text-sm font-normal">
               <ShieldCheck className="size-4" />
-              Your repo stays the source of truth
+              GitHub-native visual workspace
             </Badge>
-            <h1 className="text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
-              Sketch, document, and sync
-              <br />
-              every project artifact to GitHub.
+            <h1 className="text-4xl font-semibold leading-[1.05] sm:text-6xl">
+              Sketchflow
             </h1>
-            <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-muted-foreground">
-              Sketchflow is a visual workspace that stores every sketch, doc, and export in your
-              GitHub repo — not in a closed database. Start with Excalidraw, grow into a full
-              project hub.
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-muted-foreground">
+              A calm canvas for builders. Sketch system maps, keep docs beside the work,
+              publish project pages, and store every artifact in your own GitHub repo.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Button size="lg" onClick={() => void app.redirectToSignUp()}>
                 <Plus className="size-4" />
-                Start with GitHub
+                Create workspace
               </Button>
               <Button
                 variant="outline"
                 size="lg"
-                onClick={() => void app.redirectToSignIn()}
+                asChild
               >
-                <LockKeyhole className="size-4" />
-                Sign in to workspace
+                <Link href={APP_URL} target="_blank">
+                  <ExternalLink className="size-4" />
+                  View live app
+                </Link>
               </Button>
             </div>
           </div>
+          <ProductPreview />
         </section>
 
         {/* Feature grid */}
@@ -376,9 +457,9 @@ export function HomeClient() {
         <section className="grid gap-4 lg:grid-cols-[1fr_380px]">
           <Card>
             <CardHeader>
-              <CardTitle>Create or connect your Sketchflow repo</CardTitle>
+              <CardTitle>Create your workspace</CardTitle>
               <CardDescription>
-                Sketches and docs will live in GitHub. Postgres keeps only app metadata.
+                Sketchflow initializes a public GitHub repo with projects, docs, and a first canvas.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -401,20 +482,22 @@ export function HomeClient() {
                     <CardHeader>
                       <div className="flex items-center gap-2">
                         <GitBranch className="size-4" />
-                        <CardTitle>GitHub connection</CardTitle>
+                        <CardTitle>GitHub</CardTitle>
                       </div>
                     </CardHeader>
                     <CardContent>
 	                      {githubConnected ? (
-	                        <span className="text-sm text-green-700 dark:text-green-300">
-	                          Connected as {githubConnected ? githubStatus!.github.login : ""}
-	                        </span>
+	                        <div className="flex items-center justify-between gap-3">
+	                          <span className="text-sm font-medium">
+	                            {connectionCopy(githubStatus)}
+	                          </span>
+	                          <Badge variant="secondary" className="font-normal">
+	                            Ready
+	                          </Badge>
+	                        </div>
 	                      ) : (
 	                        <div className="space-y-3 text-sm text-muted-foreground">
-	                          <p>
-	                            {githubStatus?.message ??
-	                              "Connect GitHub to create and sync your Sketchflow workspace repo."}
-	                          </p>
+	                          <p>{connectionCopy(githubStatus)}</p>
 	                          <Button
 	                            variant="outline"
 	                            size="sm"
@@ -442,21 +525,36 @@ export function HomeClient() {
                         onChange={(event) => setRepoName(event.target.value)}
                       />
                     </div>
-                    <div className="flex items-end gap-2">
-                      <div className="flex h-10 items-center gap-2 rounded-lg border border-input px-3">
-                        <input
-                          type="checkbox"
-                          id="private"
-                          checked={isPrivate}
-                          onChange={(event) => setIsPrivate(event.target.checked)}
-                          className="size-4 accent-foreground"
-                        />
-                        <Label htmlFor="private" className="text-sm font-normal cursor-pointer">
-                          Private
-                        </Label>
-                      </div>
+                    <div className="flex items-end">
+                      <Badge variant="outline" className="h-10 rounded-lg px-3 font-normal">
+                        Public by default
+                      </Badge>
                     </div>
                   </div>
+
+                  <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="sm" className="px-0 text-muted-foreground">
+                        <ChevronDown className={`size-4 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
+                        Advanced
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="rounded-lg border bg-muted/20 p-3">
+                      <label className="flex items-start gap-3 text-sm">
+                        <Checkbox
+                          checked={isPrivate}
+                          onCheckedChange={(checked) => setIsPrivate(checked === true)}
+                          className="mt-0.5"
+                        />
+                        <span>
+                          <span className="block font-medium">Create as a private repo</span>
+                          <span className="text-muted-foreground">
+                            Use this for sensitive sketches. Secret scanning and repo security settings stay managed in GitHub.
+                          </span>
+                        </span>
+                      </label>
+                    </CollapsibleContent>
+                  </Collapsible>
 
 	                  <Button
 	                    disabled={!githubConnected || bootstrapping}
@@ -468,13 +566,13 @@ export function HomeClient() {
                     ) : (
                       <Plus className="size-4" />
                     )}
-                    Create/connect repo
+                    Create workspace
                   </Button>
                 </>
               )}
 
               {error ? (
-                <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
                   {error}
                 </div>
               ) : null}
@@ -485,7 +583,7 @@ export function HomeClient() {
             <Card size="sm">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>Backend status</CardTitle>
+                  <CardTitle>Workspace readiness</CardTitle>
                   <Button
                     variant="ghost"
                     size="icon-xs"
@@ -498,20 +596,24 @@ export function HomeClient() {
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="rounded-lg border bg-background px-3 py-2">
-                  <div className="text-xs text-muted-foreground">Auth</div>
-                  <div className="text-sm">Stack Auth session active</div>
+                  <div className="text-xs text-muted-foreground">Account</div>
+                  <div className="text-sm">Signed in</div>
                 </div>
                 <div className="rounded-lg border bg-background px-3 py-2">
 	                  <div className="text-xs text-muted-foreground">GitHub</div>
 	                  <div className="text-sm">
 	                    {githubConnected
-	                      ? `Connected as ${githubConnected ? githubStatus!.github.login : ""}`
-	                      : githubStatus?.message ?? "Connection needed"}
+	                      ? connectionCopy(githubStatus)
+	                      : "Connect GitHub"}
 	                  </div>
                 </div>
                 <div className="rounded-lg border bg-background px-3 py-2">
                   <div className="text-xs text-muted-foreground">Workspaces</div>
                   <div className="text-sm">{workspaces.length} connected</div>
+                </div>
+                <div className="rounded-lg border bg-background px-3 py-2">
+                  <div className="text-xs text-muted-foreground">Sharing</div>
+                  <div className="text-sm">Project links and embeds are prepared in repo metadata</div>
                 </div>
               </CardContent>
             </Card>

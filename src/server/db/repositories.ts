@@ -133,7 +133,7 @@ export async function upsertWorkspace(stackUserId: string, input: WorkspaceInput
 	const db = getDb();
 	const workspaceId = crypto.randomUUID();
 	const defaultBranch = input.defaultBranch || "main";
-	const visibility = input.visibility || "private";
+	const visibility = input.visibility || "public";
 
 	const [row] = await db
 		.insert(sketchflowWorkspaces)

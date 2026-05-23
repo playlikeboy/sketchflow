@@ -79,14 +79,14 @@ function errorMessage(error: unknown) {
 
 function githubTokenError(
 	error: unknown,
-	fallback = "GitHub access token is unavailable for the requested scopes. Reconnect GitHub and approve repo, read:user, and user:email permissions. If this continues, verify the GitHub OAuth Client ID and Secret are saved under Stack Auth > Auth Methods > GitHub for this same Stack project.",
+	fallback = "Reconnect GitHub to finish setting up your workspace.",
 ) {
 	const message = errorMessage(error);
 
 	if (message.toLowerCase().includes("shared oauth keys")) {
 		return new GithubAccessTokenError(
 			"github_oauth_app_required",
-			"GitHub is connected through Stack Auth shared OAuth keys, which cannot provide access tokens. Add your own GitHub OAuth app credentials in the Stack dashboard, then reconnect GitHub.",
+			"Reconnect GitHub to finish setting up your workspace.",
 		);
 	}
 

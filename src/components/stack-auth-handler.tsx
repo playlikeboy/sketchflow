@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 
 const StackHandler = dynamic(async () => (await import("@stackframe/stack")).StackHandler, {
 	ssr: false,
-	loading: () => <div className="min-h-screen bg-[#f7f5f0]" />,
+	loading: () => <div className="min-h-screen bg-background" />,
 });
 
 export function StackAuthHandler() {

@@ -41,7 +41,7 @@ export const sketchflowWorkspaces = pgTable(
 		repoOwner: text("repo_owner").notNull(),
 		repoName: text("repo_name").notNull(),
 		defaultBranch: text("default_branch").notNull().default("main"),
-		visibility: text("visibility", { enum: ["private", "public"] }).notNull().default("private"),
+		visibility: text("visibility", { enum: ["private", "public"] }).notNull().default("public"),
 		latestCommitSha: text("latest_commit_sha"),
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
 		updatedAt: timestamptz("updated_at").notNull().defaultNow(),

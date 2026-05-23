@@ -6,7 +6,7 @@ import { isJsonObject, optionalString, requiredString } from "@/server/validatio
 
 function parseVisibility(value: string | undefined): WorkspaceVisibility {
 	if (!value) {
-		return "private";
+		return "public";
 	}
 
 	if (value === "private" || value === "public") {

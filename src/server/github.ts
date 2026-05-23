@@ -15,6 +15,8 @@ export type GithubRepository = {
 	name: string;
 	full_name: string;
 	private: boolean;
+	description: string | null;
+	homepage: string | null;
 	html_url: string;
 	default_branch: string;
 	owner: {
@@ -119,6 +121,24 @@ export async function getGithubRepository(accessToken: string, owner: string, re
 	return githubRequest<GithubRepository>(accessToken, repoApiPath(owner, repo));
 }
 
+export async function updateRepositoryDetails(input: {
+	accessToken: string;
+	owner: string;
+	repo: string;
+	description: string;
+	homepage: string;
+	isPrivate: boolean;
+}) {
+	return githubRequest<GithubRepository>(input.accessToken, repoApiPath(input.owner, input.repo), {
+		method: "PATCH",
+		body: JSON.stringify({
+			description: input.description,
+			homepage: input.homepage,
+			private: input.isPrivate,
+		}),
+	});
+}
+
 export async function getBranchHeadSha(accessToken: string, owner: string, repo: string, branch: string) {
 	const ref = await githubRequest<GithubRef>(accessToken, repoApiPath(owner, repo, `/git/ref/heads/${branch}`));
 	return ref.object.sha;
@@ -154,7 +174,7 @@ export async function readGithubFileText(input: {
 	};
 }
 
-export async function createUserRepository(accessToken: string, repoName: string, isPrivate: boolean) {
+export async function createUserRepository(accessToken: string, repoName: string, isPrivate: boolean, appUrl: string) {
 	return githubRequest<GithubRepository>(accessToken, "/user/repos", {
 		method: "POST",
 		body: JSON.stringify({
@@ -162,16 +182,25 @@ export async function createUserRepository(accessToken: string, repoName: string
 			private: isPrivate,
 			auto_init: true,
 			description: "Sketchflow workspace: sketches, docs, exports, and project memory.",
+			homepage: appUrl,
 		}),
 	});
 }
 
-export async function ensureUserRepository(accessToken: string, owner: string, repoName: string, isPrivate: boolean) {
+export async function ensureUserRepository(accessToken: string, owner: string, repoName: string, isPrivate: boolean, appUrl: string) {
 	const githubUser = await getAuthenticatedGithubUser(accessToken);
 
 	try {
 		const repository = await getGithubRepository(accessToken, owner, repoName);
-		return { githubUser, repository, created: false };
+		const updatedRepository = await updateRepositoryDetails({
+			accessToken,
+			owner: repository.owner.login,
+			repo: repository.name,
+			description: "Sketchflow workspace: sketches, docs, exports, and project memory.",
+			homepage: appUrl,
+			isPrivate: repository.private,
+		});
+		return { githubUser, repository: updatedRepository, created: false };
 	} catch (error) {
 		if (!(error instanceof GithubApiError) || error.status !== 404) {
 			throw error;
@@ -181,7 +210,7 @@ export async function ensureUserRepository(accessToken: string, owner: string, r
 			throw new BadRequestError("Only existing organization repositories can be connected right now");
 		}
 
-		const repository = await createUserRepository(accessToken, repoName, isPrivate);
+		const repository = await createUserRepository(accessToken, repoName, isPrivate, appUrl);
 		return { githubUser, repository, created: true };
 	}
 }
@@ -286,15 +315,20 @@ export function buildInitialWorkspaceFiles(input: {
 	branch: string;
 	stackUserId: string;
 	githubLogin: string;
+	appUrl: string;
+	visibility: "private" | "public";
 }) {
 	const now = new Date().toISOString();
+	const projectSlug = "first-project";
+	const sketchSlug = "system-map";
 	const workspace = {
 		schemaVersion: 1,
 		name: input.repo,
 		owner: input.owner,
 		repo: input.repo,
 		defaultBranch: input.branch,
-		visibility: "private",
+		visibility: input.visibility,
+		appUrl: input.appUrl,
 		createdAt: now,
 		updatedAt: now,
 		createdBy: {
@@ -315,6 +349,7 @@ export function buildInitialWorkspaceFiles(input: {
 					schemaVersion: 1,
 					workspaceFile: ".sketchflow/workspace.json",
 					indexes: {
+						projects: ".sketchflow/indexes/projects.json",
 						publicProjects: ".sketchflow/indexes/public-projects.json",
 						search: ".sketchflow/indexes/search-index.json",
 					},
@@ -324,6 +359,28 @@ export function buildInitialWorkspaceFiles(input: {
 						exportsDir: "exports",
 						assetsDir: "assets",
 					},
+				},
+				null,
+				2,
+			)}\n`,
+		},
+		{
+			path: ".sketchflow/indexes/projects.json",
+			content: `${JSON.stringify(
+				{
+					projects: [
+						{
+							id: projectSlug,
+							title: "First Project",
+							visibility: input.visibility,
+							projectFile: `projects/${projectSlug}/project.json`,
+							defaultSketch: `projects/${projectSlug}/sketches/${sketchSlug}.excalidraw.json`,
+							share: {
+								enabled: input.visibility === "public",
+								path: `projects/${projectSlug}`,
+							},
+						},
+					],
 				},
 				null,
 				2,
@@ -342,8 +399,66 @@ export function buildInitialWorkspaceFiles(input: {
 			content: `${JSON.stringify({ documents: [] }, null, 2)}\n`,
 		},
 		{
-			path: "projects/.gitkeep",
-			content: "Sketchflow keeps project sketches, docs, exports, and assets in this directory.\n",
+			path: "README.md",
+			content: `# ${input.repo}\n\nThis is a Sketchflow workspace.\n\nSketches, docs, exports, assets, and project metadata live in this repository so the workspace stays portable and versioned with Git.\n\nOpen the workspace in Sketchflow: ${input.appUrl}\n\n## Structure\n\n- \`.sketchflow/\` workspace manifests, indexes, and sync metadata\n- \`projects/\` project sketches, docs, exports, and assets\n- \`projects/${projectSlug}/sketches/${sketchSlug}.excalidraw.json\` first Excalidraw scene\n\n`,
+		},
+		{
+			path: `projects/${projectSlug}/project.json`,
+			content: `${JSON.stringify(
+				{
+					schemaVersion: 1,
+					id: projectSlug,
+					title: "First Project",
+					visibility: input.visibility,
+					createdAt: now,
+					updatedAt: now,
+					sketches: [
+						{
+							id: sketchSlug,
+							title: "System Map",
+							file: `projects/${projectSlug}/sketches/${sketchSlug}.excalidraw.json`,
+						},
+					],
+					docs: {
+						notes: `projects/${projectSlug}/docs/notes.md`,
+					},
+					sharing: {
+						enabled: input.visibility === "public",
+						embed: false,
+					},
+				},
+				null,
+				2,
+			)}\n`,
+		},
+		{
+			path: `projects/${projectSlug}/sketches/${sketchSlug}.excalidraw.json`,
+			content: `${JSON.stringify(
+				{
+					type: "excalidraw",
+					version: 2,
+					source: input.appUrl,
+					elements: [],
+					appState: {
+						viewBackgroundColor: "#ffffff",
+					},
+					files: {},
+				},
+				null,
+				2,
+			)}\n`,
+		},
+		{
+			path: `projects/${projectSlug}/docs/notes.md`,
+			content: `# First Project\n\nUse this project for sketches, architecture notes, exports, and shareable visual docs.\n`,
+		},
+		{
+			path: `projects/${projectSlug}/exports/.gitkeep`,
+			content: "Exports generated by Sketchflow can live here.\n",
+		},
+		{
+			path: `projects/${projectSlug}/assets/.gitkeep`,
+			content: "Images and project assets can live here.\n",
 		},
 	] satisfies GithubFileChange[];
 }

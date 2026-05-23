@@ -4,7 +4,7 @@ import { DashboardClient } from "@/components/dashboard-client";
 
 export default function AppPage() {
 	return (
-		<Suspense fallback={<div className="min-h-screen bg-[#f7f5f0]" />}>
+		<Suspense fallback={<div className="min-h-screen bg-background" />}>
 			<DashboardClient />
 		</Suspense>
 	);

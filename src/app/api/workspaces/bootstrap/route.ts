@@ -29,18 +29,19 @@ export async function POST(request: Request) {
 		const scopes = getGithubOAuthScopes();
 		const { accessToken } = await requireGithubAccessToken(scopes);
 
-		const body = await request.json().catch(() => ({}));
+	const body = await request.json().catch(() => ({}));
 		if (!isJsonObject(body)) {
 			throw new BadRequestError("Expected a JSON object body");
 		}
 
 		const repoName = validateGithubRepoName(optionalString(body, "repoName") || getOptionalEnv("SKETCHFLOW_REPO_NAME", "sketchflow-workspace"));
-		const isPrivate = optionalBoolean(body, "private") ?? true;
+		const isPrivate = optionalBoolean(body, "private") ?? false;
+		const appUrl = getOptionalEnv("NEXT_PUBLIC_APP_URL", "https://sketchflow.shraj.workers.dev");
 		const requestedOwner = optionalString(body, "repoOwner");
 		const authenticatedGithubUser = await getAuthenticatedGithubUser(accessToken);
 		const repoOwner = requestedOwner || authenticatedGithubUser.login;
 
-		const { githubUser, repository, created } = await ensureUserRepository(accessToken, repoOwner, repoName, isPrivate);
+		const { githubUser, repository, created } = await ensureUserRepository(accessToken, repoOwner, repoName, isPrivate, appUrl);
 		const branch = repository.default_branch || getOptionalEnv("SKETCHFLOW_DEFAULT_BRANCH", "main");
 		const files = buildInitialWorkspaceFiles({
 			owner: repository.owner.login,
@@ -48,6 +49,8 @@ export async function POST(request: Request) {
 			branch,
 			stackUserId: user.id,
 			githubLogin: githubUser.login,
+			appUrl,
+			visibility: parseVisibility(repository.private),
 		});
 
 		const commit = await createCommitOnBranch({

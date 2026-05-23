@@ -10,7 +10,7 @@ export default async function SketchPage({
 	const { workspaceId, projectId, sketchId } = await params;
 
 	return (
-		<Suspense fallback={<div className="min-h-screen bg-[#f7f5f0]" />}>
+		<Suspense fallback={<div className="min-h-screen bg-background" />}>
 			<EditorClient workspaceId={workspaceId} projectId={projectId} sketchId={sketchId} />
 		</Suspense>
 	);

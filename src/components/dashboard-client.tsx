@@ -5,7 +5,9 @@ import { useStackApp } from "@stackframe/stack";
 import {
   ArrowRight,
   Bot,
+  ChevronDown,
   Clock3,
+  Code2,
   FileText,
   GitBranch,
   GitPullRequest,
@@ -21,6 +23,12 @@ import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Card,
   CardContent,
@@ -29,12 +37,27 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { bootstrapWorkspace, getAuthMe, getGithubStatus, getWorkspaces, type GithubStatus, type Workspace } from "@/lib/api";
 import { connectGithubAccount } from "@/lib/github-connect";
 
 function shortSha(value: string | null) {
   return value ? value.slice(0, 7) : "pending";
+}
+
+function connectionCopy(status: GithubStatus | null) {
+  if (status?.connected) {
+    return status.github.login;
+  }
+
+  return "Connect GitHub";
+}
+
+function friendlyError(message: string) {
+  if (message.toLowerCase().includes("github")) {
+    return "GitHub needs one more connection step. Reconnect and approve access to continue.";
+  }
+
+  return message;
 }
 
 export function DashboardClient() {
@@ -44,7 +67,8 @@ export function DashboardClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [repoName, setRepoName] = useState("sketchflow-workspace");
-  const [isPrivate, setIsPrivate] = useState(true);
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [connectingGithub, setConnectingGithub] = useState(false);
 
@@ -71,16 +95,13 @@ export function DashboardClient() {
     } else {
       setError(
         workspaceResult.reason instanceof Error
-          ? workspaceResult.reason.message
-          : "Could not load workspaces"
+          ? friendlyError(workspaceResult.reason.message)
+          : "Workspace data is temporarily unavailable"
       );
     }
 
     if (githubResult.status === "fulfilled") {
       setGithubStatus(githubResult.value);
-      if (!githubResult.value.connected && githubResult.value.reason === "github_oauth_app_required") {
-        setError(githubResult.value.message);
-      }
     } else {
       setGithubStatus(null);
     }
@@ -105,8 +126,8 @@ export function DashboardClient() {
     } catch (bootstrapError) {
       setError(
         bootstrapError instanceof Error
-          ? bootstrapError.message
-          : "Could not create the workspace repo"
+          ? friendlyError(bootstrapError.message)
+          : "Workspace creation did not finish"
       );
     } finally {
       setBootstrapping(false);
@@ -123,13 +144,13 @@ export function DashboardClient() {
       setGithubStatus(nextStatus);
 
       if (!nextStatus.connected) {
-        setError(nextStatus.message);
+        setError("GitHub needs one more connection step. Reconnect and approve access to continue.");
       }
     } catch (connectError) {
       setError(
         connectError instanceof Error
-          ? connectError.message
-          : "Could not start GitHub connection"
+          ? friendlyError(connectError.message)
+          : "GitHub connection did not finish"
       );
     } finally {
       setConnectingGithub(false);
@@ -177,7 +198,7 @@ export function DashboardClient() {
               </CardHeader>
               <CardContent>
                 <div className="text-xl font-semibold">
-                  {githubConnected && githubStatus.connected ? githubStatus.github.login : "Not connected"}
+                  {connectionCopy(githubStatus)}
                 </div>
               </CardContent>
             </Card>
@@ -266,6 +287,18 @@ export function DashboardClient() {
                           {workspace.defaultBranch} &middot; latest commit{" "}
                           {shortSha(workspace.latestCommitSha)}
                         </div>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                          {[
+                            { label: "First Project", value: "projects/first-project" },
+                            { label: "Share page", value: workspace.visibility === "public" ? "Ready" : "Private" },
+                            { label: "Embed", value: workspace.visibility === "public" ? "Available soon" : "Private" },
+                          ].map((item) => (
+                            <div key={item.label} className="rounded-lg border bg-muted/20 px-3 py-2">
+                              <div className="text-xs text-muted-foreground">{item.label}</div>
+                              <div className="truncate text-sm">{item.value}</div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <Button variant="outline" size="sm" asChild>
@@ -290,47 +323,58 @@ export function DashboardClient() {
                   ))}
                 </div>
               ) : (
-                <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
-                  <div className="text-sm text-muted-foreground">
-                    No workspace repo is connected yet. Create one now and Sketchflow will
-                    initialize the `.sketchflow` manifest and project directory.
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-[220px_auto_auto]">
+                <div className="rounded-lg border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
+                  Create your first workspace repo. Sketchflow will add the manifest,
+                  README, first project, docs, and sketch file.
+                </div>
+              )}
+
+              <div className={workspaces.length > 0 ? "mt-4 border-t pt-4" : "mt-4"}>
+                <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_auto]">
                     <Input
                       value={repoName}
                       onChange={(event) => setRepoName(event.target.value)}
                       aria-label="Repository name"
                       placeholder="sketchflow-workspace"
                     />
-                    <div className="flex h-8 items-center gap-2 rounded-lg border border-input px-3">
-                      <input
-                        type="checkbox"
-                        id="private-dash"
-                        checked={isPrivate}
-                        onChange={(event) => setIsPrivate(event.target.checked)}
-                        className="size-3.5 accent-foreground"
-                      />
-                      <Label
-                        htmlFor="private-dash"
-                        className="text-xs font-normal cursor-pointer"
-                      >
-                        Private
-                      </Label>
-                    </div>
-                    <Button
-                      disabled={!githubConnected || bootstrapping}
-                      onClick={handleBootstrap}
-                    >
-                      {bootstrapping ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Plus className="size-4" />
-                      )}
-                      Create
-                    </Button>
+                    <Badge variant="outline" className="h-8 rounded-lg px-3 font-normal">
+                      Public
+                    </Badge>
                   </div>
+                  <Button disabled={!githubConnected || bootstrapping} onClick={handleBootstrap}>
+                    {bootstrapping ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Plus className="size-4" />
+                    )}
+                    New workspace
+                  </Button>
                 </div>
-              )}
+                <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="mt-2">
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="px-0 text-muted-foreground">
+                      <ChevronDown className={`size-4 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
+                      Advanced
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="rounded-lg border bg-muted/20 p-3">
+                    <label className="flex items-start gap-3 text-sm">
+                      <Checkbox
+                        checked={isPrivate}
+                        onCheckedChange={(checked) => setIsPrivate(checked === true)}
+                        className="mt-0.5"
+                      />
+                      <span>
+                        <span className="block font-medium">Create as a private repo</span>
+                        <span className="text-muted-foreground">
+                          Use for internal diagrams. Secret scanning and access controls stay in GitHub.
+                        </span>
+                      </span>
+                    </label>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
             </CardContent>
           </Card>
         </section>
@@ -348,7 +392,8 @@ export function DashboardClient() {
               {[
                 { label: "New sketch", icon: Plus, enabled: Boolean(latestWorkspace) },
                 { label: "Open docs", icon: FileText, enabled: false },
-                { label: "Publish page", icon: Globe, enabled: false },
+                { label: "Share project", icon: Globe, enabled: false },
+                { label: "Embed project", icon: Code2, enabled: false },
                 { label: "Ask AI", icon: Bot, enabled: false },
                 { label: "Version timeline", icon: Clock3, enabled: false },
               ].map((item) => {
@@ -370,10 +415,11 @@ export function DashboardClient() {
 
           <Card size="sm">
             <CardHeader>
-              <CardTitle>Repo conventions</CardTitle>
+              <CardTitle>Repo layout</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2 font-mono text-xs text-muted-foreground">
+                <div>.sketchflow/indexes/projects.json</div>
                 <div>projects/first-project/project.json</div>
                 <div>projects/first-project/sketches/system-map.excalidraw.json</div>
                 <div>projects/first-project/docs/notes.md</div>
