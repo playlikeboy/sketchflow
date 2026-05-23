@@ -5,7 +5,7 @@ type StackAppForGithubConnect = {
 };
 
 type UserWithConnectedAccounts = {
-	getOrLinkConnectedAccount: (provider: string, options?: { scopes?: string[] }) => Promise<unknown>;
+	linkConnectedAccount: (provider: string, options?: { scopes?: string[] }) => Promise<void>;
 };
 
 function hasGithubConnector(user: unknown): user is UserWithConnectedAccounts {
@@ -14,8 +14,8 @@ function hasGithubConnector(user: unknown): user is UserWithConnectedAccounts {
 	}
 
 	return (
-		"getOrLinkConnectedAccount" in user &&
-		typeof user.getOrLinkConnectedAccount === "function"
+		"linkConnectedAccount" in user &&
+		typeof user.linkConnectedAccount === "function"
 	);
 }
 
@@ -23,8 +23,8 @@ export async function connectGithubAccount(app: StackAppForGithubConnect, scopes
 	const user = await app.getUser({ or: "redirect" });
 
 	if (!hasGithubConnector(user)) {
-		throw new Error("Stack Auth user session cannot link connected accounts");
+		throw new Error("Stack Auth user session cannot start GitHub account linking");
 	}
 
-	await user.getOrLinkConnectedAccount("github", { scopes });
+	await user.linkConnectedAccount("github", { scopes });
 }
