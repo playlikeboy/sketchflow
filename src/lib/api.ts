@@ -1,3 +1,5 @@
+import type { ProjectsMetadata, WorkspaceProject } from "@/lib/project-metadata";
+
 export type Workspace = {
 	id: string;
 	stackUserId: string;
@@ -70,6 +72,7 @@ export type SketchLoadResponse = {
 	projectSlug: string;
 	sketchSlug: string;
 	project: unknown | null;
+	projectsMetadata: ProjectsMetadata | null;
 	sketch: SketchScene;
 	notes: string;
 	files: {
@@ -77,6 +80,21 @@ export type SketchLoadResponse = {
 		sketch: unknown | null;
 		notes: unknown | null;
 	};
+};
+
+export type WorkspaceProjectsResponse = {
+	workspace: Workspace;
+	projects: WorkspaceProject[];
+	metadata: ProjectsMetadata | null;
+	metadataPresent: boolean;
+	metadataPath: string;
+	commit?: {
+		sha: string;
+		htmlUrl: string;
+		branch: string;
+		files: string[];
+	};
+	cdnBaseUrl?: string;
 };
 
 export type CommitResponse = {
@@ -138,6 +156,16 @@ export function getSketch(input: { workspaceId: string; projectId: string; sketc
 			input.sketchId,
 		)}`,
 	);
+}
+
+export function getWorkspaceProjects(workspaceId: string) {
+	return apiJson<WorkspaceProjectsResponse>(`/api/workspaces/${encodeURIComponent(workspaceId)}/projects`);
+}
+
+export function syncWorkspaceProjectsMetadata(workspaceId: string) {
+	return apiJson<WorkspaceProjectsResponse>(`/api/workspaces/${encodeURIComponent(workspaceId)}/projects`, {
+		method: "POST",
+	});
 }
 
 export function commitWorkspaceFiles(input: {

@@ -37,83 +37,127 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Duolingo design tokens (shared light/dark) */
+  --duo-feather: #58cc02;
+  --duo-mask: #89e219;
+  --duo-macaw: #1cb0f6;
+  --duo-cardinal: #ff4b4b;
+  --duo-bee: #ffc800;
+  --duo-fox: #ff9600;
+  --duo-beetle: #ce82ff;
+  --duo-humpback: #2b70c9;
+  --duo-feather-shadow: #46a302;
+  --duo-macaw-shadow: #1899d6;
+  --duo-cardinal-shadow: #e53535;
+  --duo-bee-shadow: #e6b400;
+  --duo-fox-shadow: #e68600;
+  --duo-beetle-shadow: #b86ce6;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --radius-pill: 999px;
+  --shadow-btn: 0 5px 0;
+  --shadow-card: 0 2px 0;
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --ease-btn: transform 0.1s ease, box-shadow 0.1s ease;
+
+  /* Duo neutrals for light mode */
+  --duo-eel: #4b4b4b;
+  --duo-wolf: #777777;
+  --duo-hare: #afafaf;
+  --duo-swan: #e5e5e5;
+  --duo-polar: #f7f7f7;
+  --duo-snow: #ffffff;
 }
 
+/* ===== LIGHT MODE (default) ===== */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.99 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --radius: 1rem;
+  --background: #ffffff;
+  --foreground: #4b4b4b;
+  --card: #ffffff;
+  --card-foreground: #4b4b4b;
+  --popover: #ffffff;
+  --popover-foreground: #4b4b4b;
   --primary: #58cc02;
   --primary-foreground: #ffffff;
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.48 0 0);
-  --accent: oklch(0.965 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --secondary: #f7f7f7;
+  --secondary-foreground: #4b4b4b;
+  --muted: #f7f7f7;
+  --muted-foreground: #777777;
+  --accent: #e5e5e5;
+  --accent-foreground: #4b4b4b;
+  --destructive: #ff4b4b;
+  --destructive-foreground: #ffffff;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
   --ring: #58cc02;
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
+  --chart-1: #58cc02;
+  --chart-2: #1cb0f6;
+  --chart-3: #ffc800;
+  --chart-4: #ce82ff;
+  --chart-5: #ff9600;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #4b4b4b;
   --sidebar-primary: #58cc02;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: oklch(0.965 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-accent: #f7f7f7;
+  --sidebar-accent-foreground: #4b4b4b;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #58cc02;
 }
 
+/* ===== DARK MODE (Duolingo-inspired warm dark) ===== */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  --radius: 1rem;
+  --background: #1a1a1a;
+  --foreground: #f0f0f0;
+  --card: #262626;
+  --card-foreground: #f0f0f0;
+  --popover: #262626;
+  --popover-foreground: #f0f0f0;
   --primary: #58cc02;
   --primary-foreground: #ffffff;
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --secondary: #2e2e2e;
+  --secondary-foreground: #e0e0e0;
+  --muted: #2e2e2e;
+  --muted-foreground: #afafaf;
+  --accent: #333333;
+  --accent-foreground: #e0e0e0;
+  --destructive: #ff4b4b;
+  --destructive-foreground: #ffffff;
+  --border: #3a3a3a;
+  --input: #3a3a3a;
   --ring: #58cc02;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
+  --chart-1: #58cc02;
+  --chart-2: #1cb0f6;
+  --chart-3: #ffc800;
+  --chart-4: #ce82ff;
+  --chart-5: #ff9600;
+  --sidebar: #1e1e1e;
+  --sidebar-foreground: #e0e0e0;
   --sidebar-primary: #58cc02;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-accent: #2e2e2e;
+  --sidebar-accent-foreground: #e0e0e0;
+  --sidebar-border: #333333;
+  --sidebar-ring: #58cc02;
+
+  /* Dark-mode overrides for Duolingo neutral tokens */
+  --duo-eel: #e0e0e0;
+  --duo-wolf: #afafaf;
+  --duo-hare: #777777;
+  --duo-swan: #3a3a3a;
+  --duo-polar: #2e2e2e;
+  --duo-snow: #262626;
 }
 
 @layer base {
@@ -122,12 +166,25 @@
   }
 
   html {
-    @apply bg-background font-sans;
+    @apply bg-background;
+    font-family: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
     letter-spacing: 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Nunito", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
   }
 
   button,
@@ -135,9 +192,101 @@
   input,
   textarea,
   select {
-    transition-property: color, background-color, border-color, opacity, box-shadow;
+    transition-property: color, background-color, border-color, opacity, box-shadow, transform;
     transition-duration: 150ms;
   }
+}
+
+/* Duo utility classes — dark-mode aware via CSS variables */
+
+.duo-shadow {
+  box-shadow: 0 5px 0 var(--duo-feather-shadow);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.duo-shadow:active:not(:disabled) {
+  transform: translateY(5px);
+  box-shadow: none;
+}
+
+.duo-progress {
+  background: var(--duo-swan);
+  border-radius: 999px;
+  height: 16px;
+  overflow: hidden;
+}
+
+.duo-progress-fill {
+  background: linear-gradient(to right, var(--duo-feather), var(--duo-mask));
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.6s ease;
+}
+
+.duo-streak {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--duo-fox);
+  font-weight: 800;
+  font-size: 17px;
+}
+
+.duo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  background: var(--duo-bee);
+  color: var(--duo-eel);
+}
+
+.duo-toggle {
+  width: 48px;
+  height: 28px;
+  background: var(--duo-swan);
+  border-radius: 999px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.duo-toggle.active {
+  background: var(--duo-feather);
+}
+
+.duo-toggle-knob {
+  width: 24px;
+  height: 24px;
+  background: var(--duo-snow);
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s;
+}
+
+.duo-toggle.active .duo-toggle-knob {
+  transform: translateX(20px);
+}
+
+.duo-gradient-text {
+  background: linear-gradient(135deg, var(--duo-feather), var(--duo-mask), var(--duo-macaw));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.duo-card {
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 0 var(--border);
 }
 
 .excalidraw {

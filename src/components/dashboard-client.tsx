@@ -4,537 +4,709 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStackApp } from "@stackframe/stack";
 import {
-  ArrowRight,
-  Clock3,
-  Code2,
-  FileText,
-  GitBranch,
-  GitPullRequest,
-  Globe,
-  Loader2,
-  Plus,
-  RefreshCw,
-  ShieldCheck,
-  Sparkles,
+	ArrowRight,
+	Clock3,
+	Code2,
+	FileText,
+	FolderOpen,
+	GitCommit,
+	GitPullRequest,
+	Globe,
+	Layers3,
+	Loader2,
+	Plus,
+	RefreshCw,
+	ShieldCheck,
+	Sparkles,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { WorkspaceAdvancedOptions } from "@/components/workspace-advanced-options";
-import { bootstrapWorkspace, getAuthMe, getGithubStatus, getWorkspaces, type GithubStatus, type Workspace } from "@/lib/api";
+import {
+	bootstrapWorkspace,
+	getAuthMe,
+	getGithubStatus,
+	getWorkspaceProjects,
+	getWorkspaces,
+	syncWorkspaceProjectsMetadata,
+	type GithubStatus,
+	type Workspace,
+} from "@/lib/api";
 import { connectGithubAccount } from "@/lib/github-connect";
+import type { WorkspaceProject } from "@/lib/project-metadata";
 import { slugify } from "@/lib/sketchflow";
 import {
-  DEFAULT_PROJECT_ID,
-  DEFAULT_SKETCH_ID,
-  commitsHref,
-  embedHref,
-  repoFileHref,
-  repoHref,
-  shareHref,
-  sketchHref,
+	DEFAULT_PROJECT_ID,
+	DEFAULT_SKETCH_ID,
+	commitsHref,
+	embedHref,
+	repoFileHref,
+	repoFolderHref,
+	repoHref,
+	shareHref,
+	sketchHref,
 } from "@/lib/workspace-routes";
 
 function shortSha(value: string | null) {
-  return value ? value.slice(0, 7) : "pending";
+	return value ? value.slice(0, 7) : "pending";
 }
 
 function connectionCopy(status: GithubStatus | null) {
-  if (status?.connected) {
-    return status.github.login;
-  }
-
-  return "Connect GitHub";
+	return status?.connected ? status.github.login : "Connect GitHub";
 }
 
 function friendlyError(message: string) {
-  if (message.toLowerCase().includes("github")) {
-    return "GitHub needs one more connection step. Reconnect and approve access to continue.";
-  }
+	if (message.toLowerCase().includes("github")) {
+		return "GitHub needs one more connection step. Reconnect and approve access to continue.";
+	}
 
-  return message;
+	return message;
+}
+
+function firstSketchId(project: WorkspaceProject) {
+	return project.defaultSketchId || project.sketches[0]?.id || DEFAULT_SKETCH_ID;
+}
+
+function formatDate(value: string) {
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? "Recently" : date.toLocaleDateString();
 }
 
 export function DashboardClient() {
-  const app = useStackApp();
-  const router = useRouter();
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [githubStatus, setGithubStatus] = useState<GithubStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [repoName, setRepoName] = useState("sketchflow-workspace");
-  const [isPrivate, setIsPrivate] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [bootstrapping, setBootstrapping] = useState(false);
-  const [connectingGithub, setConnectingGithub] = useState(false);
-  const [quickProjectName, setQuickProjectName] = useState("first-project");
-  const [quickSketchName, setQuickSketchName] = useState("system-map");
+	const app = useStackApp();
+	const appRef = useRef(app);
+	const router = useRouter();
+	const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+	const [projects, setProjects] = useState<WorkspaceProject[]>([]);
+	const [projectsLoading, setProjectsLoading] = useState(false);
+	const [projectsError, setProjectsError] = useState<string | null>(null);
+	const [metadataPresent, setMetadataPresent] = useState(false);
+	const [githubStatus, setGithubStatus] = useState<GithubStatus | null>(null);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+	const [repoName, setRepoName] = useState("sketchflow-workspace");
+	const [isPrivate, setIsPrivate] = useState(false);
+	const [advancedOpen, setAdvancedOpen] = useState(false);
+	const [bootstrapping, setBootstrapping] = useState(false);
+	const [connectingGithub, setConnectingGithub] = useState(false);
+	const [quickProjectName, setQuickProjectName] = useState(DEFAULT_PROJECT_ID);
+	const [quickSketchName, setQuickSketchName] = useState(DEFAULT_SKETCH_ID);
 
-  const latestWorkspace = useMemo(() => workspaces[0] ?? null, [workspaces]);
-  const githubConnected = githubStatus?.connected === true;
+	const selectedWorkspace = useMemo(
+		() => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0] ?? null,
+		[selectedWorkspaceId, workspaces],
+	);
+	const githubConnected = githubStatus?.connected === true;
 
-  async function refresh() {
-    setLoading(true);
-    setError(null);
+	useEffect(() => {
+		appRef.current = app;
+	}, [app]);
 
-    const auth = await getAuthMe();
-    if (!auth.authenticated) {
-      await app.redirectToSignIn();
-      return;
-    }
+	const loadProjects = useCallback(async (workspaceId: string) => {
+		setProjectsLoading(true);
+		setProjectsError(null);
 
-    const [workspaceResult, githubResult] = await Promise.allSettled([
-      getWorkspaces(),
-      getGithubStatus(),
-    ]);
+		try {
+			const response = await getWorkspaceProjects(workspaceId);
+			let nextResponse = response;
 
-    if (workspaceResult.status === "fulfilled") {
-      setWorkspaces(workspaceResult.value.workspaces);
-    } else {
-      setError(
-        workspaceResult.reason instanceof Error
-          ? friendlyError(workspaceResult.reason.message)
-          : "Workspace data is temporarily unavailable"
-      );
-    }
+			if (!response.metadataPresent) {
+				try {
+					nextResponse = await syncWorkspaceProjectsMetadata(workspaceId);
+				} catch (syncError) {
+					setProjectsError(
+						syncError instanceof Error
+							? friendlyError(syncError.message)
+							: "Project index could not be written",
+					);
+				}
+			}
 
-    if (githubResult.status === "fulfilled") {
-      setGithubStatus(githubResult.value);
-    } else {
-      setGithubStatus(null);
-    }
+			setProjects(nextResponse.projects);
+			setMetadataPresent(nextResponse.metadataPresent);
+			setWorkspaces((current) =>
+				current.map((workspace) =>
+					workspace.id === nextResponse.workspace.id ? nextResponse.workspace : workspace,
+				),
+			);
+		} catch (projectError) {
+			setProjects([]);
+			setMetadataPresent(false);
+			setProjectsError(
+				projectError instanceof Error
+					? friendlyError(projectError.message)
+					: "Projects could not be loaded from this repo",
+			);
+		} finally {
+			setProjectsLoading(false);
+		}
+	}, []);
 
-    setLoading(false);
-  }
+	const refresh = useCallback(async () => {
+		setLoading(true);
+		setError(null);
 
-  useEffect(() => {
-    void refresh();
-  }, []);
+		const auth = await getAuthMe();
+		if (!auth.authenticated) {
+			await appRef.current.redirectToSignIn();
+			return;
+		}
 
-  async function handleBootstrap() {
-    setBootstrapping(true);
-    setError(null);
+		const [workspaceResult, githubResult] = await Promise.allSettled([
+			getWorkspaces(),
+			getGithubStatus(),
+		]);
 
-    try {
-      const response = await bootstrapWorkspace({ repoName, private: isPrivate });
-      setWorkspaces((current) => [
-        response.workspace,
-        ...current.filter((workspace) => workspace.id !== response.workspace.id),
-      ]);
-    } catch (bootstrapError) {
-      setError(
-        bootstrapError instanceof Error
-          ? friendlyError(bootstrapError.message)
-          : "Workspace creation did not finish"
-      );
-    } finally {
-      setBootstrapping(false);
-    }
-  }
+		if (workspaceResult.status === "fulfilled") {
+			const nextWorkspaces = workspaceResult.value.workspaces;
+			setWorkspaces(nextWorkspaces);
+			setSelectedWorkspaceId((current) =>
+				current && nextWorkspaces.some((workspace) => workspace.id === current)
+					? current
+					: nextWorkspaces[0]?.id ?? null,
+			);
+		} else {
+			setError(
+				workspaceResult.reason instanceof Error
+					? friendlyError(workspaceResult.reason.message)
+					: "Workspace data is temporarily unavailable",
+			);
+		}
 
-  async function handleConnectGithub() {
-    setConnectingGithub(true);
-    setError(null);
+		if (githubResult.status === "fulfilled") {
+			setGithubStatus(githubResult.value);
+		} else {
+			setGithubStatus(null);
+		}
 
-    try {
-      await connectGithubAccount(app, githubStatus?.scopes);
-      const nextStatus = await getGithubStatus();
-      setGithubStatus(nextStatus);
+		setLoading(false);
+	}, []);
 
-      if (!nextStatus.connected) {
-        setError("GitHub needs one more connection step. Reconnect and approve access to continue.");
-      }
-    } catch (connectError) {
-      setError(
-        connectError instanceof Error
-          ? friendlyError(connectError.message)
-          : "GitHub connection did not finish"
-      );
-    } finally {
-      setConnectingGithub(false);
-    }
-  }
+	useEffect(() => {
+		void refresh();
+	}, [refresh]);
 
-  function openCanvasFromQuickAction() {
-    if (!latestWorkspace) return;
+	useEffect(() => {
+		if (!selectedWorkspaceId) {
+			setProjects([]);
+			setMetadataPresent(false);
+			return;
+		}
 
-    router.push(
-      sketchHref(
-        latestWorkspace.id,
-        slugify(quickProjectName || DEFAULT_PROJECT_ID),
-        slugify(quickSketchName || DEFAULT_SKETCH_ID),
-      ),
-    );
-  }
+		void loadProjects(selectedWorkspaceId);
+	}, [loadProjects, selectedWorkspaceId]);
 
-  return (
-    <AppShell
-      title="Workspace"
-      subtitle={
-        latestWorkspace
-          ? `${latestWorkspace.repoOwner}/${latestWorkspace.repoName}`
-          : "Create a GitHub-backed canvas workspace"
-      }
-      syncLabel={
-        latestWorkspace ? `Synced ${shortSha(latestWorkspace.latestCommitSha)}` : undefined
-      }
-      action={
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => void refresh()}
-          aria-label="Refresh workspace data"
-        >
-          {loading ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <RefreshCw className="size-4" />
-          )}
-        </Button>
-      }
-    >
-      <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
-        <section className="space-y-5">
-          {/* Stat cards */}
-          <div className="grid gap-3 md:grid-cols-3">
-            <Card size="sm">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    GitHub
-                  </CardTitle>
-                  <GitPullRequest className="size-4 text-muted-foreground" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl font-semibold">
-                  {connectionCopy(githubStatus)}
-                </div>
-              </CardContent>
-            </Card>
-            <Card size="sm">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Workspaces
-                  </CardTitle>
-                  <ShieldCheck className="size-4 text-muted-foreground" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl font-semibold">{workspaces.length}</div>
-              </CardContent>
-            </Card>
-            <Card size="sm">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Latest commit
-                  </CardTitle>
-                  <GitBranch className="size-4 text-muted-foreground" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl font-semibold">
-                  {shortSha(latestWorkspace?.latestCommitSha ?? null)}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+	async function handleBootstrap() {
+		setBootstrapping(true);
+		setError(null);
 
-          {/* Error */}
-          {error ? (
-            <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </div>
-          ) : null}
+		try {
+			const response = await bootstrapWorkspace({ repoName, private: isPrivate });
+			setWorkspaces((current) => [
+				response.workspace,
+				...current.filter((workspace) => workspace.id !== response.workspace.id),
+			]);
+			setSelectedWorkspaceId(response.workspace.id);
+			void loadProjects(response.workspace.id);
+		} catch (bootstrapError) {
+			setError(
+				bootstrapError instanceof Error
+					? friendlyError(bootstrapError.message)
+					: "Workspace creation did not finish",
+			);
+		} finally {
+			setBootstrapping(false);
+		}
+	}
 
-          {/* Workspace list */}
-          <Card id="projects">
-            <CardHeader>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <CardTitle>Connected workspaces</CardTitle>
-                  <CardDescription>
-                    Each one maps to a repo that stores sketches, docs, exports, and metadata.
-                  </CardDescription>
-                </div>
-                {githubConnected ? null : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={connectingGithub}
-                    onClick={handleConnectGithub}
-                  >
-                    {connectingGithub ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <GitPullRequest className="size-4" />
-                    )}
-                    Connect GitHub
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {workspaces.length > 0 ? (
-                <div className="divide-y divide-border">
-                  {workspaces.map((workspace) => (
-                    <div
-                      key={workspace.id}
-                      className="grid gap-3 py-4 first:pt-0 last:pb-0 lg:grid-cols-[1fr_auto]"
-                    >
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold">
-                            {workspace.repoOwner}/{workspace.repoName}
-                          </span>
-                          <Badge variant="secondary" className="font-normal">
-                            {workspace.visibility}
-                          </Badge>
-                        </div>
-                        <div className="mt-1 text-sm text-muted-foreground">
-                          {workspace.defaultBranch} &middot; latest commit{" "}
-                          {shortSha(workspace.latestCommitSha)}
-                        </div>
-                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                          {[
-                            { label: "First Project", value: "projects/first-project" },
-                            { label: "Share page", value: workspace.visibility === "public" ? "Ready" : "Private" },
-                            { label: "Embed", value: workspace.visibility === "public" ? "Ready" : "Private" },
-                          ].map((item) => (
-                            <div key={item.label} className="rounded-lg border bg-muted/20 px-3 py-2">
-                              <div className="text-xs text-muted-foreground">{item.label}</div>
-                              <div className="truncate text-sm">{item.value}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button variant="outline" size="sm" asChild>
-                          <Link
-                            href={repoHref(workspace)}
-                            target="_blank"
-                          >
-                            <GitPullRequest className="size-4" />
-                            Repo
-                          </Link>
-                        </Button>
-                        {workspace.visibility === "public" ? (
-                          <>
-                            <Button variant="outline" size="sm" asChild>
-                              <Link href={shareHref(workspace)} target="_blank">
-                                <Globe className="size-4" />
-                                Share
-                              </Link>
-                            </Button>
-                            <Button variant="outline" size="sm" asChild>
-                              <Link href={embedHref(workspace)} target="_blank">
-                                <Code2 className="size-4" />
-                                Embed
-                              </Link>
-                            </Button>
-                          </>
-                        ) : null}
-                        <Button size="sm" asChild>
-                          <Link
-                            href={sketchHref(workspace.id)}
-                          >
-                            <ArrowRight className="size-4" />
-                            Open sketch
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-lg border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
-                  Create your first workspace repo. Sketchflow will add the manifest,
-                  README, first project, docs, and sketch file.
-                </div>
-              )}
+	async function handleConnectGithub() {
+		setConnectingGithub(true);
+		setError(null);
 
-              <div className={workspaces.length > 0 ? "mt-4 border-t pt-4" : "mt-4"}>
-                <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
-                  <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_auto]">
-                    <Input
-                      value={repoName}
-                      onChange={(event) => setRepoName(event.target.value)}
-                      aria-label="Repository name"
-                      placeholder="sketchflow-workspace"
-                    />
-                    <Badge variant="outline" className="h-8 rounded-lg px-3 font-normal">
-                      Public
-                    </Badge>
-                  </div>
-                  <Button disabled={!githubConnected || bootstrapping} onClick={handleBootstrap}>
-                    {bootstrapping ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Plus className="size-4" />
-                    )}
-                    New workspace
-                  </Button>
-                </div>
-                <WorkspaceAdvancedOptions
-                  open={advancedOpen}
-                  onOpenChange={setAdvancedOpen}
-                  isPrivate={isPrivate}
-                  onPrivateChange={setIsPrivate}
-                  className="mt-2"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+		try {
+			await connectGithubAccount(app, githubStatus?.scopes);
+			const nextStatus = await getGithubStatus();
+			setGithubStatus(nextStatus);
 
-        {/* Sidebar */}
-        <aside className="space-y-4">
-          <Card id="recent" size="sm">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Canvas launcher</CardTitle>
-                <Sparkles className="size-4 text-primary" />
-              </div>
-              <CardDescription>
-                Open an existing canvas or type new slugs. The first save creates the files in GitHub.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid gap-2">
-                <Input
-                  value={quickProjectName}
-                  onChange={(event) => setQuickProjectName(event.target.value)}
-                  placeholder="project-slug"
-                  aria-label="Project slug"
-                />
-                <Input
-                  value={quickSketchName}
-                  onChange={(event) => setQuickSketchName(event.target.value)}
-                  placeholder="sketch-slug"
-                  aria-label="Sketch slug"
-                />
-                <Button
-                  className="w-full justify-start"
-                  disabled={!latestWorkspace}
-                  onClick={openCanvasFromQuickAction}
-                >
-                  <Plus className="size-4" />
-                  Open canvas
-                </Button>
-              </div>
+			if (!nextStatus.connected) {
+				setError("GitHub needs one more connection step. Reconnect and approve access to continue.");
+			}
+		} catch (connectError) {
+			setError(
+				connectError instanceof Error
+					? friendlyError(connectError.message)
+					: "GitHub connection did not finish",
+			);
+		} finally {
+			setConnectingGithub(false);
+		}
+	}
 
-              <div className="grid gap-2 border-t pt-3">
-                <Button variant="outline" className="w-full justify-start" disabled={!latestWorkspace} asChild={Boolean(latestWorkspace)}>
-                  {latestWorkspace ? (
-                    <Link href={repoFileHref(latestWorkspace, `projects/${DEFAULT_PROJECT_ID}/docs/notes.md`)} target="_blank">
-                      <FileText className="size-4" />
-                      Open notes
-                    </Link>
-                  ) : (
-                    <>
-                      <FileText className="size-4" />
-                      Open notes
-                    </>
-                  )}
-                </Button>
-                <Button variant="outline" className="w-full justify-start" disabled={!latestWorkspace} asChild={Boolean(latestWorkspace)}>
-                  {latestWorkspace ? (
-                    <Link href={commitsHref(latestWorkspace)} target="_blank">
-                      <Clock3 className="size-4" />
-                      Version history
-                    </Link>
-                  ) : (
-                    <>
-                      <Clock3 className="size-4" />
-                      Version history
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  disabled={!latestWorkspace || latestWorkspace.visibility !== "public"}
-                  asChild={Boolean(latestWorkspace && latestWorkspace.visibility === "public")}
-                >
-                  {latestWorkspace && latestWorkspace.visibility === "public" ? (
-                    <Link href={shareHref(latestWorkspace)} target="_blank">
-                      <Globe className="size-4" />
-                      Share project
-                    </Link>
-                  ) : (
-                    <>
-                      <Globe className="size-4" />
-                      Share project
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  disabled={!latestWorkspace || latestWorkspace.visibility !== "public"}
-                  asChild={Boolean(latestWorkspace && latestWorkspace.visibility === "public")}
-                >
-                  {latestWorkspace && latestWorkspace.visibility === "public" ? (
-                    <Link href={embedHref(latestWorkspace)} target="_blank">
-                      <Code2 className="size-4" />
-                      Embed project
-                    </Link>
-                  ) : (
-                    <>
-                      <Code2 className="size-4" />
-                      Embed project
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+	async function handleSyncProjectIndex() {
+		if (!selectedWorkspace) return;
 
-          <Card id="docs" size="sm">
-            <CardHeader>
-              <CardTitle>Repo layout</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 font-mono text-xs text-muted-foreground">
-                <div>.sketchflow/indexes/projects.json</div>
-                <div>projects/first-project/project.json</div>
-                <div>projects/first-project/sketches/system-map.excalidraw.json</div>
-                <div>projects/first-project/docs/notes.md</div>
-              </div>
-            </CardContent>
-          </Card>
+		setProjectsLoading(true);
+		setProjectsError(null);
 
-          <Card id="public" size="sm">
-            <CardHeader>
-              <CardTitle>Publishing</CardTitle>
-              <CardDescription>Share and embed public project pages from GitHub-backed files.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-muted-foreground">
-              <div>Public workspace repos can expose project pages.</div>
-              <div>Private workspace share controls stay locked until the repo is public.</div>
-            </CardContent>
-          </Card>
+		try {
+			const response = await syncWorkspaceProjectsMetadata(selectedWorkspace.id);
+			setProjects(response.projects);
+			setMetadataPresent(true);
+			setWorkspaces((current) =>
+				current.map((workspace) =>
+					workspace.id === response.workspace.id ? response.workspace : workspace,
+				),
+			);
+		} catch (syncError) {
+			setProjectsError(
+				syncError instanceof Error
+					? friendlyError(syncError.message)
+					: "Project index could not be updated",
+			);
+		} finally {
+			setProjectsLoading(false);
+		}
+	}
 
-          <Card id="templates" size="sm">
-            <CardHeader>
-              <CardTitle>Templates</CardTitle>
-              <CardDescription>Starter systems, product maps, and docs packs will appear here.</CardDescription>
-            </CardHeader>
-          </Card>
-        </aside>
-      </div>
-    </AppShell>
-  );
+	function openCanvasFromQuickAction() {
+		if (!selectedWorkspace) return;
+
+		router.push(
+			sketchHref(
+				selectedWorkspace.id,
+				slugify(quickProjectName || DEFAULT_PROJECT_ID),
+				slugify(quickSketchName || DEFAULT_SKETCH_ID),
+			),
+		);
+	}
+
+	return (
+		<AppShell
+			title="Projects"
+			subtitle={
+				selectedWorkspace
+					? `${selectedWorkspace.repoOwner}/${selectedWorkspace.repoName}`
+					: "Create a GitHub-backed canvas workspace"
+			}
+			syncLabel={
+				selectedWorkspace ? `Synced ${shortSha(selectedWorkspace.latestCommitSha)}` : undefined
+			}
+			workspaces={workspaces}
+			selectedWorkspaceId={selectedWorkspace?.id ?? null}
+			onWorkspaceChange={setSelectedWorkspaceId}
+			action={
+				<Button
+					variant="ghost"
+					size="icon"
+					onClick={() => void refresh()}
+					aria-label="Refresh workspace data"
+				>
+					{loading ? (
+						<Loader2 className="size-4 animate-spin" />
+					) : (
+						<RefreshCw className="size-4" />
+					)}
+				</Button>
+			}
+		>
+			<div className="grid gap-5 xl:grid-cols-[1fr_360px]">
+				<section className="space-y-5">
+					<div className="grid gap-3 md:grid-cols-3">
+						<Card size="sm">
+							<CardHeader>
+								<div className="flex items-center justify-between">
+									<CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+										GitHub
+									</CardTitle>
+									<GitPullRequest className="size-4 text-muted-foreground" />
+								</div>
+							</CardHeader>
+							<CardContent>
+								<div className="text-xl font-semibold">{connectionCopy(githubStatus)}</div>
+							</CardContent>
+						</Card>
+						<Card size="sm">
+							<CardHeader>
+								<div className="flex items-center justify-between">
+									<CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+										Workspaces
+									</CardTitle>
+									<ShieldCheck className="size-4 text-muted-foreground" />
+								</div>
+							</CardHeader>
+							<CardContent>
+								<div className="text-xl font-semibold">{workspaces.length}</div>
+							</CardContent>
+						</Card>
+						<Card size="sm">
+							<CardHeader>
+								<div className="flex items-center justify-between">
+									<CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+										Projects
+									</CardTitle>
+									<Layers3 className="size-4 text-muted-foreground" />
+								</div>
+							</CardHeader>
+							<CardContent>
+								<div className="text-xl font-semibold">{projectsLoading ? "..." : projects.length}</div>
+							</CardContent>
+						</Card>
+					</div>
+
+					{error ? (
+						<div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+							{error}
+						</div>
+					) : null}
+
+					<Card id="projects">
+						<CardHeader>
+							<div className="flex flex-wrap items-center justify-between gap-3">
+								<div>
+									<CardTitle>
+										{selectedWorkspace ? `Projects in ${selectedWorkspace.repoName}` : "Projects"}
+									</CardTitle>
+									<CardDescription>
+										A workspace is one GitHub repo. Projects are folders inside its projects directory.
+									</CardDescription>
+								</div>
+								<div className="flex flex-wrap items-center gap-2">
+									{githubConnected ? null : (
+										<Button
+											variant="outline"
+											size="sm"
+											disabled={connectingGithub}
+											onClick={handleConnectGithub}
+										>
+											{connectingGithub ? (
+												<Loader2 className="size-4 animate-spin" />
+											) : (
+												<GitPullRequest className="size-4" />
+											)}
+											Connect GitHub
+										</Button>
+									)}
+									{selectedWorkspace ? (
+										<Button variant="outline" size="sm" asChild>
+											<Link href={repoFolderHref(selectedWorkspace, "projects")} target="_blank">
+												<FolderOpen className="size-4" />
+												Repo projects
+											</Link>
+										</Button>
+									) : null}
+									<Button
+										variant="outline"
+										size="sm"
+										disabled={!selectedWorkspace || projectsLoading}
+										onClick={handleSyncProjectIndex}
+									>
+										{projectsLoading ? (
+											<Loader2 className="size-4 animate-spin" />
+										) : (
+											<GitCommit className="size-4" />
+										)}
+										Sync index
+									</Button>
+								</div>
+							</div>
+						</CardHeader>
+						<CardContent>
+							{selectedWorkspace ? (
+								<>
+									<div className="mb-4 flex flex-wrap items-center gap-2">
+										<Badge variant="secondary" className="font-normal">
+											{selectedWorkspace.repoOwner}/{selectedWorkspace.repoName}
+										</Badge>
+										<Badge variant="outline" className="font-normal">
+											{selectedWorkspace.visibility}
+										</Badge>
+										<Badge variant="outline" className="font-normal">
+											{selectedWorkspace.defaultBranch}
+										</Badge>
+										<Badge variant={metadataPresent ? "secondary" : "outline"} className="font-normal">
+											{metadataPresent ? "projects-metadata.json synced" : "metadata index missing"}
+										</Badge>
+									</div>
+
+									{projectsError ? (
+										<div className="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+											{projectsError}
+										</div>
+									) : null}
+
+									{projectsLoading ? (
+										<div className="grid gap-3">
+											{[0, 1, 2].map((item) => (
+												<div key={item} className="h-24 animate-pulse rounded-lg bg-muted" />
+											))}
+										</div>
+									) : projects.length > 0 ? (
+										<div className="divide-y divide-border">
+											{projects.map((project) => (
+												<div
+													key={project.id}
+													className="grid gap-3 py-4 first:pt-0 last:pb-0 lg:grid-cols-[1fr_auto]"
+												>
+													<div>
+														<div className="flex flex-wrap items-center gap-2">
+															<span className="font-semibold">{project.title}</span>
+															<Badge variant="secondary" className="font-normal">
+																{project.visibility}
+															</Badge>
+														</div>
+														<div className="mt-1 text-sm text-muted-foreground">
+															projects/{project.id} · {project.sketches.length} sketch
+															{project.sketches.length === 1 ? "" : "es"} · updated {formatDate(project.updatedAt)}
+														</div>
+														<div className="mt-3 grid gap-2 sm:grid-cols-3">
+															{[
+																{ label: "Default sketch", value: project.defaultSketchId },
+																{ label: "Notes", value: project.notesFile },
+																{ label: "Project file", value: project.projectFile },
+															].map((item) => (
+																<div key={item.label} className="rounded-lg border bg-muted/20 px-3 py-2">
+																	<div className="text-xs text-muted-foreground">{item.label}</div>
+																	<div className="truncate text-sm">{item.value}</div>
+																</div>
+															))}
+														</div>
+													</div>
+													<div className="flex flex-wrap items-center gap-2">
+														<Button variant="outline" size="sm" asChild>
+															<Link href={repoFolderHref(selectedWorkspace, `projects/${project.id}`)} target="_blank">
+																<FolderOpen className="size-4" />
+																Files
+															</Link>
+														</Button>
+														{project.visibility === "public" && selectedWorkspace.visibility === "public" ? (
+															<>
+																<Button variant="outline" size="sm" asChild>
+																	<Link href={shareHref(selectedWorkspace, project.id)} target="_blank">
+																		<Globe className="size-4" />
+																		Share
+																	</Link>
+																</Button>
+																<Button variant="outline" size="sm" asChild>
+																	<Link href={embedHref(selectedWorkspace, project.id)} target="_blank">
+																		<Code2 className="size-4" />
+																		Embed
+																	</Link>
+																</Button>
+															</>
+														) : null}
+														<Button size="sm" asChild>
+															<Link href={sketchHref(selectedWorkspace.id, project.id, firstSketchId(project))}>
+																<ArrowRight className="size-4" />
+																Open
+															</Link>
+														</Button>
+													</div>
+												</div>
+											))}
+										</div>
+									) : (
+										<div className="rounded-lg border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
+											No projects found yet. Use the canvas launcher to create a project folder, then save once.
+										</div>
+									)}
+								</>
+							) : (
+								<div className="rounded-lg border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
+									Create or connect a workspace repo. Sketchflow will add the manifest, first project,
+									docs, and project metadata index.
+								</div>
+							)}
+						</CardContent>
+					</Card>
+
+					<Card id="new-workspace">
+						<CardHeader>
+							<CardTitle>New workspace repo</CardTitle>
+							<CardDescription>
+								Use a separate GitHub repo for a different team, product, client, or public portfolio.
+							</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+								<div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_auto]">
+									<Input
+										value={repoName}
+										onChange={(event) => setRepoName(event.target.value)}
+										aria-label="Repository name"
+										placeholder="sketchflow-workspace"
+									/>
+									<Badge variant="outline" className="h-8 rounded-lg px-3 font-normal">
+										Public by default
+									</Badge>
+								</div>
+								<Button disabled={!githubConnected || bootstrapping} onClick={handleBootstrap}>
+									{bootstrapping ? (
+										<Loader2 className="size-4 animate-spin" />
+									) : (
+										<Plus className="size-4" />
+									)}
+									New workspace
+								</Button>
+							</div>
+							<WorkspaceAdvancedOptions
+								open={advancedOpen}
+								onOpenChange={setAdvancedOpen}
+								isPrivate={isPrivate}
+								onPrivateChange={setIsPrivate}
+								className="mt-2"
+							/>
+						</CardContent>
+					</Card>
+				</section>
+
+				<aside className="space-y-4">
+					<Card id="recent" size="sm">
+						<CardHeader>
+							<div className="flex items-center justify-between">
+								<CardTitle>Canvas launcher</CardTitle>
+								<Sparkles className="size-4 text-primary" />
+							</div>
+							<CardDescription>
+								Open an existing canvas or type new slugs. The first save creates the files in GitHub.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-3">
+							<div className="grid gap-2">
+								<Input
+									value={quickProjectName}
+									onChange={(event) => setQuickProjectName(event.target.value)}
+									placeholder="project-slug"
+									aria-label="Project slug"
+								/>
+								<Input
+									value={quickSketchName}
+									onChange={(event) => setQuickSketchName(event.target.value)}
+									placeholder="sketch-slug"
+									aria-label="Sketch slug"
+								/>
+								<Button
+									className="w-full justify-start"
+									disabled={!selectedWorkspace}
+									onClick={openCanvasFromQuickAction}
+								>
+									<Plus className="size-4" />
+									Open canvas
+								</Button>
+							</div>
+
+							<div className="grid gap-2 border-t pt-3">
+								<Button variant="outline" className="w-full justify-start" disabled={!selectedWorkspace} asChild={Boolean(selectedWorkspace)}>
+									{selectedWorkspace ? (
+										<Link href={repoFileHref(selectedWorkspace, `projects/${DEFAULT_PROJECT_ID}/docs/notes.md`)} target="_blank">
+											<FileText className="size-4" />
+											Open notes
+										</Link>
+									) : (
+										<>
+											<FileText className="size-4" />
+											Open notes
+										</>
+									)}
+								</Button>
+								<Button variant="outline" className="w-full justify-start" disabled={!selectedWorkspace} asChild={Boolean(selectedWorkspace)}>
+									{selectedWorkspace ? (
+										<Link href={commitsHref(selectedWorkspace)} target="_blank">
+											<Clock3 className="size-4" />
+											Version history
+										</Link>
+									) : (
+										<>
+											<Clock3 className="size-4" />
+											Version history
+										</>
+									)}
+								</Button>
+								<Button
+									variant="outline"
+									className="w-full justify-start"
+									disabled={!selectedWorkspace || selectedWorkspace.visibility !== "public"}
+									asChild={Boolean(selectedWorkspace && selectedWorkspace.visibility === "public")}
+								>
+									{selectedWorkspace && selectedWorkspace.visibility === "public" ? (
+										<Link href={shareHref(selectedWorkspace, quickProjectName || DEFAULT_PROJECT_ID)} target="_blank">
+											<Globe className="size-4" />
+											Share project
+										</Link>
+									) : (
+										<>
+											<Globe className="size-4" />
+											Share project
+										</>
+									)}
+								</Button>
+								<Button
+									variant="outline"
+									className="w-full justify-start"
+									disabled={!selectedWorkspace || selectedWorkspace.visibility !== "public"}
+									asChild={Boolean(selectedWorkspace && selectedWorkspace.visibility === "public")}
+								>
+									{selectedWorkspace && selectedWorkspace.visibility === "public" ? (
+										<Link href={embedHref(selectedWorkspace, quickProjectName || DEFAULT_PROJECT_ID)} target="_blank">
+											<Code2 className="size-4" />
+											Embed project
+										</Link>
+									) : (
+										<>
+											<Code2 className="size-4" />
+											Embed project
+										</>
+									)}
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
+
+					<Card id="docs" size="sm">
+						<CardHeader>
+							<CardTitle>Repo layout</CardTitle>
+						</CardHeader>
+						<CardContent>
+							<div className="space-y-2 font-mono text-xs text-muted-foreground">
+								<div>.sketchflow/workspace.json</div>
+								<div>projects/projects-metadata.json</div>
+								<div>projects/[project]/project.json</div>
+								<div>projects/[project]/sketches/[sketch].excalidraw.json</div>
+								<div>projects/[project]/docs/notes.md</div>
+							</div>
+						</CardContent>
+					</Card>
+
+					<Card id="public" size="sm">
+						<CardHeader>
+							<CardTitle>Publishing</CardTitle>
+							<CardDescription>Share and embed public project pages from GitHub-backed files.</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-2 text-sm text-muted-foreground">
+							<div>Public workspace repos can expose project pages.</div>
+							<div>Private workspaces stay private unless you make the repo public.</div>
+						</CardContent>
+					</Card>
+
+					<Card id="templates" size="sm">
+						<CardHeader>
+							<CardTitle>Templates</CardTitle>
+							<CardDescription>Starter systems, product maps, and docs packs will appear here.</CardDescription>
+						</CardHeader>
+					</Card>
+				</aside>
+			</div>
+		</AppShell>
+	);
 }

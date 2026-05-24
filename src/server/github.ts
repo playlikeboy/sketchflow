@@ -1,3 +1,4 @@
+import { PROJECTS_METADATA_PATH, buildProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
 import { BadRequestError, HttpError } from "@/server/http";
 
 const GITHUB_API_URL = "https://api.github.com";
@@ -38,6 +39,15 @@ type GithubContentFile = {
 	sha: string;
 	encoding: "base64" | string;
 	content: string;
+	html_url: string;
+	download_url: string | null;
+};
+
+export type GithubDirectoryItem = {
+	type: "file" | "dir" | "symlink" | "submodule";
+	name: string;
+	path: string;
+	sha: string;
 	html_url: string;
 	download_url: string | null;
 };
@@ -172,6 +182,27 @@ export async function readGithubFileText(input: {
 		downloadUrl: file.download_url,
 		content: new TextDecoder().decode(bytes),
 	};
+}
+
+export async function listGithubDirectory(input: {
+	accessToken: string;
+	owner: string;
+	repo: string;
+	path: string;
+	ref: string;
+}) {
+	validateGithubFilePath(input.path);
+
+	const content = await githubRequest<GithubDirectoryItem[] | GithubContentFile>(
+		input.accessToken,
+		repoApiPath(input.owner, input.repo, `/contents/${input.path.split("/").map(encodePathPart).join("/")}?ref=${encodeURIComponent(input.ref)}`),
+	);
+
+	if (!Array.isArray(content)) {
+		throw new BadRequestError(`Expected GitHub directory content for ${input.path}`);
+	}
+
+	return content;
 }
 
 export async function createUserRepository(accessToken: string, repoName: string, isPrivate: boolean, appUrl: string) {
@@ -321,6 +352,33 @@ export function buildInitialWorkspaceFiles(input: {
 	const now = new Date().toISOString();
 	const projectSlug = "first-project";
 	const sketchSlug = "system-map";
+	const firstProject = projectFromProjectJson({
+		projectId: projectSlug,
+		projectJson: {
+			id: projectSlug,
+			title: "First Project",
+			visibility: input.visibility,
+			createdAt: now,
+			updatedAt: now,
+			sketches: [
+				{
+					id: sketchSlug,
+					title: "System Map",
+					file: `projects/${projectSlug}/sketches/${sketchSlug}.excalidraw.json`,
+				},
+			],
+			docs: {
+				notes: `projects/${projectSlug}/docs/notes.md`,
+			},
+			sharing: {
+				enabled: input.visibility === "public",
+				embed: input.visibility === "public",
+			},
+		},
+		fallbackVisibility: input.visibility,
+		fallbackSketchId: sketchSlug,
+		now,
+	});
 	const workspace = {
 		schemaVersion: 1,
 		name: input.repo,
@@ -387,6 +445,22 @@ export function buildInitialWorkspaceFiles(input: {
 			)}\n`,
 		},
 		{
+			path: PROJECTS_METADATA_PATH,
+			content: `${JSON.stringify(
+				buildProjectsMetadata({
+					projects: [firstProject],
+					workspace: {
+						owner: input.owner,
+						repo: input.repo,
+						defaultBranch: input.branch,
+					},
+					now,
+				}),
+				null,
+				2,
+			)}\n`,
+		},
+		{
 			path: ".sketchflow/latest.json",
 			content: `${JSON.stringify({ updatedAt: now, note: "Latest commit is tracked by Sketchflow API responses." }, null, 2)}\n`,
 		},
@@ -412,6 +486,8 @@ export function buildInitialWorkspaceFiles(input: {
 					visibility: input.visibility,
 					createdAt: now,
 					updatedAt: now,
+					projectFile: `projects/${projectSlug}/project.json`,
+					defaultSketch: `projects/${projectSlug}/sketches/${sketchSlug}.excalidraw.json`,
 					sketches: [
 						{
 							id: sketchSlug,
@@ -424,7 +500,7 @@ export function buildInitialWorkspaceFiles(input: {
 					},
 					sharing: {
 						enabled: input.visibility === "public",
-						embed: false,
+						embed: input.visibility === "public",
 					},
 				},
 				null,

@@ -16,14 +16,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { commitWorkspaceFiles, getAuthMe, getSketch, type SketchLoadResponse, type SketchScene } from "@/lib/api";
 import { getDraft, setDraft } from "@/lib/indexeddb";
+import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
 import { draftKey, humanizeSlug, normalizeScene, notesFilePath, projectFilePath, sketchFilePath } from "@/lib/sketchflow";
 
 const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
   ssr: false,
   loading: () => (
-    <div className="grid h-full place-items-center bg-background text-sm text-muted-foreground">
+    <div className="grid h-full place-items-center text-sm font-bold text-muted-foreground">
       <div className="flex items-center gap-2">
-        <Loader2 className="size-4 animate-spin" />
+        <Loader2 className="size-4 animate-spin text-[#58CC02]" />
         Loading editor
       </div>
     </div>
@@ -63,7 +64,7 @@ function toInitialData(scene: SketchScene): ExcalidrawInitialDataState {
   };
 }
 
-function buildProjectFile(projectId: string, existingProject: unknown) {
+function buildProjectFile(projectId: string, sketchId: string, existingProject: unknown) {
   const now = new Date().toISOString();
   const base = existingProject && typeof existingProject === "object" ? existingProject : {};
 
@@ -71,14 +72,37 @@ function buildProjectFile(projectId: string, existingProject: unknown) {
     "visibility" in base && (base as { visibility?: unknown }).visibility === "private"
       ? "private"
       : "public";
+  const currentSketch = {
+    id: sketchId,
+    title: humanizeSlug(sketchId),
+    file: sketchFilePath(projectId, sketchId),
+  };
+  const existingSketches = Array.isArray((base as { sketches?: unknown }).sketches)
+    ? ((base as { sketches: unknown[] }).sketches.filter(
+        (sketch) =>
+          typeof sketch === "object" &&
+          sketch !== null &&
+          (sketch as { id?: unknown }).id !== sketchId,
+      ) as unknown[])
+    : [];
 
   return {
     ...base,
     schemaVersion: 1,
     id: projectId,
     title: humanizeSlug(projectId),
+    projectFile: projectFilePath(projectId),
+    defaultSketch: sketchFilePath(projectId, sketchId),
     updatedAt: now,
     visibility: existingVisibility,
+    sketches: [currentSketch, ...existingSketches],
+    docs: {
+      notes: notesFilePath(projectId),
+    },
+    sharing: {
+      enabled: existingVisibility === "public",
+      embed: existingVisibility === "public",
+    },
   };
 }
 
@@ -226,7 +250,21 @@ export function EditorClient({
     setStatus("Committing to GitHub");
 
     try {
-      const project = buildProjectFile(projectId, data.project);
+      const project = buildProjectFile(projectId, sketchId, data.project);
+      const projectMetadata = mergeProjectsMetadata({
+        existing: data.projectsMetadata,
+        project: projectFromProjectJson({
+          projectId,
+          projectJson: project,
+          fallbackVisibility: data.workspace.visibility,
+          fallbackSketchId: sketchId,
+        }),
+        workspace: {
+          owner: data.workspace.repoOwner,
+          repo: data.workspace.repoName,
+          defaultBranch: data.workspace.defaultBranch,
+        },
+      });
       const notes =
         data.notes ||
         `# ${humanizeSlug(projectId)}\n\nSketch notes for ${humanizeSlug(sketchId)}.\n`;
@@ -246,11 +284,16 @@ export function EditorClient({
             path: notesFilePath(projectId),
             content: notes.endsWith("\n") ? notes : `${notes}\n`,
           },
+          {
+            path: PROJECTS_METADATA_PATH,
+            content: `${JSON.stringify(projectMetadata, null, 2)}\n`,
+          },
         ],
       });
 
       setData({
         ...data,
+        projectsMetadata: projectMetadata,
         workspace: {
           ...data.workspace,
           latestCommitSha: response.commit.sha,
@@ -280,25 +323,28 @@ export function EditorClient({
 
   return (
     <main className="flex h-screen min-h-screen flex-col bg-background">
-      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-background px-3 sm:px-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <Button variant="ghost" size="icon-sm" asChild>
+      {/* Decorative gradient bar */}
+      <div className="h-1 w-full bg-gradient-to-r from-[#58CC02] via-[#1CB0F6] to-[#CE82FF]" />
+
+      <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b-2 border-border bg-background px-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <Button variant="ghost" size="icon-sm" asChild className="text-muted-foreground hover:text-[#58CC02]">
             <Link href="/app" aria-label="Back to dashboard">
               <ArrowLeft className="size-4" />
             </Link>
           </Button>
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-semibold sm:text-base">{title}</h1>
-            <p className="hidden truncate text-xs text-muted-foreground sm:block">{subtitle}</p>
+            <h1 className="truncate text-base font-extrabold tracking-[-0.02em] text-foreground">{title}</h1>
+            <p className="hidden truncate text-sm font-semibold text-muted-foreground sm:block">{subtitle}</p>
           </div>
         </div>
 
         <div className="flex min-w-0 items-center gap-2">
-          <Badge variant="secondary" className="hidden gap-1.5 font-normal md:inline-flex">
+          <Badge variant="secondary" className="hidden gap-1.5 font-extrabold md:inline-flex">
             <GitBranch className="size-3" />
             {dirty ? "Local draft" : `Synced ${shortSha(data?.workspace.latestCommitSha)}`}
           </Badge>
-          <Badge variant="outline" className="hidden font-normal lg:inline-flex">
+          <Badge variant="outline" className="hidden font-extrabold lg:inline-flex">
             {source === "local" ? "Autosaved locally" : status}
           </Badge>
           <Button disabled={!hasScene || saving} onClick={handleManualSave}>
@@ -312,17 +358,17 @@ export function EditorClient({
         </div>
       </header>
 
-      <section className="min-h-0 flex-1 bg-card">
+      <section className="min-h-0 flex-1 bg-background">
         {loading ? (
-          <div className="grid h-full place-items-center text-sm text-muted-foreground">
+          <div className="grid h-full place-items-center text-sm font-bold text-muted-foreground">
             <div className="flex items-center gap-2">
-              <Loader2 className="size-4 animate-spin" />
+              <Loader2 className="size-4 animate-spin text-[#58CC02]" />
               Opening canvas
             </div>
           </div>
         ) : error ? (
           <div className="grid h-full place-items-center p-6">
-            <div className="max-w-md rounded-lg border bg-background p-4 text-sm text-muted-foreground">
+            <div className="max-w-md rounded-[16px] border-2 border-border bg-card p-5 text-sm font-bold text-muted-foreground shadow-[0_2px_0_var(--border)]">
               {error}
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { PROJECTS_METADATA_PATH, normalizeProjectsMetadata } from "@/lib/project-metadata";
 import { requireGithubAccessToken } from "@/server/auth";
 import { getWorkspace } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
@@ -71,9 +72,10 @@ export async function GET(
 			repo: workspace.repoName,
 			ref: workspace.defaultBranch,
 		};
-		const [latestCommitSha, workspaceFile, projectFile, sketchFile, notesFile] = await Promise.all([
+		const [latestCommitSha, workspaceFile, projectsMetadataFile, projectFile, sketchFile, notesFile] = await Promise.all([
 			getBranchHeadSha(accessToken, workspace.repoOwner, workspace.repoName, workspace.defaultBranch),
 			readOptionalJson({ ...base, path: ".sketchflow/workspace.json" }),
+			readOptionalJson({ ...base, path: PROJECTS_METADATA_PATH }),
 			readOptionalJson({ ...base, path: `projects/${projectSlug}/project.json` }),
 			readOptionalJson({ ...base, path: `projects/${projectSlug}/sketches/${sketchSlug}.excalidraw.json` }),
 			readOptionalText({ ...base, path: `projects/${projectSlug}/docs/notes.md` }),
@@ -88,6 +90,7 @@ export async function GET(
 			sketchSlug,
 			workspaceFile,
 			project: projectFile?.json ?? null,
+			projectsMetadata: normalizeProjectsMetadata(projectsMetadataFile?.json),
 			sketch: sketchFile?.json ?? {
 				type: "excalidraw",
 				version: 2,
