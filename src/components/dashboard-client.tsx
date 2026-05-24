@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useStackApp } from "@stackframe/stack";
 import {
   ArrowRight,
-  Bot,
-  ChevronDown,
   Clock3,
   Code2,
   FileText,
@@ -23,12 +22,6 @@ import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   Card,
   CardContent,
@@ -37,8 +30,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { WorkspaceAdvancedOptions } from "@/components/workspace-advanced-options";
 import { bootstrapWorkspace, getAuthMe, getGithubStatus, getWorkspaces, type GithubStatus, type Workspace } from "@/lib/api";
 import { connectGithubAccount } from "@/lib/github-connect";
+import { slugify } from "@/lib/sketchflow";
+import {
+  DEFAULT_PROJECT_ID,
+  DEFAULT_SKETCH_ID,
+  commitsHref,
+  embedHref,
+  repoFileHref,
+  repoHref,
+  shareHref,
+  sketchHref,
+} from "@/lib/workspace-routes";
 
 function shortSha(value: string | null) {
   return value ? value.slice(0, 7) : "pending";
@@ -62,6 +67,7 @@ function friendlyError(message: string) {
 
 export function DashboardClient() {
   const app = useStackApp();
+  const router = useRouter();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [githubStatus, setGithubStatus] = useState<GithubStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,6 +77,8 @@ export function DashboardClient() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [connectingGithub, setConnectingGithub] = useState(false);
+  const [quickProjectName, setQuickProjectName] = useState("first-project");
+  const [quickSketchName, setQuickSketchName] = useState("system-map");
 
   const latestWorkspace = useMemo(() => workspaces[0] ?? null, [workspaces]);
   const githubConnected = githubStatus?.connected === true;
@@ -157,6 +165,18 @@ export function DashboardClient() {
     }
   }
 
+  function openCanvasFromQuickAction() {
+    if (!latestWorkspace) return;
+
+    router.push(
+      sketchHref(
+        latestWorkspace.id,
+        slugify(quickProjectName || DEFAULT_PROJECT_ID),
+        slugify(quickSketchName || DEFAULT_SKETCH_ID),
+      ),
+    );
+  }
+
   return (
     <AppShell
       title="Workspace"
@@ -240,7 +260,7 @@ export function DashboardClient() {
           ) : null}
 
           {/* Workspace list */}
-          <Card>
+          <Card id="projects">
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -291,7 +311,7 @@ export function DashboardClient() {
                           {[
                             { label: "First Project", value: "projects/first-project" },
                             { label: "Share page", value: workspace.visibility === "public" ? "Ready" : "Private" },
-                            { label: "Embed", value: workspace.visibility === "public" ? "Available soon" : "Private" },
+                            { label: "Embed", value: workspace.visibility === "public" ? "Ready" : "Private" },
                           ].map((item) => (
                             <div key={item.label} className="rounded-lg border bg-muted/20 px-3 py-2">
                               <div className="text-xs text-muted-foreground">{item.label}</div>
@@ -303,16 +323,32 @@ export function DashboardClient() {
                       <div className="flex flex-wrap items-center gap-2">
                         <Button variant="outline" size="sm" asChild>
                           <Link
-                            href={`https://github.com/${workspace.repoOwner}/${workspace.repoName}`}
+                            href={repoHref(workspace)}
                             target="_blank"
                           >
                             <GitPullRequest className="size-4" />
                             Repo
                           </Link>
                         </Button>
+                        {workspace.visibility === "public" ? (
+                          <>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={shareHref(workspace)} target="_blank">
+                                <Globe className="size-4" />
+                                Share
+                              </Link>
+                            </Button>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={embedHref(workspace)} target="_blank">
+                                <Code2 className="size-4" />
+                                Embed
+                              </Link>
+                            </Button>
+                          </>
+                        ) : null}
                         <Button size="sm" asChild>
                           <Link
-                            href={`/app/workspaces/${workspace.id}/projects/first-project/sketches/system-map`}
+                            href={sketchHref(workspace.id)}
                           >
                             <ArrowRight className="size-4" />
                             Open sketch
@@ -351,29 +387,13 @@ export function DashboardClient() {
                     New workspace
                   </Button>
                 </div>
-                <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="mt-2">
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="px-0 text-muted-foreground">
-                      <ChevronDown className={`size-4 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
-                      Advanced
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="rounded-lg border bg-muted/20 p-3">
-                    <label className="flex items-start gap-3 text-sm">
-                      <Checkbox
-                        checked={isPrivate}
-                        onCheckedChange={(checked) => setIsPrivate(checked === true)}
-                        className="mt-0.5"
-                      />
-                      <span>
-                        <span className="block font-medium">Create as a private repo</span>
-                        <span className="text-muted-foreground">
-                          Use for internal diagrams. Secret scanning and access controls stay in GitHub.
-                        </span>
-                      </span>
-                    </label>
-                  </CollapsibleContent>
-                </Collapsible>
+                <WorkspaceAdvancedOptions
+                  open={advancedOpen}
+                  onOpenChange={setAdvancedOpen}
+                  isPrivate={isPrivate}
+                  onPrivateChange={setIsPrivate}
+                  className="mt-2"
+                />
               </div>
             </CardContent>
           </Card>
@@ -381,39 +401,108 @@ export function DashboardClient() {
 
         {/* Sidebar */}
         <aside className="space-y-4">
-          <Card size="sm">
+          <Card id="recent" size="sm">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Quick actions</CardTitle>
+                <CardTitle>Canvas launcher</CardTitle>
                 <Sparkles className="size-4 text-primary" />
               </div>
+              <CardDescription>
+                Open an existing canvas or type new slugs. The first save creates the files in GitHub.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {[
-                { label: "New sketch", icon: Plus, enabled: Boolean(latestWorkspace) },
-                { label: "Open docs", icon: FileText, enabled: false },
-                { label: "Share project", icon: Globe, enabled: false },
-                { label: "Embed project", icon: Code2, enabled: false },
-                { label: "Ask AI", icon: Bot, enabled: false },
-                { label: "Version timeline", icon: Clock3, enabled: false },
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Button
-                    key={item.label}
-                    variant="outline"
-                    disabled={!item.enabled}
-                    className="w-full h-10 justify-start gap-3 text-sm"
-                  >
-                    <Icon className="size-4" />
-                    {item.label}
-                  </Button>
-                );
-              })}
+            <CardContent className="space-y-3">
+              <div className="grid gap-2">
+                <Input
+                  value={quickProjectName}
+                  onChange={(event) => setQuickProjectName(event.target.value)}
+                  placeholder="project-slug"
+                  aria-label="Project slug"
+                />
+                <Input
+                  value={quickSketchName}
+                  onChange={(event) => setQuickSketchName(event.target.value)}
+                  placeholder="sketch-slug"
+                  aria-label="Sketch slug"
+                />
+                <Button
+                  className="w-full justify-start"
+                  disabled={!latestWorkspace}
+                  onClick={openCanvasFromQuickAction}
+                >
+                  <Plus className="size-4" />
+                  Open canvas
+                </Button>
+              </div>
+
+              <div className="grid gap-2 border-t pt-3">
+                <Button variant="outline" className="w-full justify-start" disabled={!latestWorkspace} asChild={Boolean(latestWorkspace)}>
+                  {latestWorkspace ? (
+                    <Link href={repoFileHref(latestWorkspace, `projects/${DEFAULT_PROJECT_ID}/docs/notes.md`)} target="_blank">
+                      <FileText className="size-4" />
+                      Open notes
+                    </Link>
+                  ) : (
+                    <>
+                      <FileText className="size-4" />
+                      Open notes
+                    </>
+                  )}
+                </Button>
+                <Button variant="outline" className="w-full justify-start" disabled={!latestWorkspace} asChild={Boolean(latestWorkspace)}>
+                  {latestWorkspace ? (
+                    <Link href={commitsHref(latestWorkspace)} target="_blank">
+                      <Clock3 className="size-4" />
+                      Version history
+                    </Link>
+                  ) : (
+                    <>
+                      <Clock3 className="size-4" />
+                      Version history
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  disabled={!latestWorkspace || latestWorkspace.visibility !== "public"}
+                  asChild={Boolean(latestWorkspace && latestWorkspace.visibility === "public")}
+                >
+                  {latestWorkspace && latestWorkspace.visibility === "public" ? (
+                    <Link href={shareHref(latestWorkspace)} target="_blank">
+                      <Globe className="size-4" />
+                      Share project
+                    </Link>
+                  ) : (
+                    <>
+                      <Globe className="size-4" />
+                      Share project
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  disabled={!latestWorkspace || latestWorkspace.visibility !== "public"}
+                  asChild={Boolean(latestWorkspace && latestWorkspace.visibility === "public")}
+                >
+                  {latestWorkspace && latestWorkspace.visibility === "public" ? (
+                    <Link href={embedHref(latestWorkspace)} target="_blank">
+                      <Code2 className="size-4" />
+                      Embed project
+                    </Link>
+                  ) : (
+                    <>
+                      <Code2 className="size-4" />
+                      Embed project
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
-          <Card size="sm">
+          <Card id="docs" size="sm">
             <CardHeader>
               <CardTitle>Repo layout</CardTitle>
             </CardHeader>
@@ -425,6 +514,24 @@ export function DashboardClient() {
                 <div>projects/first-project/docs/notes.md</div>
               </div>
             </CardContent>
+          </Card>
+
+          <Card id="public" size="sm">
+            <CardHeader>
+              <CardTitle>Publishing</CardTitle>
+              <CardDescription>Share and embed public project pages from GitHub-backed files.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-muted-foreground">
+              <div>Public workspace repos can expose project pages.</div>
+              <div>Private workspace share controls stay locked until the repo is public.</div>
+            </CardContent>
+          </Card>
+
+          <Card id="templates" size="sm">
+            <CardHeader>
+              <CardTitle>Templates</CardTitle>
+              <CardDescription>Starter systems, product maps, and docs packs will appear here.</CardDescription>
+            </CardHeader>
           </Card>
         </aside>
       </div>

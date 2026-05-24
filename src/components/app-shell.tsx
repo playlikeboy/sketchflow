@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { BrandMark } from "@/components/brand-mark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +35,6 @@ import {
   SidebarGroupContent,
   SidebarMenu,
   SidebarMenuItem,
-  SidebarMenuButton,
   SidebarInset,
   SidebarTrigger,
   SidebarSeparator,
@@ -43,11 +43,11 @@ import {
 
 const navItems = [
   { label: "Workspace", href: "/app", icon: LayoutDashboard },
-  { label: "Projects", href: "/app", icon: Folder },
-  { label: "Recent", href: "/app", icon: Clock3 },
-  { label: "Docs", href: "/app", icon: FileText },
-  { label: "Public", href: "/app", icon: Globe },
-  { label: "Templates", href: "/app", icon: Boxes },
+  { label: "Projects", href: "/app#projects", icon: Folder },
+  { label: "Recent", href: "/app#recent", icon: Clock3 },
+  { label: "Docs", href: "/app#docs", icon: FileText },
+  { label: "Public", href: "/app#public", icon: Globe },
+  { label: "Templates", href: "/app#templates", icon: Boxes },
 ];
 
 const futureItems = [
@@ -62,15 +62,11 @@ function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="p-3">
-        <Link href="/" className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
-          <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
-            SF
-          </div>
-          <div className="group-data-[collapsible=icon]:hidden">
-            <div className="text-sm font-semibold">Sketchflow</div>
-            <div className="text-xs text-sidebar-foreground/60">GitHub-native canvas</div>
-          </div>
-        </Link>
+        <BrandMark
+          subtitle="GitHub-native canvas"
+          collapseText
+          className="group-data-[collapsible=icon]:justify-center"
+        />
       </SidebarHeader>
 
       <SidebarContent>
@@ -80,12 +76,14 @@ function AppSidebar() {
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.label}>
-                  <SidebarMenuButton asChild>
-                    <Link href={item.href}>
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
+                  <Link
+                    href={item.href}
+                    className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+                    title={item.label}
+                  >
+                    <item.icon />
+                    <span className="truncate group-data-[collapsible=icon]:hidden">{item.label}</span>
+                  </Link>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

@@ -76,7 +76,7 @@ function buildProjectFile(projectId: string, existingProject: unknown) {
     ...base,
     schemaVersion: 1,
     id: projectId,
-    title: "First Project",
+    title: humanizeSlug(projectId),
     updatedAt: now,
     visibility: existingVisibility,
   };

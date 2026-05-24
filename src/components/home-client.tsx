@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useStackApp } from "@stackframe/stack";
 import {
   ArrowRight,
-  ChevronDown,
   ExternalLink,
   GitBranch,
   GitCommit,
@@ -19,16 +18,11 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { BrandMark } from "@/components/brand-mark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   Card,
   CardContent,
@@ -38,8 +32,10 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { WorkspaceAdvancedOptions } from "@/components/workspace-advanced-options";
 import { bootstrapWorkspace, getAuthMe, getGithubStatus, getWorkspaces, type AuthMeResponse, type GithubStatus, type Workspace } from "@/lib/api";
 import { connectGithubAccount } from "@/lib/github-connect";
+import { sketchHref } from "@/lib/workspace-routes";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 
@@ -172,57 +168,53 @@ export function HomeClient() {
   const user = auth?.user ?? null;
   const githubConnected = githubStatus?.connected === true;
 
-  useEffect(() => {
-    let mounted = true;
+  const refreshHomeState = useCallback(async () => {
     setLoadState("loading");
     setError(null);
 
-    getAuthMe()
-      .then(async (authResponse) => {
-        if (!mounted) return;
-        setAuth(authResponse);
+    try {
+      const authResponse = await getAuthMe();
+      setAuth(authResponse);
 
-        if (!authResponse.authenticated) {
-          setWorkspaces([]);
-          setGithubStatus(null);
-          setLoadState("ready");
-          return;
-        }
+      if (!authResponse.authenticated) {
+        setWorkspaces([]);
+        setGithubStatus(null);
+        setLoadState("ready");
+        return;
+      }
 
-        const results = await Promise.allSettled([getWorkspaces(), getGithubStatus()]);
-        const workspaceResult = results[0];
-        const githubResult = results[1];
+      const results = await Promise.allSettled([getWorkspaces(), getGithubStatus()]);
+      const workspaceResult = results[0];
+      const githubResult = results[1];
 
-        if (workspaceResult.status === "fulfilled") {
-          setWorkspaces(workspaceResult.value.workspaces);
-        } else {
-          setError(
-            workspaceResult.reason instanceof Error
-              ? friendlyError(workspaceResult.reason.message)
-              : "Workspace data is temporarily unavailable"
-          );
-        }
-
-        if (githubResult.status === "fulfilled") {
-          setGithubStatus(githubResult.value);
-        } else {
-          setGithubStatus(null);
-        }
-
-        setLoadState(workspaceResult.status === "fulfilled" ? "ready" : "error");
-      })
-      .catch((authError) => {
-        if (!mounted) return;
-      setError(
-          authError instanceof Error ? friendlyError(authError.message) : "Session is temporarily unavailable"
+      if (workspaceResult.status === "fulfilled") {
+        setWorkspaces(workspaceResult.value.workspaces);
+      } else {
+        setError(
+          workspaceResult.reason instanceof Error
+            ? friendlyError(workspaceResult.reason.message)
+            : "Workspace data is temporarily unavailable",
         );
-        setLoadState("error");
-      });
+      }
 
-    return () => {
-      mounted = false;
-    };
+      if (githubResult.status === "fulfilled") {
+        setGithubStatus(githubResult.value);
+      } else {
+        setGithubStatus(null);
+      }
+
+      setLoadState(workspaceResult.status === "fulfilled" ? "ready" : "error");
+    } catch (authError) {
+      setError(
+        authError instanceof Error ? friendlyError(authError.message) : "Session is temporarily unavailable",
+      );
+      setLoadState("error");
+    }
   }, []);
+
+  useEffect(() => {
+    void refreshHomeState();
+  }, [refreshHomeState]);
 
   useEffect(() => {
     if (primaryWorkspace) {
@@ -283,12 +275,7 @@ export function HomeClient() {
         {/* Nav */}
         <header className="border-b border-border">
           <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5 sm:px-8">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="grid size-8 place-items-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
-                SF
-              </div>
-              <span className="text-sm font-semibold">Sketchflow</span>
-            </Link>
+            <BrandMark />
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={() => void app.redirectToSignIn()}>
                 Sign in
@@ -435,17 +422,7 @@ export function HomeClient() {
     <main className="min-h-screen bg-background px-4 py-5 sm:px-6">
       <div className="mx-auto max-w-5xl">
         <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="grid size-9 place-items-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
-              SF
-            </div>
-            <div>
-              <div className="text-sm font-semibold">Sketchflow</div>
-              <div className="text-xs text-muted-foreground">
-                {user.displayName || user.primaryEmail || "Signed in"}
-              </div>
-            </div>
-          </Link>
+          <BrandMark subtitle={user.displayName || user.primaryEmail || "Signed in"} />
           <Button asChild>
             <Link href="/app">
               <ArrowRight className="size-4" />
@@ -470,9 +447,9 @@ export function HomeClient() {
                     {primaryWorkspace.repoOwner}/{primaryWorkspace.repoName}
                   </div>
                   <Button variant="default" size="sm" className="mt-3" asChild>
-                    <Link href="/app">
+                    <Link href={sketchHref(primaryWorkspace.id)}>
                       <ArrowRight className="size-4" />
-                      Go to dashboard
+                      Open canvas
                     </Link>
                   </Button>
                 </div>
@@ -486,32 +463,32 @@ export function HomeClient() {
                       </div>
                     </CardHeader>
                     <CardContent>
-	                      {githubConnected ? (
-	                        <div className="flex items-center justify-between gap-3">
-	                          <span className="text-sm font-medium">
-	                            {connectionCopy(githubStatus)}
-	                          </span>
-	                          <Badge variant="secondary" className="font-normal">
-	                            Ready
-	                          </Badge>
-	                        </div>
-	                      ) : (
-	                        <div className="space-y-3 text-sm text-muted-foreground">
-	                          <p>{connectionCopy(githubStatus)}</p>
-	                          <Button
-	                            variant="outline"
-	                            size="sm"
-	                            disabled={connectingGithub}
-	                            onClick={handleConnectGithub}
-	                          >
-	                            {connectingGithub ? (
-	                              <Loader2 className="size-4 animate-spin" />
-	                            ) : (
-	                              <GitBranch className="size-4" />
-	                            )}
-	                            Connect GitHub
-	                          </Button>
-	                        </div>
+                      {githubConnected ? (
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-medium">
+                            {connectionCopy(githubStatus)}
+                          </span>
+                          <Badge variant="secondary" className="font-normal">
+                            Ready
+                          </Badge>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 text-sm text-muted-foreground">
+                          <p>{connectionCopy(githubStatus)}</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={connectingGithub}
+                            onClick={handleConnectGithub}
+                          >
+                            {connectingGithub ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <GitBranch className="size-4" />
+                            )}
+                            Connect GitHub
+                          </Button>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -532,34 +509,17 @@ export function HomeClient() {
                     </div>
                   </div>
 
-                  <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="sm" className="px-0 text-muted-foreground">
-                        <ChevronDown className={`size-4 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
-                        Advanced
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="rounded-lg border bg-muted/20 p-3">
-                      <label className="flex items-start gap-3 text-sm">
-                        <Checkbox
-                          checked={isPrivate}
-                          onCheckedChange={(checked) => setIsPrivate(checked === true)}
-                          className="mt-0.5"
-                        />
-                        <span>
-                          <span className="block font-medium">Create as a private repo</span>
-                          <span className="text-muted-foreground">
-                            Use this for sensitive sketches. Secret scanning and repo security settings stay managed in GitHub.
-                          </span>
-                        </span>
-                      </label>
-                    </CollapsibleContent>
-                  </Collapsible>
+                  <WorkspaceAdvancedOptions
+                    open={advancedOpen}
+                    onOpenChange={setAdvancedOpen}
+                    isPrivate={isPrivate}
+                    onPrivateChange={setIsPrivate}
+                  />
 
-	                  <Button
-	                    disabled={!githubConnected || bootstrapping}
-	                    onClick={handleBootstrap}
-	                    className="w-full sm:w-auto"
+                  <Button
+                    disabled={!githubConnected || bootstrapping}
+                    onClick={handleBootstrap}
+                    className="w-full sm:w-auto"
                   >
                     {bootstrapping ? (
                       <Loader2 className="size-4 animate-spin" />
@@ -587,7 +547,7 @@ export function HomeClient() {
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    onClick={() => router.refresh()}
+                    onClick={() => void refreshHomeState()}
                     aria-label="Refresh status"
                   >
                     <RefreshCw className="size-4" />
@@ -600,12 +560,12 @@ export function HomeClient() {
                   <div className="text-sm">Signed in</div>
                 </div>
                 <div className="rounded-lg border bg-background px-3 py-2">
-	                  <div className="text-xs text-muted-foreground">GitHub</div>
-	                  <div className="text-sm">
-	                    {githubConnected
-	                      ? connectionCopy(githubStatus)
-	                      : "Connect GitHub"}
-	                  </div>
+                  <div className="text-xs text-muted-foreground">GitHub</div>
+                  <div className="text-sm">
+                    {githubConnected
+                      ? connectionCopy(githubStatus)
+                      : "Connect GitHub"}
+                  </div>
                 </div>
                 <div className="rounded-lg border bg-background px-3 py-2">
                   <div className="text-xs text-muted-foreground">Workspaces</div>
