@@ -10,7 +10,7 @@ import {
   Loader2,
   Save,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -92,32 +92,44 @@ export function EditorClient({
   sketchId: string;
 }) {
   const app = useStackApp();
+  const appRef = useRef(app);
 
   const [data, setData] = useState<SketchLoadResponse | null>(null);
-  const [scene, setScene] = useState<SketchScene | null>(null);
   const [initialData, setInitialData] = useState<ExcalidrawInitialDataState | null>(null);
   const [source, setSource] = useState<"github" | "local">("github");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [hasScene, setHasScene] = useState(false);
   const [status, setStatus] = useState("Loading sketch");
   const [error, setError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sceneRef = useRef<SketchScene | null>(null);
+  const dirtyRef = useRef(false);
+  const sourceRef = useRef<"github" | "local">("github");
   const currentDraftKey = useMemo(
     () => draftKey(workspaceId, projectId, sketchId),
     [workspaceId, projectId, sketchId]
   );
 
   useEffect(() => {
+    appRef.current = app;
+  }, [app]);
+
+  useEffect(() => {
     let mounted = true;
     setLoading(true);
     setError(null);
+    setInitialData(null);
+    setHasScene(false);
+    sceneRef.current = null;
+    dirtyRef.current = false;
 
     async function load() {
       try {
         const auth = await getAuthMe();
         if (!auth.authenticated) {
-          await app.redirectToSignIn();
+          await appRef.current.redirectToSignIn();
           return;
         }
 
@@ -131,8 +143,12 @@ export function EditorClient({
         if (!mounted) return;
 
         setData(response);
-        setScene(nextScene);
+        sceneRef.current = nextScene;
+        dirtyRef.current = false;
+        sourceRef.current = localDraft?.value?.scene ? "local" : "github";
         setInitialData(toInitialData(nextScene));
+        setHasScene(true);
+        setDirty(false);
         setSource(localDraft?.value?.scene ? "local" : "github");
         setStatus(
           localDraft?.value?.scene
@@ -157,9 +173,9 @@ export function EditorClient({
         clearTimeout(saveTimer.current);
       }
     };
-  }, [app, currentDraftKey, projectId, sketchId, workspaceId]);
+  }, [currentDraftKey, projectId, sketchId, workspaceId]);
 
-  function queueDraftSave(nextScene: SketchScene) {
+  const queueDraftSave = useCallback((nextScene: SketchScene) => {
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
     }
@@ -176,23 +192,33 @@ export function EditorClient({
         }
       });
     }, 500);
-  }
+  }, [currentDraftKey]);
 
-  function handleChange(elements: readonly unknown[], appState: AppState, files: BinaryFiles) {
+  const handleChange = useCallback((elements: readonly unknown[], appState: AppState, files: BinaryFiles) => {
     const nextScene = normalizeScene({
-      ...(scene ?? {}),
+      ...(sceneRef.current ?? {}),
       elements: [...elements],
       appState: cleanAppState(appState),
       files,
     });
 
-    setScene(nextScene);
-    setDirty(true);
-    setSource("local");
+    sceneRef.current = nextScene;
+
+    if (!dirtyRef.current) {
+      dirtyRef.current = true;
+      setDirty(true);
+    }
+
+    if (sourceRef.current !== "local") {
+      sourceRef.current = "local";
+      setSource("local");
+    }
+
     queueDraftSave(nextScene);
-  }
+  }, [queueDraftSave]);
 
   async function handleManualSave() {
+    const scene = sceneRef.current;
     if (!scene || !data) return;
 
     setSaving(true);
@@ -230,6 +256,8 @@ export function EditorClient({
           latestCommitSha: response.commit.sha,
         },
       });
+      dirtyRef.current = false;
+      sourceRef.current = "github";
       setDirty(false);
       setSource("github");
       setStatus(`Synced to GitHub · ${shortSha(response.commit.sha)}`);
@@ -273,7 +301,7 @@ export function EditorClient({
           <Badge variant="outline" className="hidden font-normal lg:inline-flex">
             {source === "local" ? "Autosaved locally" : status}
           </Badge>
-          <Button disabled={!scene || saving} onClick={handleManualSave}>
+          <Button disabled={!hasScene || saving} onClick={handleManualSave}>
             {saving ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
