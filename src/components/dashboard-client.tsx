@@ -108,6 +108,7 @@ export function DashboardClient() {
 	const [newProjectTitle, setNewProjectTitle] = useState("");
 	const [newProjectDescription, setNewProjectDescription] = useState("");
 	const [creatingProject, setCreatingProject] = useState(false);
+	const [projectSearch, setProjectSearch] = useState("");
 
 	const selectedWorkspace = useMemo(
 		() => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0] ?? null,
@@ -117,6 +118,25 @@ export function DashboardClient() {
 		() => projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null,
 		[selectedProjectId, projects],
 	);
+	const filteredProjects = useMemo(() => {
+		const query = projectSearch.trim().toLowerCase();
+		if (!query) return projects;
+
+		return projects.filter((project) => {
+			const haystack = [
+				project.id,
+				project.title,
+				project.description ?? "",
+				project.notesFile,
+				project.projectFile,
+				...project.sketches.flatMap((sketch) => [sketch.id, sketch.title, sketch.file]),
+			]
+				.join(" ")
+				.toLowerCase();
+
+			return haystack.includes(query);
+		});
+	}, [projectSearch, projects]);
 	const githubConnected = githubStatus?.connected === true;
 
 	useEffect(() => {
@@ -372,6 +392,8 @@ export function DashboardClient() {
 			workspaces={workspaces}
 			selectedWorkspaceId={selectedWorkspace?.id ?? null}
 			onWorkspaceChange={setSelectedWorkspaceId}
+			searchValue={projectSearch}
+			onSearchChange={setProjectSearch}
 			action={
 				<Button
 					variant="ghost"
@@ -504,6 +526,11 @@ export function DashboardClient() {
 										<Badge variant={metadataPresent ? "secondary" : "outline"} className="font-normal">
 											{metadataPresent ? "projects-metadata.json synced" : "metadata index missing"}
 										</Badge>
+										{projectSearch ? (
+											<Badge variant="outline" className="font-normal">
+												{filteredProjects.length} match{filteredProjects.length === 1 ? "" : "es"}
+											</Badge>
+										) : null}
 									</div>
 
 									{projectsError ? (
@@ -518,9 +545,9 @@ export function DashboardClient() {
 												<div key={item} className="h-24 animate-pulse rounded-lg bg-muted" />
 											))}
 										</div>
-									) : projects.length > 0 ? (
+									) : filteredProjects.length > 0 ? (
 										<div className="divide-y divide-border">
-											{projects.map((project) => (
+											{filteredProjects.map((project) => (
 												<div
 													key={project.id}
 													className={`grid gap-3 rounded-lg py-4 first:pt-0 last:pb-0 lg:grid-cols-[1fr_auto] ${
@@ -594,7 +621,9 @@ export function DashboardClient() {
 										</div>
 									) : (
 										<div className="rounded-lg border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
-											No projects found yet. Use the canvas launcher to create a project folder, then save once.
+											{projects.length > 0
+												? "No projects match that search."
+												: "No projects found yet. Use the project form to create a project folder."}
 										</div>
 									)}
 								</>

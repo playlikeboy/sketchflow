@@ -183,6 +183,8 @@ export function AppShell({
   workspaces,
   selectedWorkspaceId,
   onWorkspaceChange,
+  searchValue,
+  onSearchChange,
 }: {
   children: ReactNode;
   title: string;
@@ -192,6 +194,8 @@ export function AppShell({
   workspaces?: Workspace[];
   selectedWorkspaceId?: string | null;
   onWorkspaceChange?: (workspaceId: string) => void;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
 }) {
   const app = useStackApp();
 
@@ -217,6 +221,9 @@ export function AppShell({
                 <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/50" />
                 <Input
                   placeholder="Search sketches, docs, commits"
+                  value={searchValue ?? ""}
+                  onChange={(event) => onSearchChange?.(event.target.value)}
+                  disabled={!onSearchChange}
                   className="h-9 w-full rounded-[14px] pl-8 text-sm font-bold placeholder:text-muted-foreground/50"
                 />
               </div>
