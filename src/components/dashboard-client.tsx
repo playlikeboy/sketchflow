@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { WorkspaceAdvancedOptions } from "@/components/workspace-advanced-options";
 import {
 	bootstrapWorkspace,
+	createWorkspaceProject,
 	getAuthMe,
 	getGithubStatus,
 	getWorkspaceProjects,
@@ -103,6 +104,9 @@ export function DashboardClient() {
 	const [connectingGithub, setConnectingGithub] = useState(false);
 	const [quickProjectName, setQuickProjectName] = useState(DEFAULT_PROJECT_ID);
 	const [quickSketchName, setQuickSketchName] = useState(DEFAULT_SKETCH_ID);
+	const [newProjectTitle, setNewProjectTitle] = useState("");
+	const [newProjectDescription, setNewProjectDescription] = useState("");
+	const [creatingProject, setCreatingProject] = useState(false);
 
 	const selectedWorkspace = useMemo(
 		() => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0] ?? null,
@@ -277,6 +281,48 @@ export function DashboardClient() {
 			);
 		} finally {
 			setProjectsLoading(false);
+		}
+	}
+
+	async function handleCreateProject() {
+		if (!selectedWorkspace) return;
+
+		setCreatingProject(true);
+		setProjectsError(null);
+
+		try {
+			const title = newProjectTitle.trim() || "Untitled Project";
+			const response = await createWorkspaceProject({
+				workspaceId: selectedWorkspace.id,
+				title,
+				description: newProjectDescription.trim() || undefined,
+				projectId: slugify(title),
+				sketchId: DEFAULT_SKETCH_ID,
+				visibility: selectedWorkspace.visibility,
+			});
+			const createdProject = response.projects.find((project) => project.id === slugify(title));
+
+			setProjects(response.projects);
+			setMetadataPresent(true);
+			setWorkspaces((current) =>
+				current.map((workspace) =>
+					workspace.id === response.workspace.id ? response.workspace : workspace,
+				),
+			);
+			setNewProjectTitle("");
+			setNewProjectDescription("");
+
+			if (createdProject) {
+				router.push(sketchHref(selectedWorkspace.id, createdProject.id, firstSketchId(createdProject)));
+			}
+		} catch (createError) {
+			setProjectsError(
+				createError instanceof Error
+					? friendlyError(createError.message)
+					: "Project could not be created",
+			);
+		} finally {
+			setCreatingProject(false);
 		}
 	}
 
@@ -528,6 +574,49 @@ export function DashboardClient() {
 									docs, and project metadata index.
 								</div>
 							)}
+						</CardContent>
+					</Card>
+
+					<Card id="new-project">
+						<CardHeader>
+							<CardTitle>New project</CardTitle>
+							<CardDescription>
+								Create a folder in the selected workspace repo with a starter canvas, notes, assets, and metadata.
+							</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<div className="grid gap-3">
+								<Input
+									value={newProjectTitle}
+									onChange={(event) => setNewProjectTitle(event.target.value)}
+									aria-label="Project title"
+									placeholder="Project title"
+								/>
+								<Input
+									value={newProjectDescription}
+									onChange={(event) => setNewProjectDescription(event.target.value)}
+									aria-label="Project description"
+									placeholder="Short description"
+								/>
+								<div className="flex flex-wrap items-center justify-between gap-3">
+									<div className="text-sm text-muted-foreground">
+										{selectedWorkspace
+											? `Creates projects/${slugify(newProjectTitle || "untitled-project")}`
+											: "Select or create a workspace first."}
+									</div>
+									<Button
+										disabled={!selectedWorkspace || creatingProject}
+										onClick={handleCreateProject}
+									>
+										{creatingProject ? (
+											<Loader2 className="size-4 animate-spin" />
+										) : (
+											<Plus className="size-4" />
+										)}
+										Create project
+									</Button>
+								</div>
+							</div>
 						</CardContent>
 					</Card>
 

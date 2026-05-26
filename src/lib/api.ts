@@ -168,6 +168,27 @@ export function syncWorkspaceProjectsMetadata(workspaceId: string) {
 	});
 }
 
+export function createWorkspaceProject(input: {
+	workspaceId: string;
+	title: string;
+	description?: string;
+	projectId?: string;
+	sketchId?: string;
+	visibility?: "private" | "public";
+}) {
+	return apiJson<WorkspaceProjectsResponse>(`/api/workspaces/${encodeURIComponent(input.workspaceId)}/projects`, {
+		method: "POST",
+		json: {
+			mode: "create",
+			title: input.title,
+			description: input.description,
+			projectId: input.projectId,
+			sketchId: input.sketchId,
+			visibility: input.visibility,
+		},
+	});
+}
+
 export function commitWorkspaceFiles(input: {
 	workspaceId: string;
 	message: string;
