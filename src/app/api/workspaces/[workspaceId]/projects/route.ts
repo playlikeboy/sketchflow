@@ -185,6 +185,9 @@ export async function POST(
 			const visibility = optionalString(body, "visibility") === "private" ? "private" : workspace.visibility;
 			const now = new Date().toISOString();
 			const existing = result.projects.find((project) => project.id === projectId);
+			if (existing) {
+				throw new BadRequestError(`Project "${projectId}" already exists in this workspace`);
+			}
 			const project = projectFromProjectJson({
 				projectId,
 				projectJson: {
@@ -192,7 +195,7 @@ export async function POST(
 					title,
 					description: optionalString(body, "description"),
 					visibility,
-					createdAt: existing?.createdAt ?? now,
+					createdAt: now,
 					updatedAt: now,
 					projectFile: projectFilePath(projectId),
 					defaultSketch: sketchFilePath(projectId, sketchId),
@@ -278,8 +281,8 @@ export async function POST(
 					content: "Images and project assets can live here.\n",
 				},
 			);
-			eventType = existing ? "project_updated" : "project_created";
-			message = existing ? `Update ${project.title}` : `Create ${project.title}`;
+			eventType = "project_created";
+			message = `Create ${project.title}`;
 		} else {
 			metadata = buildProjectsMetadata({
 				projects: result.projects,
