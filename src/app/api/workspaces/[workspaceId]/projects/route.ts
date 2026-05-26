@@ -18,7 +18,7 @@ import {
 	readGithubFileText,
 	validateGithubPathSegment,
 } from "@/server/github";
-import { jsonError, jsonOk, NotFoundError } from "@/server/http";
+import { BadRequestError, jsonError, jsonOk, NotFoundError } from "@/server/http";
 import { isJsonObject, optionalString } from "@/server/validation";
 import { humanizeSlug, notesFilePath, projectFilePath, sketchFilePath, slugify } from "@/lib/sketchflow";
 
@@ -164,7 +164,7 @@ export async function POST(
 
 		const body = await request.json().catch(() => ({}));
 		if (!isJsonObject(body)) {
-			throw new Error("Expected a JSON object body");
+			throw new BadRequestError("Expected a JSON object body");
 		}
 
 		const result = await readWorkspaceProjects({ accessToken, workspace });

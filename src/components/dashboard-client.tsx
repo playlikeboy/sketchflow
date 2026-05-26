@@ -94,6 +94,7 @@ export function DashboardClient() {
 	const [projectsLoading, setProjectsLoading] = useState(false);
 	const [projectsError, setProjectsError] = useState<string | null>(null);
 	const [metadataPresent, setMetadataPresent] = useState(false);
+	const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 	const [githubStatus, setGithubStatus] = useState<GithubStatus | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -111,6 +112,10 @@ export function DashboardClient() {
 	const selectedWorkspace = useMemo(
 		() => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0] ?? null,
 		[selectedWorkspaceId, workspaces],
+	);
+	const selectedProject = useMemo(
+		() => projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null,
+		[selectedProjectId, projects],
 	);
 	const githubConnected = githubStatus?.connected === true;
 
@@ -140,6 +145,11 @@ export function DashboardClient() {
 
 			setProjects(nextResponse.projects);
 			setMetadataPresent(nextResponse.metadataPresent);
+			setSelectedProjectId((current) =>
+				current && nextResponse.projects.some((project) => project.id === current)
+					? current
+					: nextResponse.projects[0]?.id ?? null,
+			);
 			setWorkspaces((current) =>
 				current.map((workspace) =>
 					workspace.id === nextResponse.workspace.id ? nextResponse.workspace : workspace,
@@ -147,6 +157,7 @@ export function DashboardClient() {
 			);
 		} catch (projectError) {
 			setProjects([]);
+			setSelectedProjectId(null);
 			setMetadataPresent(false);
 			setProjectsError(
 				projectError instanceof Error
@@ -205,6 +216,7 @@ export function DashboardClient() {
 	useEffect(() => {
 		if (!selectedWorkspaceId) {
 			setProjects([]);
+			setSelectedProjectId(null);
 			setMetadataPresent(false);
 			return;
 		}
@@ -268,6 +280,11 @@ export function DashboardClient() {
 			const response = await syncWorkspaceProjectsMetadata(selectedWorkspace.id);
 			setProjects(response.projects);
 			setMetadataPresent(true);
+			setSelectedProjectId((current) =>
+				current && response.projects.some((project) => project.id === current)
+					? current
+					: response.projects[0]?.id ?? null,
+			);
 			setWorkspaces((current) =>
 				current.map((workspace) =>
 					workspace.id === response.workspace.id ? response.workspace : workspace,
@@ -304,6 +321,7 @@ export function DashboardClient() {
 
 			setProjects(response.projects);
 			setMetadataPresent(true);
+			setSelectedProjectId(createdProject?.id ?? response.projects[0]?.id ?? null);
 			setWorkspaces((current) =>
 				current.map((workspace) =>
 					workspace.id === response.workspace.id ? response.workspace : workspace,
@@ -337,6 +355,8 @@ export function DashboardClient() {
 			),
 		);
 	}
+
+	const quickProjectId = selectedProject?.id ?? slugify(quickProjectName || DEFAULT_PROJECT_ID);
 
 	return (
 		<AppShell
@@ -503,7 +523,9 @@ export function DashboardClient() {
 											{projects.map((project) => (
 												<div
 													key={project.id}
-													className="grid gap-3 py-4 first:pt-0 last:pb-0 lg:grid-cols-[1fr_auto]"
+													className={`grid gap-3 rounded-lg py-4 first:pt-0 last:pb-0 lg:grid-cols-[1fr_auto] ${
+														selectedProject?.id === project.id ? "bg-muted/30 px-3" : ""
+													}`}
 												>
 													<div>
 														<div className="flex flex-wrap items-center gap-2">
@@ -530,6 +552,14 @@ export function DashboardClient() {
 														</div>
 													</div>
 													<div className="flex flex-wrap items-center gap-2">
+														<Button
+															variant={selectedProject?.id === project.id ? "secondary" : "outline"}
+															size="sm"
+															onClick={() => setSelectedProjectId(project.id)}
+														>
+															<Layers3 className="size-4" />
+															{selectedProject?.id === project.id ? "Selected" : "Select"}
+														</Button>
 														<Button variant="outline" size="sm" asChild>
 															<Link href={repoFolderHref(selectedWorkspace, `projects/${project.id}`)} target="_blank">
 																<FolderOpen className="size-4" />
@@ -698,7 +728,7 @@ export function DashboardClient() {
 							<div className="grid gap-2 border-t pt-3">
 								<Button variant="outline" className="w-full justify-start" disabled={!selectedWorkspace} asChild={Boolean(selectedWorkspace)}>
 									{selectedWorkspace ? (
-										<Link href={repoFileHref(selectedWorkspace, `projects/${DEFAULT_PROJECT_ID}/docs/notes.md`)} target="_blank">
+										<Link href={repoFileHref(selectedWorkspace, selectedProject?.notesFile ?? `projects/${quickProjectId}/docs/notes.md`)} target="_blank">
 											<FileText className="size-4" />
 											Open notes
 										</Link>
@@ -711,7 +741,7 @@ export function DashboardClient() {
 								</Button>
 								<Button variant="outline" className="w-full justify-start" disabled={!selectedWorkspace} asChild={Boolean(selectedWorkspace)}>
 									{selectedWorkspace ? (
-										<Link href={commitsHref(selectedWorkspace)} target="_blank">
+										<Link href={commitsHref(selectedWorkspace, `projects/${quickProjectId}`)} target="_blank">
 											<Clock3 className="size-4" />
 											Version history
 										</Link>
@@ -729,7 +759,7 @@ export function DashboardClient() {
 									asChild={Boolean(selectedWorkspace && selectedWorkspace.visibility === "public")}
 								>
 									{selectedWorkspace && selectedWorkspace.visibility === "public" ? (
-										<Link href={shareHref(selectedWorkspace, quickProjectName || DEFAULT_PROJECT_ID)} target="_blank">
+										<Link href={shareHref(selectedWorkspace, quickProjectId)} target="_blank">
 											<Globe className="size-4" />
 											Share project
 										</Link>
@@ -747,7 +777,7 @@ export function DashboardClient() {
 									asChild={Boolean(selectedWorkspace && selectedWorkspace.visibility === "public")}
 								>
 									{selectedWorkspace && selectedWorkspace.visibility === "public" ? (
-										<Link href={embedHref(selectedWorkspace, quickProjectName || DEFAULT_PROJECT_ID)} target="_blank">
+										<Link href={embedHref(selectedWorkspace, quickProjectId)} target="_blank">
 											<Code2 className="size-4" />
 											Embed project
 										</Link>
