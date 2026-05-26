@@ -5,7 +5,7 @@ import { Slot } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-[16px] border border-transparent bg-clip-padding text-sm font-extrabold whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none disabled:translate-y-0 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 uppercase tracking-[0.8px]",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-[16px] border border-transparent bg-clip-padding text-sm font-extrabold whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none disabled:translate-y-0 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -16,10 +16,10 @@ const buttonVariants = cva(
         secondary:
           "bg-[#F7F7F7] text-[#4B4B4B] shadow-[0_5px_0_#E5E5E5] hover:brightness-95 active:translate-y-[5px] active:shadow-none aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
-          "bg-transparent text-[#1CB0F6] border-[2px] border-[#1CB0F6] shadow-none hover:bg-[#EEF9FF] uppercase tracking-[0.8px]",
+          "bg-transparent text-[#1CB0F6] border-[2px] border-[#1CB0F6] shadow-none hover:bg-[#EEF9FF]",
         destructive:
           "bg-[#FF4B4B] text-white shadow-[0_5px_0_#E53535] hover:brightness-105 active:translate-y-[5px] active:shadow-none",
-        link: "text-[#1CB0F6] underline-offset-4 hover:underline uppercase tracking-[0.8px]",
+        link: "text-[#1CB0F6] underline-offset-4 hover:underline",
       },
       size: {
         default:

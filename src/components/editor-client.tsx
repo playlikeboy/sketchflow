@@ -334,7 +334,7 @@ export function EditorClient({
             </Link>
           </Button>
           <div className="min-w-0">
-            <h1 className="truncate text-base font-extrabold tracking-[-0.02em] text-foreground">{title}</h1>
+            <h1 className="truncate text-base font-extrabold text-foreground">{title}</h1>
             <p className="hidden truncate text-sm font-semibold text-muted-foreground sm:block">{subtitle}</p>
           </div>
         </div>

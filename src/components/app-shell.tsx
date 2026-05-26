@@ -211,7 +211,7 @@ export function AppShell({
           <SidebarTrigger className="-ml-1 text-muted-foreground" />
           <div className="flex flex-1 items-center justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="truncate text-lg font-extrabold tracking-[-0.02em] text-foreground">{title}</h1>
+              <h1 className="truncate text-lg font-extrabold text-foreground">{title}</h1>
               {subtitle ? (
                 <p className="truncate text-sm font-semibold text-muted-foreground">{subtitle}</p>
               ) : null}

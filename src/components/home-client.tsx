@@ -322,7 +322,7 @@ export function HomeClient() {
               <Zap className="size-4" />
               GitHub-native visual workspace
             </div>
-            <h1 className="text-5xl font-extrabold leading-[1.05] tracking-[-0.03em] text-foreground sm:text-6xl">
+            <h1 className="text-5xl font-extrabold leading-[1.05] text-foreground sm:text-6xl">
               Sketchflow
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-muted-foreground font-semibold">
@@ -364,7 +364,7 @@ export function HomeClient() {
         {/* Feature grid */}
         <section className="mx-auto max-w-6xl px-5 pb-20 sm:px-8">
           <div className="mb-12 text-center">
-            <h2 className="text-3xl font-extrabold tracking-[-0.02em] text-foreground">Everything in your repo</h2>
+            <h2 className="text-3xl font-extrabold text-foreground">Everything in your repo</h2>
             <p className="mt-2 text-base font-semibold text-muted-foreground">
               No vendor lock-in. Your data ships with your code.
             </p>
@@ -394,7 +394,7 @@ export function HomeClient() {
         <section className="border-t-2 border-border bg-muted">
           <div className="mx-auto max-w-6xl px-5 py-18 sm:px-8">
             <div className="mb-12 text-center">
-              <h2 className="text-3xl font-extrabold tracking-[-0.02em] text-foreground">How it works</h2>
+              <h2 className="text-3xl font-extrabold text-foreground">How it works</h2>
               <p className="mt-2 text-base font-semibold text-muted-foreground">Three steps to a Git-native workspace.</p>
             </div>
             <div className="grid gap-8 sm:grid-cols-3">
@@ -440,7 +440,7 @@ export function HomeClient() {
         <section className="mx-auto max-w-6xl px-5 py-20 text-center sm:px-8">
           <div className="rounded-[16px] border-2 border-border bg-card p-10 shadow-[0_2px_0_var(--border)]">
             <Sparkles className="mx-auto size-8 text-[#58CC02]" />
-            <h2 className="mt-4 text-3xl font-extrabold tracking-[-0.02em] text-foreground">Ready to sketch?</h2>
+            <h2 className="mt-4 text-3xl font-extrabold text-foreground">Ready to sketch?</h2>
             <p className="mt-2 mb-6 text-base font-semibold text-muted-foreground">
               Create your first workspace and start shipping visual docs with your code.
             </p>
