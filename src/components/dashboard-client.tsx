@@ -380,7 +380,7 @@ export function DashboardClient() {
 
 	return (
 		<AppShell
-			title="Projects"
+			title="Workspace"
 			subtitle={
 				selectedWorkspace
 					? `${selectedWorkspace.repoOwner}/${selectedWorkspace.repoName}`

@@ -12,11 +12,11 @@ const buttonVariants = cva(
         default:
           "bg-[#58CC02] text-white shadow-[0_5px_0_#46A302] hover:brightness-105 active:translate-y-[5px] active:shadow-none",
         outline:
-          "border-[2px] border-[#E5E5E5] bg-white text-[#4B4B4B] shadow-[0_5px_0_#E5E5E5] hover:bg-[#F7F7F7] active:translate-y-[5px] active:shadow-none aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border-[2px] border-border bg-card text-foreground shadow-[0_5px_0_var(--border)] hover:bg-muted active:translate-y-[5px] active:shadow-none aria-expanded:bg-muted aria-expanded:text-foreground",
         secondary:
-          "bg-[#F7F7F7] text-[#4B4B4B] shadow-[0_5px_0_#E5E5E5] hover:brightness-95 active:translate-y-[5px] active:shadow-none aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "bg-secondary text-secondary-foreground shadow-[0_5px_0_var(--border)] hover:bg-accent active:translate-y-[5px] active:shadow-none aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
-          "bg-transparent text-[#1CB0F6] border-[2px] border-[#1CB0F6] shadow-none hover:bg-[#EEF9FF]",
+          "border-transparent bg-transparent text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground",
         destructive:
           "bg-[#FF4B4B] text-white shadow-[0_5px_0_#E53535] hover:brightness-105 active:translate-y-[5px] active:shadow-none",
         link: "text-[#1CB0F6] underline-offset-4 hover:underline",

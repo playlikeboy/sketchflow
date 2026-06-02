@@ -24,11 +24,11 @@ export function BrandMark({
       </div>
       {compact ? null : (
         <div className={cn("min-w-0", collapseText && "group-data-[collapsible=icon]:hidden")}>
-          <div className="truncate text-[17px] font-extrabold text-[#4B4B4B]">
+          <div className="truncate text-[17px] font-extrabold text-foreground">
             Sketchflow
           </div>
           {subtitle ? (
-            <div className="truncate text-xs font-medium text-[#777777]">{subtitle}</div>
+            <div className="truncate text-xs font-medium text-muted-foreground">{subtitle}</div>
           ) : null}
         </div>
       )}

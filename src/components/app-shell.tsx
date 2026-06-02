@@ -51,12 +51,12 @@ import {
 import type { Workspace } from "@/lib/api";
 
 const navItems = [
-  { label: "Workspace", href: "/app", icon: LayoutDashboard },
-  { label: "Projects", href: "/app#projects", icon: Folder },
-  { label: "Recent", href: "/app#recent", icon: Clock3 },
-  { label: "Docs", href: "/app#docs", icon: FileText },
-  { label: "Public", href: "/app#public", icon: Globe },
-  { label: "Templates", href: "/app#templates", icon: Boxes },
+  { label: "Projects", href: "/app", icon: Folder },
+  { label: "Workspace", href: "/app/workspace", icon: LayoutDashboard },
+  { label: "Recent", href: "/app/workspace#recent", icon: Clock3 },
+  { label: "Docs", href: "/app/workspace#docs", icon: FileText },
+  { label: "Public", href: "/app/workspace#public", icon: Globe },
+  { label: "Templates", href: "/app/workspace#templates", icon: Boxes },
 ];
 
 const futureItems = [
@@ -148,7 +148,7 @@ function AppSidebar({
               {futureItems.map((item) => (
                 <div
                   key={item.label}
-                  className="flex h-7 items-center gap-1.5 rounded-xl border-2 border-sidebar-border bg-sidebar px-2 text-xs font-bold text-sidebar-foreground/50 shadow-[0_1px_0_#E5E5E5] dark:shadow-[0_1px_0_#333]"
+                  className="flex h-7 items-center gap-1.5 rounded-xl border-2 border-sidebar-border bg-sidebar px-2 text-xs font-bold text-sidebar-foreground/50 shadow-[0_1px_0_var(--sidebar-border)]"
                 >
                   <item.icon className="size-3 shrink-0" />
                   <span className="truncate">{item.label}</span>
@@ -185,6 +185,7 @@ export function AppShell({
   onWorkspaceChange,
   searchValue,
   onSearchChange,
+  searchPlaceholder = "Search sketches, docs, commits",
 }: {
   children: ReactNode;
   title: string;
@@ -196,6 +197,7 @@ export function AppShell({
   onWorkspaceChange?: (workspaceId: string) => void;
   searchValue?: string;
   onSearchChange?: (value: string) => void;
+  searchPlaceholder?: string;
 }) {
   const app = useStackApp();
 
@@ -220,7 +222,7 @@ export function AppShell({
               <div className="relative hidden h-9 w-64 items-center md:flex">
                 <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/50" />
                 <Input
-                  placeholder="Search sketches, docs, commits"
+                  placeholder={searchPlaceholder}
                   value={searchValue ?? ""}
                   onChange={(event) => onSearchChange?.(event.target.value)}
                   disabled={!onSearchChange}
