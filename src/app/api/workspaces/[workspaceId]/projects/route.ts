@@ -6,12 +6,13 @@ import {
 	type ProjectsMetadata,
 	type WorkspaceProject,
 } from "@/lib/project-metadata";
-import { SKETCHFLOW_APP_URL } from "@/lib/config";
-import { requireGithubAccessToken } from "@/server/auth";
+import { GITHUB_REST_API_VERSION, SKETCHFLOW_APP_URL } from "@/lib/config";
+import { normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
 import { getWorkspace, recordSyncEvent, updateWorkspaceCommit } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
 import {
 	GithubApiError,
+	type GithubDirectoryItem,
 	createCommitOnBranch,
 	getBranchHeadSha,
 	jsDelivrBaseUrl,
@@ -22,6 +23,30 @@ import {
 import { BadRequestError, jsonError, jsonOk, NotFoundError } from "@/server/http";
 import { isJsonObject, optionalString } from "@/server/validation";
 import { humanizeSlug, notesFilePath, projectFilePath, sketchFilePath, slugify } from "@/lib/sketchflow";
+
+const PUBLIC_GITHUB_API_URL = "https://api.github.com";
+const PUBLIC_GITHUB_TIMEOUT_MS = 3_500;
+
+async function publicGithubFetch(url: string) {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), PUBLIC_GITHUB_TIMEOUT_MS);
+
+	try {
+		return await fetch(url, {
+			signal: controller.signal,
+			headers: {
+				Accept: "application/vnd.github+json",
+				"X-GitHub-Api-Version": GITHUB_REST_API_VERSION,
+			},
+		});
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
+function publicRepoApiPath(owner: string, repo: string, suffix = "") {
+	return `${PUBLIC_GITHUB_API_URL}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}${suffix}`;
+}
 
 async function readOptionalJson(input: {
 	accessToken: string;
@@ -63,6 +88,69 @@ async function listProjectFolders(input: {
 
 		throw error;
 	}
+}
+
+async function getPublicBranchHeadSha(owner: string, repo: string, branch: string) {
+	const response = await publicGithubFetch(publicRepoApiPath(owner, repo, `/git/ref/heads/${encodeURIComponent(branch)}`));
+
+	if (!response.ok) {
+		return null;
+	}
+
+	const data = (await response.json()) as { object?: { sha?: string } };
+	return typeof data.object?.sha === "string" ? data.object.sha : null;
+}
+
+async function readPublicOptionalJson(input: {
+	owner: string;
+	repo: string;
+	ref: string;
+	path: string;
+}) {
+	const url = `https://raw.githubusercontent.com/${encodeURIComponent(input.owner)}/${encodeURIComponent(
+		input.repo,
+	)}/${encodeURIComponent(input.ref)}/${input.path.split("/").map(encodeURIComponent).join("/")}`;
+	const response = await publicGithubFetch(url);
+
+	if (response.status === 404) {
+		return null;
+	}
+
+	if (!response.ok) {
+		throw new GithubApiError("Public GitHub file read failed", response.status);
+	}
+
+	return {
+		file: null,
+		json: (await response.json()) as unknown,
+	};
+}
+
+async function listPublicProjectFolders(input: {
+	owner: string;
+	repo: string;
+	ref: string;
+}) {
+	const response = await publicGithubFetch(
+		publicRepoApiPath(
+			input.owner,
+			input.repo,
+			`/contents/projects?ref=${encodeURIComponent(input.ref)}`,
+		),
+	);
+
+	if (response.status === 404) {
+		return [];
+	}
+
+	if (!response.ok) {
+		throw new GithubApiError("Public GitHub directory read failed", response.status);
+	}
+
+	const items = (await response.json()) as GithubDirectoryItem[];
+	return items
+		.filter((item) => item.type === "dir")
+		.map((item) => validateGithubPathSegment(item.name));
 }
 
 async function readWorkspaceProjects(input: {
@@ -118,21 +206,78 @@ async function readWorkspaceProjects(input: {
 	};
 }
 
+async function readPublicWorkspaceProjects(input: {
+	workspace: {
+		repoOwner: string;
+		repoName: string;
+		defaultBranch: string;
+		visibility: "private" | "public";
+	};
+}) {
+	const base = {
+		owner: input.workspace.repoOwner,
+		repo: input.workspace.repoName,
+		ref: input.workspace.defaultBranch,
+	};
+	const [latestCommitSha, metadataFile, projectFolders] = await Promise.all([
+		getPublicBranchHeadSha(input.workspace.repoOwner, input.workspace.repoName, input.workspace.defaultBranch),
+		readPublicOptionalJson({ ...base, path: PROJECTS_METADATA_PATH }),
+		listPublicProjectFolders(base),
+	]);
+	const metadata = normalizeProjectsMetadata(metadataFile?.json);
+	const projectsById = new Map<string, WorkspaceProject>();
+
+	for (const project of metadata?.projects ?? []) {
+		projectsById.set(project.id, project);
+	}
+
+	const projectFiles = await Promise.all(
+		projectFolders.map(async (projectId) => ({
+			projectId,
+			projectFile: await readPublicOptionalJson({ ...base, path: `projects/${projectId}/project.json` }),
+		})),
+	);
+
+	for (const { projectId, projectFile } of projectFiles) {
+		const project = projectFromProjectJson({
+			projectId,
+			projectJson: projectFile?.json ?? null,
+			fallbackVisibility: input.workspace.visibility,
+		});
+		projectsById.set(project.id, project);
+	}
+
+	const projects = [...projectsById.values()].sort((a, b) => a.title.localeCompare(b.title));
+
+	return {
+		latestCommitSha,
+		metadataPresent: Boolean(metadataFile),
+		metadata,
+		projects,
+	};
+}
+
 export async function GET(
 	_request: Request,
 	{ params }: { params: Promise<{ workspaceId: string }> },
 ) {
 	try {
 		const { workspaceId } = await params;
-		const scopes = getGithubOAuthScopes();
-		const { accessToken, user } = await requireGithubAccessToken(scopes);
+		const user = normalizeStackUser(await requireUser());
 		const workspace = await getWorkspace(user.id, workspaceId);
 
 		if (!workspace) {
 			throw new NotFoundError("Workspace not found");
 		}
 
-		const result = await readWorkspaceProjects({ accessToken, workspace });
+		const result =
+			workspace.visibility === "public"
+				? await readPublicWorkspaceProjects({ workspace })
+				: await (async () => {
+						const scopes = getGithubOAuthScopes();
+						const { accessToken } = await requireGithubAccessToken(scopes);
+						return readWorkspaceProjects({ accessToken, workspace });
+					})();
 
 		return jsonOk({
 			workspace: {

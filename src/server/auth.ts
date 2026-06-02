@@ -59,6 +59,17 @@ type OAuthConnectionLike = {
 	>;
 };
 
+const STACK_OAUTH_TIMEOUT_MS = 3_500;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorFactory: () => Error) {
+	let timeout: ReturnType<typeof setTimeout>;
+	const timeoutPromise = new Promise<never>((_resolve, reject) => {
+		timeout = setTimeout(() => reject(errorFactory()), timeoutMs);
+	});
+
+	return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeout));
+}
+
 function errorMessage(error: unknown) {
 	if (error instanceof Error) {
 		return error.message;
@@ -108,7 +119,11 @@ function isGithubConnection(account: OAuthConnectionLike) {
 
 async function getGithubConnection(user: StackUserLike, scopes: string[]) {
 	if (user.listConnectedAccounts) {
-		const accounts = await user.listConnectedAccounts();
+		const accounts = await withTimeout(
+			user.listConnectedAccounts(),
+			STACK_OAUTH_TIMEOUT_MS,
+			() => new GithubAccessTokenError("github_token_unavailable", "GitHub connection check timed out"),
+		);
 		const githubAccount = accounts.find((account) => isOAuthConnectionLike(account) && isGithubConnection(account));
 
 		if (isOAuthConnectionLike(githubAccount)) {
@@ -120,14 +135,22 @@ async function getGithubConnection(user: StackUserLike, scopes: string[]) {
 		return null;
 	}
 
-	return (await user.getConnectedAccount("github", {
-		scopes,
-		or: "return-null",
-	})) as OAuthConnectionLike | null;
+	return (await withTimeout(
+		user.getConnectedAccount("github", {
+			scopes,
+			or: "return-null",
+		}),
+		STACK_OAUTH_TIMEOUT_MS,
+		() => new GithubAccessTokenError("github_token_unavailable", "GitHub connection check timed out"),
+	)) as OAuthConnectionLike | null;
 }
 
 async function getAccessTokenFromConnection(account: OAuthConnectionLike, scopes: string[]) {
-	const token = await account.getAccessToken({ scopes });
+	const token = await withTimeout(
+		account.getAccessToken({ scopes }),
+		STACK_OAUTH_TIMEOUT_MS,
+		() => new GithubAccessTokenError("github_token_unavailable", "GitHub access token check timed out"),
+	);
 
 	if ("status" in token) {
 		if (token.status === "ok") {

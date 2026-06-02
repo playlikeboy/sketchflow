@@ -4,6 +4,7 @@ import { BadRequestError, HttpError } from "@/server/http";
 
 const GITHUB_API_URL = "https://api.github.com";
 const MAX_FILE_BYTES = 1_000_000;
+const GITHUB_REQUEST_TIMEOUT_MS = 3_500;
 
 export type GithubUser = {
 	login: string;
@@ -96,16 +97,31 @@ function repoApiPath(owner: string, repo: string, suffix = "") {
 }
 
 async function githubRequest<T>(accessToken: string, path: string, init: RequestInit = {}) {
-	const response = await fetch(`${GITHUB_API_URL}${path}`, {
-		...init,
-		headers: {
-			Accept: "application/vnd.github+json",
-			Authorization: `Bearer ${accessToken}`,
-			"Content-Type": "application/json",
-			"X-GitHub-Api-Version": GITHUB_REST_API_VERSION,
-			...init.headers,
-		},
-	});
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), GITHUB_REQUEST_TIMEOUT_MS);
+	let response: Response;
+
+	try {
+		response = await fetch(`${GITHUB_API_URL}${path}`, {
+			...init,
+			signal: init.signal ?? controller.signal,
+			headers: {
+				Accept: "application/vnd.github+json",
+				Authorization: `Bearer ${accessToken}`,
+				"Content-Type": "application/json",
+				"X-GitHub-Api-Version": GITHUB_REST_API_VERSION,
+				...init.headers,
+			},
+		});
+	} catch (error) {
+		if (error instanceof DOMException && error.name === "AbortError") {
+			throw new GithubApiError("GitHub API request timed out", 504);
+		}
+
+		throw error;
+	} finally {
+		clearTimeout(timeout);
+	}
 
 	if (!response.ok) {
 		const errorBody = await response.json().catch(() => null);
