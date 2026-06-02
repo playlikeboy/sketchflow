@@ -19,7 +19,7 @@ import {
 	ShieldCheck,
 	Sparkles,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
@@ -36,10 +36,6 @@ import { WorkspaceAdvancedOptions } from "@/components/workspace-advanced-option
 import {
 	bootstrapWorkspace,
 	createWorkspaceProject,
-	getAuthMe,
-	getGithubStatus,
-	getWorkspaceProjects,
-	getWorkspaces,
 	syncWorkspaceProjectsMetadata,
 	type GithubStatus,
 	type Workspace,
@@ -47,6 +43,12 @@ import {
 import { connectGithubAccount } from "@/lib/github-connect";
 import type { WorkspaceProject } from "@/lib/project-metadata";
 import { slugify } from "@/lib/sketchflow";
+import {
+	useAuthMe,
+	useGithubStatus,
+	useWorkspaceProjects,
+	useWorkspaces,
+} from "@/lib/swr-hooks";
 import {
 	DEFAULT_PROJECT_ID,
 	DEFAULT_SKETCH_ID,
@@ -91,12 +93,11 @@ export function DashboardClient() {
 	const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
 	const [projects, setProjects] = useState<WorkspaceProject[]>([]);
-	const [projectsLoading, setProjectsLoading] = useState(false);
+	const [syncingProjects, setSyncingProjects] = useState(false);
 	const [projectsError, setProjectsError] = useState<string | null>(null);
 	const [metadataPresent, setMetadataPresent] = useState(false);
 	const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 	const [githubStatus, setGithubStatus] = useState<GithubStatus | null>(null);
-	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [repoName, setRepoName] = useState("sketchflow-workspace");
 	const [isPrivate, setIsPrivate] = useState(false);
@@ -109,6 +110,30 @@ export function DashboardClient() {
 	const [newProjectDescription, setNewProjectDescription] = useState("");
 	const [creatingProject, setCreatingProject] = useState(false);
 	const [projectSearch, setProjectSearch] = useState("");
+	const syncedMissingMetadataRef = useRef<string | null>(null);
+	const {
+		data: auth,
+		error: authError,
+		isLoading: authLoading,
+		mutate: mutateAuth,
+	} = useAuthMe();
+	const {
+		data: workspaceData,
+		error: workspacesError,
+		isLoading: workspacesLoading,
+		mutate: mutateWorkspaces,
+	} = useWorkspaces();
+	const {
+		data: githubData,
+		error: githubError,
+		mutate: mutateGithubStatus,
+	} = useGithubStatus();
+	const {
+		data: projectsResponse,
+		error: workspaceProjectsError,
+		isLoading: workspaceProjectsLoading,
+		mutate: mutateProjects,
+	} = useWorkspaceProjects(selectedWorkspaceId);
 
 	const selectedWorkspace = useMemo(
 		() => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0] ?? null,
@@ -138,100 +163,54 @@ export function DashboardClient() {
 		});
 	}, [projectSearch, projects]);
 	const githubConnected = githubStatus?.connected === true;
+	const loading = authLoading || workspacesLoading;
+	const projectsLoading = workspaceProjectsLoading || syncingProjects;
 
 	useEffect(() => {
 		appRef.current = app;
 	}, [app]);
 
-	const loadProjects = useCallback(async (workspaceId: string) => {
-		setProjectsLoading(true);
-		setProjectsError(null);
+	useEffect(() => {
+		if (auth && !auth.authenticated) {
+			void appRef.current.redirectToSignIn();
+		}
+	}, [auth]);
 
-		try {
-			const response = await getWorkspaceProjects(workspaceId);
-			let nextResponse = response;
-
-			if (!response.metadataPresent) {
-				try {
-					nextResponse = await syncWorkspaceProjectsMetadata(workspaceId);
-				} catch (syncError) {
-					setProjectsError(
-						syncError instanceof Error
-							? friendlyError(syncError.message)
-							: "Project index could not be written",
-					);
-				}
-			}
-
-			setProjects(nextResponse.projects);
-			setMetadataPresent(nextResponse.metadataPresent);
-			setSelectedProjectId((current) =>
-				current && nextResponse.projects.some((project) => project.id === current)
+	useEffect(() => {
+		if (workspaceData?.workspaces) {
+			setWorkspaces(workspaceData.workspaces);
+			setSelectedWorkspaceId((current) =>
+				current && workspaceData.workspaces.some((workspace) => workspace.id === current)
 					? current
-					: nextResponse.projects[0]?.id ?? null,
+					: workspaceData.workspaces[0]?.id ?? null,
 			);
-			setWorkspaces((current) =>
-				current.map((workspace) =>
-					workspace.id === nextResponse.workspace.id ? nextResponse.workspace : workspace,
-				),
-			);
-		} catch (projectError) {
+		}
+	}, [workspaceData]);
+
+	useEffect(() => {
+		setGithubStatus(githubData ?? null);
+	}, [githubData]);
+
+	useEffect(() => {
+		const nextError = authError || workspacesError || githubError;
+		setError(nextError instanceof Error ? friendlyError(nextError.message) : null);
+	}, [authError, githubError, workspacesError]);
+
+	useEffect(() => {
+		if (workspaceProjectsError) {
 			setProjects([]);
 			setSelectedProjectId(null);
 			setMetadataPresent(false);
 			setProjectsError(
-				projectError instanceof Error
-					? friendlyError(projectError.message)
+				workspaceProjectsError instanceof Error
+					? friendlyError(workspaceProjectsError.message)
 					: "Projects could not be loaded from this repo",
 			);
-		} finally {
-			setProjectsLoading(false);
-		}
-	}, []);
-
-	const refresh = useCallback(async () => {
-		setLoading(true);
-		setError(null);
-
-		const auth = await getAuthMe();
-		if (!auth.authenticated) {
-			await appRef.current.redirectToSignIn();
 			return;
 		}
 
-		const [workspaceResult, githubResult] = await Promise.allSettled([
-			getWorkspaces(),
-			getGithubStatus(),
-		]);
-
-		if (workspaceResult.status === "fulfilled") {
-			const nextWorkspaces = workspaceResult.value.workspaces;
-			setWorkspaces(nextWorkspaces);
-			setSelectedWorkspaceId((current) =>
-				current && nextWorkspaces.some((workspace) => workspace.id === current)
-					? current
-					: nextWorkspaces[0]?.id ?? null,
-			);
-		} else {
-			setError(
-				workspaceResult.reason instanceof Error
-					? friendlyError(workspaceResult.reason.message)
-					: "Workspace data is temporarily unavailable",
-			);
-		}
-
-		if (githubResult.status === "fulfilled") {
-			setGithubStatus(githubResult.value);
-		} else {
-			setGithubStatus(null);
-		}
-
-		setLoading(false);
-	}, []);
-
-	useEffect(() => {
-		void refresh();
-	}, [refresh]);
+		setProjectsError(null);
+	}, [workspaceProjectsError]);
 
 	useEffect(() => {
 		if (!selectedWorkspaceId) {
@@ -241,8 +220,63 @@ export function DashboardClient() {
 			return;
 		}
 
-		void loadProjects(selectedWorkspaceId);
-	}, [loadProjects, selectedWorkspaceId]);
+		if (!projectsResponse) return;
+
+		setProjects(projectsResponse.projects);
+		setMetadataPresent(projectsResponse.metadataPresent);
+		setSelectedProjectId((current) =>
+			current && projectsResponse.projects.some((project) => project.id === current)
+				? current
+				: projectsResponse.projects[0]?.id ?? null,
+		);
+		setWorkspaces((current) =>
+			current.map((workspace) =>
+				workspace.id === projectsResponse.workspace.id ? projectsResponse.workspace : workspace,
+			),
+		);
+	}, [projectsResponse, selectedWorkspaceId]);
+
+	useEffect(() => {
+		async function syncMissingMetadata(workspaceId: string) {
+			setSyncingProjects(true);
+			setProjectsError(null);
+
+			try {
+				const response = await syncWorkspaceProjectsMetadata(workspaceId);
+				await mutateProjects(response, { revalidate: false });
+				await mutateWorkspaces();
+			} catch (syncError) {
+				setProjectsError(
+					syncError instanceof Error
+						? friendlyError(syncError.message)
+						: "Project index could not be written",
+				);
+			} finally {
+				setSyncingProjects(false);
+			}
+		}
+
+		if (
+			selectedWorkspaceId &&
+			projectsResponse &&
+			!projectsResponse.metadataPresent &&
+			syncedMissingMetadataRef.current !== selectedWorkspaceId
+		) {
+			syncedMissingMetadataRef.current = selectedWorkspaceId;
+			void syncMissingMetadata(selectedWorkspaceId);
+		}
+	}, [mutateProjects, mutateWorkspaces, projectsResponse, selectedWorkspaceId]);
+
+	async function refresh() {
+		setError(null);
+		setProjectsError(null);
+		await Promise.all([
+			mutateAuth(),
+			mutateWorkspaces(),
+			mutateGithubStatus(),
+			mutateProjects(),
+		]);
+	}
 
 	async function handleBootstrap() {
 		setBootstrapping(true);
@@ -250,12 +284,12 @@ export function DashboardClient() {
 
 		try {
 			const response = await bootstrapWorkspace({ repoName, private: isPrivate });
+			await mutateWorkspaces();
 			setWorkspaces((current) => [
 				response.workspace,
 				...current.filter((workspace) => workspace.id !== response.workspace.id),
 			]);
 			setSelectedWorkspaceId(response.workspace.id);
-			void loadProjects(response.workspace.id);
 		} catch (bootstrapError) {
 			setError(
 				bootstrapError instanceof Error
@@ -273,10 +307,9 @@ export function DashboardClient() {
 
 		try {
 			await connectGithubAccount(app, githubStatus?.scopes);
-			const nextStatus = await getGithubStatus();
-			setGithubStatus(nextStatus);
+			const nextStatus = await mutateGithubStatus();
 
-			if (!nextStatus.connected) {
+			if (!nextStatus?.connected) {
 				setError("GitHub needs one more connection step. Reconnect and approve access to continue.");
 			}
 		} catch (connectError) {
@@ -293,23 +326,13 @@ export function DashboardClient() {
 	async function handleSyncProjectIndex() {
 		if (!selectedWorkspace) return;
 
-		setProjectsLoading(true);
+		setSyncingProjects(true);
 		setProjectsError(null);
 
 		try {
 			const response = await syncWorkspaceProjectsMetadata(selectedWorkspace.id);
-			setProjects(response.projects);
-			setMetadataPresent(true);
-			setSelectedProjectId((current) =>
-				current && response.projects.some((project) => project.id === current)
-					? current
-					: response.projects[0]?.id ?? null,
-			);
-			setWorkspaces((current) =>
-				current.map((workspace) =>
-					workspace.id === response.workspace.id ? response.workspace : workspace,
-				),
-			);
+			await mutateProjects(response, { revalidate: false });
+			await mutateWorkspaces();
 		} catch (syncError) {
 			setProjectsError(
 				syncError instanceof Error
@@ -317,7 +340,7 @@ export function DashboardClient() {
 					: "Project index could not be updated",
 			);
 		} finally {
-			setProjectsLoading(false);
+			setSyncingProjects(false);
 		}
 	}
 
@@ -339,14 +362,9 @@ export function DashboardClient() {
 			});
 			const createdProject = response.projects.find((project) => project.id === slugify(title));
 
-			setProjects(response.projects);
-			setMetadataPresent(true);
+			await mutateProjects(response, { revalidate: false });
+			await mutateWorkspaces();
 			setSelectedProjectId(createdProject?.id ?? response.projects[0]?.id ?? null);
-			setWorkspaces((current) =>
-				current.map((workspace) =>
-					workspace.id === response.workspace.id ? response.workspace : workspace,
-				),
-			);
 			setNewProjectTitle("");
 			setNewProjectDescription("");
 

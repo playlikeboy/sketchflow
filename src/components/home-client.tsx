@@ -24,7 +24,7 @@ import {
   Moon,
   Sun,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
 
 import { BrandMark } from "@/components/brand-mark";
@@ -40,8 +40,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WorkspaceAdvancedOptions } from "@/components/workspace-advanced-options";
-import { bootstrapWorkspace, getAuthMe, getGithubStatus, getWorkspaces, type AuthMeResponse, type GithubStatus, type Workspace } from "@/lib/api";
+import { bootstrapWorkspace, type GithubStatus } from "@/lib/api";
 import { connectGithubAccount } from "@/lib/github-connect";
+import { useAuthMe, useGithubStatus, useWorkspaces } from "@/lib/swr-hooks";
 import { sketchHref } from "@/lib/workspace-routes";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
@@ -174,70 +175,51 @@ export function HomeClient() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const [auth, setAuth] = useState<AuthMeResponse | null>(null);
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [githubStatus, setGithubStatus] = useState<GithubStatus | null>(null);
-  const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [repoName, setRepoName] = useState("sketchflow-workspace");
   const [isPrivate, setIsPrivate] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [connectingGithub, setConnectingGithub] = useState(false);
+  const {
+    data: auth,
+    error: authError,
+    isLoading: authLoading,
+    mutate: mutateAuth,
+  } = useAuthMe();
+  const {
+    data: workspaceData,
+    error: workspacesError,
+    mutate: mutateWorkspaces,
+  } = useWorkspaces();
+  const {
+    data: githubStatus,
+    error: githubError,
+    mutate: mutateGithubStatus,
+  } = useGithubStatus();
 
   useEffect(() => { setMounted(true); }, []);
 
+  const workspaces = useMemo(() => workspaceData?.workspaces ?? [], [workspaceData]);
   const primaryWorkspace = useMemo(() => workspaces[0] ?? null, [workspaces]);
   const user = auth?.user ?? null;
   const githubConnected = githubStatus?.connected === true;
-
-  const refreshHomeState = useCallback(async () => {
-    setLoadState("loading");
-    setError(null);
-
-    try {
-      const authResponse = await getAuthMe();
-      setAuth(authResponse);
-
-      if (!authResponse.authenticated) {
-        setWorkspaces([]);
-        setGithubStatus(null);
-        setLoadState("ready");
-        return;
-      }
-
-      const results = await Promise.allSettled([getWorkspaces(), getGithubStatus()]);
-      const workspaceResult = results[0];
-      const githubResult = results[1];
-
-      if (workspaceResult.status === "fulfilled") {
-        setWorkspaces(workspaceResult.value.workspaces);
-      } else {
-        setError(
-          workspaceResult.reason instanceof Error
-            ? friendlyError(workspaceResult.reason.message)
-            : "Workspace data is temporarily unavailable",
-        );
-      }
-
-      if (githubResult.status === "fulfilled") {
-        setGithubStatus(githubResult.value);
-      } else {
-        setGithubStatus(null);
-      }
-
-      setLoadState(workspaceResult.status === "fulfilled" ? "ready" : "error");
-    } catch (authError) {
-      setError(
-        authError instanceof Error ? friendlyError(authError.message) : "Session is temporarily unavailable",
-      );
-      setLoadState("error");
-    }
-  }, []);
+  const githubStatusCopy = githubStatus ?? null;
+  const loadState: LoadState = authLoading
+    ? "loading"
+    : authError || workspacesError || githubError
+      ? "error"
+      : "ready";
 
   useEffect(() => {
-    void refreshHomeState();
-  }, [refreshHomeState]);
+    const nextError = authError || workspacesError || githubError;
+    setError(nextError instanceof Error ? friendlyError(nextError.message) : null);
+  }, [authError, githubError, workspacesError]);
+
+  async function refreshHomeState() {
+    setError(null);
+    await Promise.all([mutateAuth(), mutateWorkspaces(), mutateGithubStatus()]);
+  }
 
   useEffect(() => {
     if (primaryWorkspace) {
@@ -251,6 +233,7 @@ export function HomeClient() {
 
     try {
       const response = await bootstrapWorkspace({ repoName, private: isPrivate });
+      await mutateWorkspaces();
       router.push(
         `/app/workspaces/${response.workspace.id}/projects/first-project/sketches/system-map`
       );
@@ -270,11 +253,10 @@ export function HomeClient() {
     setError(null);
 
     try {
-      await connectGithubAccount(app, githubStatus?.scopes);
-      const nextStatus = await getGithubStatus();
-      setGithubStatus(nextStatus);
+      await connectGithubAccount(app, githubStatusCopy?.scopes);
+      const nextStatus = await mutateGithubStatus();
 
-      if (!nextStatus.connected) {
+      if (!nextStatus?.connected) {
         setError("GitHub needs one more connection step. Reconnect and approve access to continue.");
       }
     } catch (connectError) {
@@ -519,7 +501,7 @@ export function HomeClient() {
                       {githubConnected ? (
                         <div className="flex items-center justify-between gap-3">
                           <span className="font-bold text-foreground">
-                            {connectionCopy(githubStatus)}
+                            {connectionCopy(githubStatusCopy)}
                           </span>
                           <Badge variant="default" className="font-extrabold">
                             Ready
@@ -527,7 +509,7 @@ export function HomeClient() {
                         </div>
                       ) : (
                         <div className="space-y-3 text-sm font-semibold text-muted-foreground">
-                          <p>{connectionCopy(githubStatus)}</p>
+                          <p>{connectionCopy(githubStatusCopy)}</p>
                           <Button variant="default" size="sm" disabled={connectingGithub} onClick={handleConnectGithub}>
                             {connectingGithub ? (
                               <Loader2 className="size-4 animate-spin" />
@@ -592,7 +574,7 @@ export function HomeClient() {
               <CardContent className="space-y-3">
                 {[
                   { label: "Account", value: "Signed in", icon: Star, color: "#FFC800" },
-                  { label: "GitHub", value: githubConnected ? connectionCopy(githubStatus) : "Connect GitHub", icon: GitBranch, color: "#1CB0F6" },
+                  { label: "GitHub", value: githubConnected ? connectionCopy(githubStatusCopy) : "Connect GitHub", icon: GitBranch, color: "#1CB0F6" },
                   { label: "Workspaces", value: `${workspaces.length} connected`, icon: Layout, color: "#CE82FF" },
                   { label: "Streak", value: "Build your streak!", icon: Flame, color: "#FF9600" },
                 ].map((item) => (
