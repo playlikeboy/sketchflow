@@ -1,6 +1,6 @@
 import { PROJECTS_METADATA_PATH, normalizeProjectsMetadata } from "@/lib/project-metadata";
 import { SKETCHFLOW_APP_URL } from "@/lib/config";
-import { requireGithubAccessToken } from "@/server/auth";
+import { normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
 import { getWorkspace } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
 import {
@@ -10,6 +10,7 @@ import {
 	validateGithubPathSegment,
 } from "@/server/github";
 import { jsonError, jsonOk, NotFoundError } from "@/server/http";
+import { readPublicJson, readPublicText } from "@/server/public-github";
 
 async function readOptionalJson(input: {
 	accessToken: string;
@@ -59,14 +60,75 @@ export async function GET(
 		const { workspaceId, projectId, sketchId } = await params;
 		const projectSlug = validateGithubPathSegment(projectId);
 		const sketchSlug = validateGithubPathSegment(sketchId);
-		const scopes = getGithubOAuthScopes();
-		const { accessToken, user } = await requireGithubAccessToken(scopes);
+		const user = normalizeStackUser(await requireUser());
 		const workspace = await getWorkspace(user.id, workspaceId);
 
 		if (!workspace) {
 			throw new NotFoundError("Workspace not found");
 		}
 
+		if (workspace.visibility === "public") {
+			const [workspaceFile, projectsMetadataFile, projectFile, sketchFile, notesFile] = await Promise.all([
+				readPublicJson<unknown>({
+					owner: workspace.repoOwner,
+					repo: workspace.repoName,
+					branch: workspace.defaultBranch,
+					path: ".sketchflow/workspace.json",
+				}),
+				readPublicJson<unknown>({
+					owner: workspace.repoOwner,
+					repo: workspace.repoName,
+					branch: workspace.defaultBranch,
+					path: PROJECTS_METADATA_PATH,
+				}),
+				readPublicJson<unknown>({
+					owner: workspace.repoOwner,
+					repo: workspace.repoName,
+					branch: workspace.defaultBranch,
+					path: `projects/${projectSlug}/project.json`,
+				}),
+				readPublicJson<unknown>({
+					owner: workspace.repoOwner,
+					repo: workspace.repoName,
+					branch: workspace.defaultBranch,
+					path: `projects/${projectSlug}/sketches/${sketchSlug}.excalidraw.json`,
+				}),
+				readPublicText({
+					owner: workspace.repoOwner,
+					repo: workspace.repoName,
+					branch: workspace.defaultBranch,
+					path: `projects/${projectSlug}/docs/notes.md`,
+				}),
+			]);
+
+			return jsonOk({
+				workspace,
+				projectSlug,
+				sketchSlug,
+				workspaceFile: workspaceFile ? { json: workspaceFile } : null,
+				project: projectFile,
+				projectsMetadata: normalizeProjectsMetadata(projectsMetadataFile),
+				sketch: sketchFile ?? {
+					type: "excalidraw",
+					version: 2,
+					source: SKETCHFLOW_APP_URL,
+					elements: [],
+					appState: {
+						viewBackgroundColor: "#ffffff",
+					},
+					files: {},
+				},
+				notes: notesFile ?? "",
+				files: {
+					project: null,
+					sketch: null,
+					notes: null,
+				},
+			});
+		}
+
+		const scopes = getGithubOAuthScopes();
+		const { accessToken } = await requireGithubAccessToken(scopes);
 		const base = {
 			accessToken,
 			owner: workspace.repoOwner,

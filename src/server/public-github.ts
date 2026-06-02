@@ -64,6 +64,22 @@ export async function readPublicJson<T>(input: {
 	return (await response.json()) as T;
 }
 
+export async function readPublicText(input: {
+	owner: string;
+	repo: string;
+	branch: string;
+	path: string;
+}) {
+	const url = `https://raw.githubusercontent.com/${safeGithubSegment(input.owner)}/${safeGithubSegment(input.repo)}/${safeGithubSegment(input.branch)}/${safeGithubPath(input.path)}`;
+	const response = await fetch(url, { next: { revalidate: 60 } });
+
+	if (!response.ok) {
+		return null;
+	}
+
+	return response.text();
+}
+
 export async function readPublicProject(input: {
 	owner: string;
 	repo: string;
