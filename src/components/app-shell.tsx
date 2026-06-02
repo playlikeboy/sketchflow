@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useStackApp } from "@stackframe/stack";
 import {
   Bot,
@@ -14,6 +15,7 @@ import {
   Image,
   LayoutDashboard,
   LogOut,
+  Plus,
   Search,
   Settings,
   Share2,
@@ -30,6 +32,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -49,15 +52,18 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import type { Workspace } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 const navItems = [
   { label: "Projects", href: "/app", icon: Folder },
   { label: "Workspace", href: "/app/workspace", icon: LayoutDashboard },
-  { label: "Recent", href: "/app/workspace#recent", icon: Clock3 },
-  { label: "Docs", href: "/app/workspace#docs", icon: FileText },
-  { label: "Public", href: "/app/workspace#public", icon: Globe },
-  { label: "Templates", href: "/app/workspace#templates", icon: Boxes },
+  { label: "Recent", href: "/app/recent", icon: Clock3 },
+  { label: "Docs", href: "/app/docs", icon: FileText },
+  { label: "Public", href: "/app/public", icon: Globe },
+  { label: "Templates", href: "/app/templates", icon: Boxes },
 ];
+
+const CREATE_WORKSPACE_VALUE = "__create_workspace__";
 
 const futureItems = [
   { label: "Collab", icon: Users },
@@ -76,10 +82,23 @@ function AppSidebar({
   selectedWorkspaceId?: string | null;
   onWorkspaceChange?: (workspaceId: string) => void;
 }) {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  function handleWorkspaceValue(value: string) {
+    if (value === CREATE_WORKSPACE_VALUE) {
+      router.push("/app/workspace?new=1");
+      return;
+    }
+
+    onWorkspaceChange?.(value);
+  }
+
   return (
     <Sidebar collapsible="icon" className="border-r-2 border-sidebar-border">
       <SidebarHeader className="p-3">
         <BrandMark
+          href="/app"
           subtitle="GitHub-native canvas"
           collapseText
           className="group-data-[collapsible=icon]:justify-center"
@@ -93,7 +112,7 @@ function AppSidebar({
           </SidebarGroupLabel>
           <SidebarGroupContent>
             {workspaces.length > 0 && selectedWorkspaceId && onWorkspaceChange ? (
-              <Select value={selectedWorkspaceId} onValueChange={onWorkspaceChange}>
+              <Select value={selectedWorkspaceId} onValueChange={handleWorkspaceValue}>
                 <SelectTrigger className="h-10 w-full rounded-xl border-2 bg-sidebar px-2 text-xs font-bold">
                   <SelectValue placeholder="Select workspace" />
                 </SelectTrigger>
@@ -103,12 +122,20 @@ function AppSidebar({
                       {workspace.repoOwner}/{workspace.repoName}
                     </SelectItem>
                   ))}
+                  <SelectSeparator />
+                  <SelectItem value={CREATE_WORKSPACE_VALUE}>
+                    <Plus className="size-3.5" />
+                    New workspace
+                  </SelectItem>
                 </SelectContent>
               </Select>
             ) : (
-              <div className="rounded-xl border-2 border-sidebar-border px-2 py-2 text-xs font-bold text-sidebar-foreground/50">
-                Connect a GitHub repo to create your first workspace.
-              </div>
+              <Button variant="outline" size="sm" className="w-full justify-start rounded-xl" asChild>
+                <Link href="/app/workspace?new=1">
+                  <Plus className="size-4" />
+                  New workspace
+                </Link>
+              </Button>
             )}
           </SidebarGroupContent>
         </SidebarGroup>
@@ -125,7 +152,10 @@ function AppSidebar({
                 <SidebarMenuItem key={item.label}>
                   <Link
                     href={item.href}
-                    className="flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-sm font-bold text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-[#58CC02] group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 transition-colors duration-150"
+                    className={cn(
+                      "flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-sm font-bold text-sidebar-foreground/70 transition-colors duration-150 hover:bg-sidebar-accent hover:text-[#58CC02] group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+                      pathname === item.href && "bg-sidebar-accent text-[#58CC02]",
+                    )}
                     title={item.label}
                   >
                     <item.icon className="size-4" />
@@ -162,7 +192,7 @@ function AppSidebar({
       <SidebarFooter className="p-3 border-t-2 border-sidebar-border">
         <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
           <Button variant="ghost" size="icon" className="size-8 shrink-0 text-sidebar-foreground/60 hover:text-[#58CC02]" asChild>
-            <Link href="/" aria-label="Home">
+            <Link href="/app" aria-label="Projects">
               <LayoutDashboard className="size-4" />
             </Link>
           </Button>
