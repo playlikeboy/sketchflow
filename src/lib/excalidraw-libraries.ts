@@ -156,17 +156,19 @@ export function classifyLibrary(searchText: string) {
 }
 
 export function normalizeExcalidrawLibrary(raw: RawExcalidrawLibrary): ExcalidrawLibrary | null {
-	if (!raw.source || !raw.name || !isSafeLibrarySource(raw.source)) {
+	const name = raw.name?.trim();
+
+	if (!raw.source || !name || !isSafeLibrarySource(raw.source)) {
 		return null;
 	}
 
 	const itemNames = Array.isArray(raw.itemNames) ? raw.itemNames.filter((item) => typeof item === "string") : [];
-	const description = raw.description ?? "";
+	const description = raw.description?.trim() ?? "";
 	const authors = Array.isArray(raw.authors) ? raw.authors.filter((author) => typeof author?.name === "string") : [];
 	const preview = raw.preview && !raw.preview.includes("..") ? raw.preview : "";
 	const previewUrl = preview ? buildLibraryFileUrl(preview) : "";
 	const searchText = [
-		raw.name,
+		name,
 		description,
 		raw.source,
 		...authors.map((author) => author.name),
@@ -175,7 +177,7 @@ export function normalizeExcalidrawLibrary(raw: RawExcalidrawLibrary): Excalidra
 
 	return {
 		id: raw.id ?? slugFromSource(raw.source),
-		name: raw.name,
+		name,
 		description,
 		authors,
 		source: raw.source,
@@ -190,4 +192,3 @@ export function normalizeExcalidrawLibrary(raw: RawExcalidrawLibrary): Excalidra
 		searchText: searchText.toLowerCase(),
 	};
 }
-
