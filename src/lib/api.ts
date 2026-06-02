@@ -1,4 +1,5 @@
 import type { ProjectsMetadata, WorkspaceProject } from "@/lib/project-metadata";
+import type { ExcalidrawLibrariesResponse } from "@/lib/excalidraw-libraries";
 
 export type Workspace = {
 	id: string;
@@ -141,6 +142,10 @@ export function getAuthMe() {
 
 export function getGithubStatus() {
 	return apiJson<GithubStatus>("/api/github/status");
+}
+
+export function getExcalidrawLibraries() {
+	return apiJson<ExcalidrawLibrariesResponse>("/api/excalidraw/libraries");
 }
 
 export function bootstrapWorkspace(input: { repoName: string; private?: boolean }) {

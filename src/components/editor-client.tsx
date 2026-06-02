@@ -3,9 +3,16 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useStackApp } from "@stackframe/stack";
-import type { AppState, BinaryFiles, ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
+import type {
+	AppState,
+	BinaryFiles,
+	ExcalidrawImperativeAPI,
+	ExcalidrawInitialDataState,
+	LibraryItems,
+} from "@excalidraw/excalidraw/types";
 import {
 	ArrowLeft,
+	BookOpen,
 	FileText,
 	GitBranch,
 	Loader2,
@@ -16,10 +23,12 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { ExcalidrawLibraryPanel } from "@/components/excalidraw-library-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { commitWorkspaceFiles, type SketchLoadResponse, type SketchScene } from "@/lib/api";
+import type { ExcalidrawLibrary } from "@/lib/excalidraw-libraries";
 import { deleteDraft, getDraft, setDraft } from "@/lib/indexeddb";
 import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
 import { draftKey, humanizeSlug, normalizeScene, notesFilePath, projectFilePath, sketchFilePath } from "@/lib/sketchflow";
@@ -47,7 +56,13 @@ type NotesDraftValue = {
 	updatedAt: string;
 };
 
-type EditorMode = "split" | "canvas" | "docs";
+type LibraryDraftValue = {
+	libraryItems: LibraryItems;
+	installedSources: string[];
+	updatedAt: string;
+};
+
+type EditorMode = "split" | "canvas" | "docs" | "libraries";
 
 function shortSha(value: string | null | undefined) {
 	return value ? value.slice(0, 7) : "pending";
@@ -69,12 +84,18 @@ function cleanAppState(appState: AppState): Record<string, unknown> {
 	return rest as unknown as Record<string, unknown>;
 }
 
-function toInitialData(scene: SketchScene): ExcalidrawInitialDataState {
-	return {
+function toInitialData(scene: SketchScene, libraryItems?: LibraryItems): ExcalidrawInitialDataState {
+	const initialData: ExcalidrawInitialDataState = {
 		elements: scene.elements as ExcalidrawInitialDataState["elements"],
 		appState: scene.appState as ExcalidrawInitialDataState["appState"],
 		files: scene.files as ExcalidrawInitialDataState["files"],
 	};
+
+	if (libraryItems) {
+		initialData.libraryItems = libraryItems;
+	}
+
+	return initialData;
 }
 
 function buildProjectFile(projectId: string, sketchId: string, existingProject: unknown) {
@@ -161,12 +182,16 @@ export function EditorClient({
 	const [status, setStatus] = useState("Loading sketch");
 	const [localError, setLocalError] = useState<string | null>(null);
 	const [mode, setMode] = useState<EditorMode>("split");
+	const [installedLibrarySources, setInstalledLibrarySources] = useState<string[]>([]);
+	const [installingLibrarySource, setInstallingLibrarySource] = useState<string | null>(null);
 	const sceneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const notesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
 	const sceneRef = useRef<SketchScene | null>(null);
 	const notesRef = useRef("");
 	const sceneDirtyRef = useRef(false);
 	const notesDirtyRef = useRef(false);
+	const installedLibrarySourcesRef = useRef<string[]>([]);
 	const sourceRef = useRef<"github" | "local">("github");
 	const currentDraftKey = useMemo(
 		() => draftKey(workspaceId, projectId, sketchId),
@@ -174,6 +199,10 @@ export function EditorClient({
 	);
 	const currentNotesDraftKey = useMemo(
 		() => `${currentDraftKey}:notes`,
+		[currentDraftKey],
+	);
+	const currentLibraryDraftKey = useMemo(
+		() => `${currentDraftKey}:library`,
 		[currentDraftKey],
 	);
 	const { data: auth, isLoading: authLoading } = useAuthMe();
@@ -188,6 +217,10 @@ export function EditorClient({
 	useEffect(() => {
 		appRef.current = app;
 	}, [app]);
+
+	useEffect(() => {
+		installedLibrarySourcesRef.current = installedLibrarySources;
+	}, [installedLibrarySources]);
 
 	useEffect(() => {
 		if (auth && !auth.authenticated) {
@@ -210,23 +243,28 @@ export function EditorClient({
 
 			try {
 				const githubScene = normalizeScene(nextData.sketch);
-				const [localSceneDraft, localNotesDraft] = await Promise.all([
+				const [localSceneDraft, localNotesDraft, localLibraryDraft] = await Promise.all([
 					getDraft<DraftValue>(currentDraftKey),
 					getDraft<NotesDraftValue>(currentNotesDraftKey),
+					getDraft<LibraryDraftValue>(currentLibraryDraftKey),
 				]);
 				const nextScene = localSceneDraft?.value?.scene
 					? normalizeScene(localSceneDraft.value.scene)
 					: githubScene;
 				const nextNotes = localNotesDraft?.value?.notes ?? nextData.notes ?? fallbackNotes(projectId, sketchId);
 				const restoredLocal = Boolean(localSceneDraft?.value?.scene || localNotesDraft?.value?.notes);
+				const nextLibraryItems = localLibraryDraft?.value?.libraryItems;
+				const nextInstalledSources = localLibraryDraft?.value?.installedSources ?? [];
 
 				if (!mounted) return;
 
 				sceneRef.current = nextScene;
 				notesRef.current = nextNotes;
+				installedLibrarySourcesRef.current = nextInstalledSources;
 				sourceRef.current = restoredLocal ? "local" : "github";
-				setInitialData(toInitialData(nextScene));
+				setInitialData(toInitialData(nextScene, nextLibraryItems));
 				setNotes(nextNotes);
+				setInstalledLibrarySources(nextInstalledSources);
 				setHasScene(true);
 				setSource(restoredLocal ? "local" : "github");
 				setStatus(
@@ -253,7 +291,7 @@ export function EditorClient({
 				clearTimeout(notesTimer.current);
 			}
 		};
-	}, [currentDraftKey, currentNotesDraftKey, data, projectId, sketchId]);
+	}, [currentDraftKey, currentLibraryDraftKey, currentNotesDraftKey, data, projectId, sketchId]);
 
 	const queueSceneDraftSave = useCallback((nextScene: SketchScene) => {
 		if (sceneTimer.current) {
@@ -328,6 +366,58 @@ export function EditorClient({
 
 		queueNotesDraftSave(value);
 	}, [queueNotesDraftSave]);
+
+	const handleLibraryChange = useCallback((libraryItems: LibraryItems) => {
+		void setDraft<LibraryDraftValue>(currentLibraryDraftKey, {
+			libraryItems,
+			installedSources: installedLibrarySourcesRef.current,
+			updatedAt: new Date().toISOString(),
+		});
+	}, [currentLibraryDraftKey]);
+
+	const handleInstallLibrary = useCallback(async (library: ExcalidrawLibrary) => {
+		if (!excalidrawApiRef.current) {
+			setStatus("Canvas is still loading");
+			return;
+		}
+
+		setInstallingLibrarySource(library.source);
+		setStatus(`Importing ${library.name}`);
+
+		try {
+			const response = await fetch(`/api/excalidraw/libraries/file?source=${encodeURIComponent(library.source)}`);
+			if (!response.ok) {
+				throw new Error("Library pack could not be downloaded");
+			}
+
+			const blob = await response.blob();
+			const { loadLibraryFromBlob } = await import("@excalidraw/excalidraw");
+			const libraryItems = await loadLibraryFromBlob(blob, "published");
+			const updatedLibraryItems = await excalidrawApiRef.current.updateLibrary({
+				libraryItems,
+				merge: true,
+				openLibraryMenu: true,
+				defaultStatus: "published",
+			});
+			const nextInstalledSources = Array.from(new Set([...installedLibrarySourcesRef.current, library.source]));
+			installedLibrarySourcesRef.current = nextInstalledSources;
+			setInstalledLibrarySources(nextInstalledSources);
+			await setDraft<LibraryDraftValue>(currentLibraryDraftKey, {
+				libraryItems: updatedLibraryItems,
+				installedSources: nextInstalledSources,
+				updatedAt: new Date().toISOString(),
+			});
+			setStatus(`Imported ${library.name}`);
+		} catch (libraryError) {
+			setStatus(
+				libraryError instanceof Error
+					? libraryError.message
+					: "Library import failed",
+			);
+		} finally {
+			setInstallingLibrarySource(null);
+		}
+	}, [currentLibraryDraftKey]);
 
 	async function handleManualSave() {
 		const scene = sceneRef.current;
@@ -467,6 +557,14 @@ export function EditorClient({
 							<FileText className="size-3.5" />
 							Docs
 						</Button>
+						<Button
+							variant={mode === "libraries" ? "secondary" : "ghost"}
+							size="xs"
+							onClick={() => setMode("libraries")}
+						>
+							<BookOpen className="size-3.5" />
+							Libraries
+						</Button>
 					</div>
 					<Badge variant="secondary" className="hidden gap-1.5 font-extrabold md:inline-flex">
 						<GitBranch className="size-3" />
@@ -503,17 +601,32 @@ export function EditorClient({
 				) : initialData ? (
 					<div
 						className={
-							mode === "split"
-								? "grid h-full grid-cols-[minmax(0,1fr)_380px]"
+							mode === "split" || mode === "libraries"
+								? "grid h-full grid-cols-[minmax(0,1fr)_400px]"
 								: "h-full"
 						}
 					>
 						<div className={mode === "docs" ? "hidden" : "min-h-0"}>
-							<Excalidraw key={currentDraftKey} initialData={initialData} onChange={handleSceneChange} />
+							<Excalidraw
+								key={currentDraftKey}
+								initialData={initialData}
+								onChange={handleSceneChange}
+								onLibraryChange={handleLibraryChange}
+								excalidrawAPI={(api) => {
+									excalidrawApiRef.current = api;
+								}}
+							/>
 						</div>
+						{mode === "libraries" ? (
+							<ExcalidrawLibraryPanel
+								installedSources={installedLibrarySources}
+								installingSource={installingLibrarySource}
+								onInstall={handleInstallLibrary}
+							/>
+						) : null}
 						<div
 							className={
-								mode === "canvas"
+								mode === "canvas" || mode === "libraries"
 									? "hidden"
 									: "flex h-full min-h-0 flex-col border-l-2 border-border bg-card"
 							}

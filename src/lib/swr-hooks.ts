@@ -3,6 +3,7 @@
 import useSWR from "swr";
 
 import {
+	getExcalidrawLibraries,
 	getAuthMe,
 	getGithubStatus,
 	getSketch,
@@ -13,9 +14,11 @@ import {
 	type SketchLoadResponse,
 	type WorkspaceProjectsResponse,
 } from "@/lib/api";
+import type { ExcalidrawLibrariesResponse } from "@/lib/excalidraw-libraries";
 
 export const swrKeys = {
 	authMe: "/api/auth/me",
+	excalidrawLibraries: "/api/excalidraw/libraries",
 	githubStatus: "/api/github/status",
 	workspaces: "/api/workspaces",
 	workspaceProjects: (workspaceId: string | null | undefined) =>
@@ -34,6 +37,12 @@ export function useAuthMe() {
 
 export function useGithubStatus() {
 	return useSWR<GithubStatus>(swrKeys.githubStatus, getGithubStatus);
+}
+
+export function useExcalidrawLibraries() {
+	return useSWR<ExcalidrawLibrariesResponse>(swrKeys.excalidrawLibraries, getExcalidrawLibraries, {
+		revalidateOnFocus: false,
+	});
 }
 
 export function useWorkspaces() {
