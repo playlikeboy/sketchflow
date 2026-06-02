@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:sh20raj.github.io)",
+      "mcp__hackquest__search_opportunities",
+      "mcp__hackquest__get_developer_journey",
+      "mcp__hackquest__register_for_opportunity"
+    ]
+  }
+}

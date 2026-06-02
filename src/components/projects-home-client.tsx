@@ -16,7 +16,7 @@ import {
 	RefreshCw,
 	SlidersHorizontal,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
@@ -31,12 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import {
 	createWorkspaceProject,
-	getAuthMe,
-	getGithubStatus,
-	getWorkspaceProjects,
-	getWorkspaces,
 	syncWorkspaceProjectsMetadata,
-	type GithubStatus,
 	type Workspace,
 } from "@/lib/api";
 import { connectGithubAccount } from "@/lib/github-connect";
@@ -50,6 +45,12 @@ import {
 	shareHref,
 	sketchHref,
 } from "@/lib/workspace-routes";
+import {
+	useAuthMe,
+	useGithubStatus,
+	useWorkspaceProjects,
+	useWorkspaces,
+} from "@/lib/swr-hooks";
 
 function shortSha(value: string | null) {
 	return value ? value.slice(0, 7) : "pending";
@@ -76,29 +77,54 @@ function projectDescription(project: WorkspaceProject) {
 	return project.description || `${project.sketches.length} sketch${project.sketches.length === 1 ? "" : "es"} in this project`;
 }
 
+function errorCopy(error: unknown) {
+	return error instanceof Error ? friendlyError(error.message) : null;
+}
+
 export function ProjectsHomeClient() {
 	const app = useStackApp();
 	const appRef = useRef(app);
 	const router = useRouter();
-	const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
-	const [projects, setProjects] = useState<WorkspaceProject[]>([]);
-	const [metadataPresent, setMetadataPresent] = useState(false);
-	const [githubStatus, setGithubStatus] = useState<GithubStatus | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [projectsLoading, setProjectsLoading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const [projectsError, setProjectsError] = useState<string | null>(null);
 	const [connectingGithub, setConnectingGithub] = useState(false);
+	const [syncingIndex, setSyncingIndex] = useState(false);
 	const [newProjectTitle, setNewProjectTitle] = useState("");
 	const [newProjectDescription, setNewProjectDescription] = useState("");
 	const [creatingProject, setCreatingProject] = useState(false);
 	const [projectSearch, setProjectSearch] = useState("");
+	const [localError, setLocalError] = useState<string | null>(null);
+	const syncedMissingMetadataRef = useRef<string | null>(null);
 
+	const {
+		data: auth,
+		error: authError,
+		isLoading: authLoading,
+	} = useAuthMe();
+	const {
+		data: workspaceData,
+		error: workspacesError,
+		isLoading: workspacesLoading,
+		mutate: mutateWorkspaces,
+	} = useWorkspaces();
+	const {
+		data: githubStatus,
+		error: githubError,
+		mutate: mutateGithubStatus,
+	} = useGithubStatus();
+
+	const workspaces = useMemo(() => workspaceData?.workspaces ?? [], [workspaceData]);
 	const selectedWorkspace = useMemo(
 		() => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0] ?? null,
 		[selectedWorkspaceId, workspaces],
 	);
+	const {
+		data: projectsResponse,
+		error: projectsError,
+		isLoading: projectsLoading,
+		mutate: mutateProjects,
+	} = useWorkspaceProjects(selectedWorkspace?.id);
+	const projects = projectsResponse?.projects ?? [];
+	const metadataPresent = projectsResponse?.metadataPresent ?? false;
 	const filteredProjects = useMemo(() => {
 		const query = projectSearch.trim().toLowerCase();
 		if (!query) return projects;
@@ -119,106 +145,81 @@ export function ProjectsHomeClient() {
 		});
 	}, [projectSearch, projects]);
 	const githubConnected = githubStatus?.connected === true;
+	const loading = authLoading || workspacesLoading;
+	const pageError =
+		localError ||
+		errorCopy(authError) ||
+		errorCopy(workspacesError) ||
+		errorCopy(githubError);
+	const projectError = errorCopy(projectsError);
 
 	useEffect(() => {
 		appRef.current = app;
 	}, [app]);
 
-	const loadProjects = useCallback(async (workspaceId: string) => {
-		setProjectsLoading(true);
-		setProjectsError(null);
+	useEffect(() => {
+		if (auth && !auth.authenticated) {
+			void appRef.current.redirectToSignIn();
+		}
+	}, [auth]);
 
-		try {
-			const response = await getWorkspaceProjects(workspaceId);
-			let nextResponse = response;
+	useEffect(() => {
+		setSelectedWorkspaceId((current) =>
+			current && workspaces.some((workspace) => workspace.id === current)
+				? current
+				: workspaces[0]?.id ?? null,
+		);
+	}, [workspaces]);
 
-			if (!response.metadataPresent) {
-				nextResponse = await syncWorkspaceProjectsMetadata(workspaceId);
+	useEffect(() => {
+		async function syncMissingMetadata(workspace: Workspace) {
+			setSyncingIndex(true);
+			setLocalError(null);
+
+			try {
+				const response = await syncWorkspaceProjectsMetadata(workspace.id);
+				await mutateProjects(response, { revalidate: false });
+				await mutateWorkspaces();
+			} catch (error) {
+				setLocalError(
+					error instanceof Error
+						? friendlyError(error.message)
+						: "Project index could not be written",
+				);
+			} finally {
+				setSyncingIndex(false);
 			}
-
-			setProjects(nextResponse.projects);
-			setMetadataPresent(nextResponse.metadataPresent);
-			setWorkspaces((current) =>
-				current.map((workspace) =>
-					workspace.id === nextResponse.workspace.id ? nextResponse.workspace : workspace,
-				),
-			);
-		} catch (projectError) {
-			setProjects([]);
-			setMetadataPresent(false);
-			setProjectsError(
-				projectError instanceof Error
-					? friendlyError(projectError.message)
-					: "Projects could not be loaded from this repo",
-			);
-		} finally {
-			setProjectsLoading(false);
-		}
-	}, []);
-
-	const refresh = useCallback(async () => {
-		setLoading(true);
-		setError(null);
-
-		const auth = await getAuthMe();
-		if (!auth.authenticated) {
-			await appRef.current.redirectToSignIn();
-			return;
 		}
 
-		const [workspaceResult, githubResult] = await Promise.allSettled([
-			getWorkspaces(),
-			getGithubStatus(),
+		if (
+			selectedWorkspace &&
+			projectsResponse &&
+			!projectsResponse.metadataPresent &&
+			syncedMissingMetadataRef.current !== selectedWorkspace.id
+		) {
+			syncedMissingMetadataRef.current = selectedWorkspace.id;
+			void syncMissingMetadata(selectedWorkspace);
+		}
+	}, [mutateProjects, mutateWorkspaces, projectsResponse, selectedWorkspace]);
+
+	async function refresh() {
+		setLocalError(null);
+		await Promise.all([
+			mutateWorkspaces(),
+			mutateGithubStatus(),
+			mutateProjects(),
 		]);
-
-		if (workspaceResult.status === "fulfilled") {
-			const nextWorkspaces = workspaceResult.value.workspaces;
-			setWorkspaces(nextWorkspaces);
-			setSelectedWorkspaceId((current) =>
-				current && nextWorkspaces.some((workspace) => workspace.id === current)
-					? current
-					: nextWorkspaces[0]?.id ?? null,
-			);
-		} else {
-			setError(
-				workspaceResult.reason instanceof Error
-					? friendlyError(workspaceResult.reason.message)
-					: "Workspace data is temporarily unavailable",
-			);
-		}
-
-		if (githubResult.status === "fulfilled") {
-			setGithubStatus(githubResult.value);
-		} else {
-			setGithubStatus(null);
-		}
-
-		setLoading(false);
-	}, []);
-
-	useEffect(() => {
-		void refresh();
-	}, [refresh]);
-
-	useEffect(() => {
-		if (!selectedWorkspaceId) {
-			setProjects([]);
-			setMetadataPresent(false);
-			return;
-		}
-
-		void loadProjects(selectedWorkspaceId);
-	}, [loadProjects, selectedWorkspaceId]);
+	}
 
 	async function handleConnectGithub() {
 		setConnectingGithub(true);
-		setError(null);
+		setLocalError(null);
 
 		try {
 			await connectGithubAccount(app, githubStatus?.scopes);
-			setGithubStatus(await getGithubStatus());
+			await mutateGithubStatus();
 		} catch (connectError) {
-			setError(
+			setLocalError(
 				connectError instanceof Error
 					? friendlyError(connectError.message)
 					: "GitHub connection did not finish",
@@ -231,26 +232,21 @@ export function ProjectsHomeClient() {
 	async function handleSyncProjectIndex() {
 		if (!selectedWorkspace) return;
 
-		setProjectsLoading(true);
-		setProjectsError(null);
+		setSyncingIndex(true);
+		setLocalError(null);
 
 		try {
 			const response = await syncWorkspaceProjectsMetadata(selectedWorkspace.id);
-			setProjects(response.projects);
-			setMetadataPresent(true);
-			setWorkspaces((current) =>
-				current.map((workspace) =>
-					workspace.id === response.workspace.id ? response.workspace : workspace,
-				),
-			);
+			await mutateProjects(response, { revalidate: false });
+			await mutateWorkspaces();
 		} catch (syncError) {
-			setProjectsError(
+			setLocalError(
 				syncError instanceof Error
 					? friendlyError(syncError.message)
 					: "Project index could not be updated",
 			);
 		} finally {
-			setProjectsLoading(false);
+			setSyncingIndex(false);
 		}
 	}
 
@@ -258,7 +254,7 @@ export function ProjectsHomeClient() {
 		if (!selectedWorkspace) return;
 
 		setCreatingProject(true);
-		setProjectsError(null);
+		setLocalError(null);
 
 		try {
 			const title = newProjectTitle.trim() || "Untitled Project";
@@ -273,13 +269,8 @@ export function ProjectsHomeClient() {
 			});
 			const createdProject = response.projects.find((project) => project.id === projectId);
 
-			setProjects(response.projects);
-			setMetadataPresent(true);
-			setWorkspaces((current) =>
-				current.map((workspace) =>
-					workspace.id === response.workspace.id ? response.workspace : workspace,
-				),
-			);
+			await mutateProjects(response, { revalidate: false });
+			await mutateWorkspaces();
 			setNewProjectTitle("");
 			setNewProjectDescription("");
 
@@ -287,7 +278,7 @@ export function ProjectsHomeClient() {
 				router.push(sketchHref(selectedWorkspace.id, createdProject.id, firstSketchId(createdProject)));
 			}
 		} catch (createError) {
-			setProjectsError(
+			setLocalError(
 				createError instanceof Error
 					? friendlyError(createError.message)
 					: "Project could not be created",
@@ -298,6 +289,7 @@ export function ProjectsHomeClient() {
 	}
 
 	const newProjectSlug = slugify(newProjectTitle || "untitled-project");
+	const projectBusy = projectsLoading || syncingIndex;
 
 	return (
 		<AppShell
@@ -338,9 +330,9 @@ export function ProjectsHomeClient() {
 			}
 		>
 			<div className="mx-auto flex max-w-7xl flex-col gap-5">
-				{error ? (
+				{pageError ? (
 					<div className="rounded-[16px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-						{error}
+						{pageError}
 					</div>
 				) : null}
 
@@ -367,10 +359,10 @@ export function ProjectsHomeClient() {
 								<Button
 									variant="outline"
 									size="sm"
-									disabled={projectsLoading}
+									disabled={projectBusy}
 									onClick={handleSyncProjectIndex}
 								>
-									{projectsLoading ? (
+									{projectBusy ? (
 										<Loader2 className="size-4 animate-spin" />
 									) : (
 										<GitCommit className="size-4" />
@@ -380,9 +372,9 @@ export function ProjectsHomeClient() {
 							</div>
 						</div>
 
-						{projectsError ? (
+						{projectError ? (
 							<div className="rounded-[16px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-								{projectsError}
+								{projectError}
 							</div>
 						) : null}
 
@@ -430,7 +422,7 @@ export function ProjectsHomeClient() {
 								</CardContent>
 							</Card>
 
-							{projectsLoading
+							{projectBusy
 								? [0, 1, 2].map((item) => (
 										<div key={item} className="min-h-[280px] animate-pulse rounded-[16px] bg-muted" />
 									))
@@ -509,7 +501,7 @@ export function ProjectsHomeClient() {
 									))}
 						</div>
 
-						{!projectsLoading && filteredProjects.length === 0 ? (
+						{!projectBusy && filteredProjects.length === 0 ? (
 							<div className="rounded-[16px] border bg-muted/40 px-4 py-3 text-sm font-semibold text-muted-foreground">
 								No projects match that search. Clear the search or create a new project.
 							</div>

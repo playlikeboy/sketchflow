@@ -65,3 +65,11 @@ export async function setDraft<T>(key: string, value: T) {
 	await withDraftStore<IDBValidKey>("readwrite", (store) => store.put(record));
 	return record;
 }
+
+export async function deleteDraft(key: string) {
+	if (typeof indexedDB === "undefined") {
+		return;
+	}
+
+	await withDraftStore<undefined>("readwrite", (store) => store.delete(key));
+}
