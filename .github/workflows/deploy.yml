@@ -20,6 +20,8 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      NEXT_TELEMETRY_DISABLED: "1"
+      WRANGLER_SEND_METRICS: "false"
       NEXT_PUBLIC_STACK_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_STACK_PROJECT_ID }}
       NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY: ${{ secrets.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY }}
       STACK_SECRET_SERVER_KEY: ${{ secrets.STACK_SECRET_SERVER_KEY }}
@@ -34,10 +36,50 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify deploy secrets
+        shell: bash
+        run: |
+          missing=()
+          for name in \
+            CLOUDFLARE_API_TOKEN \
+            CLOUDFLARE_ACCOUNT_ID \
+            NEXT_PUBLIC_STACK_PROJECT_ID \
+            NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY \
+            STACK_SECRET_SERVER_KEY \
+            DATABASE_URL \
+            NEXT_PUBLIC_APP_URL \
+            GITHUB_API_VERSION \
+            GITHUB_OAUTH_SCOPES \
+            SKETCHFLOW_REPO_NAME \
+            SKETCHFLOW_DEFAULT_BRANCH
+          do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required deploy secrets/env values:\n'
+            printf ' - %s\n' "${missing[@]}"
+            printf '\nCreate a Cloudflare API token with Workers Scripts:Edit, Workers Routes:Edit, Account:Read, and Zone:Read, then save it as CLOUDFLARE_API_TOKEN in GitHub Actions secrets.\n'
+            exit 1
+          fi
+
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Restore build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            .next/cache
+          key: ${{ runner.os }}-sketchflow-${{ hashFiles('bun.lock') }}-${{ hashFiles('src/**/*', 'public/**/*', 'next.config.ts', 'open-next.config.ts', 'wrangler.jsonc') }}
+          restore-keys: |
+            ${{ runner.os }}-sketchflow-${{ hashFiles('bun.lock') }}-
+            ${{ runner.os }}-sketchflow-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
