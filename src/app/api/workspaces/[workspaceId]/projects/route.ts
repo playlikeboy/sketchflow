@@ -212,6 +212,7 @@ async function readPublicWorkspaceProjects(input: {
 		repoName: string;
 		defaultBranch: string;
 		visibility: "private" | "public";
+		latestCommitSha: string | null;
 	};
 }) {
 	const base = {
@@ -219,11 +220,7 @@ async function readPublicWorkspaceProjects(input: {
 		repo: input.workspace.repoName,
 		ref: input.workspace.defaultBranch,
 	};
-	const [latestCommitSha, metadataFile, projectFolders] = await Promise.all([
-		getPublicBranchHeadSha(input.workspace.repoOwner, input.workspace.repoName, input.workspace.defaultBranch),
-		readPublicOptionalJson({ ...base, path: PROJECTS_METADATA_PATH }),
-		listPublicProjectFolders(base),
-	]);
+	const metadataFile = await readPublicOptionalJson({ ...base, path: PROJECTS_METADATA_PATH });
 	const metadata = normalizeProjectsMetadata(metadataFile?.json);
 	const projectsById = new Map<string, WorkspaceProject>();
 
@@ -231,10 +228,25 @@ async function readPublicWorkspaceProjects(input: {
 		projectsById.set(project.id, project);
 	}
 
+	if (projectsById.size > 0) {
+		return {
+			latestCommitSha: input.workspace.latestCommitSha,
+			metadataPresent: Boolean(metadataFile),
+			metadata,
+			projects: [...projectsById.values()].sort((a, b) => a.title.localeCompare(b.title)),
+		};
+	}
+
+	const [latestCommitSha, projectFolders] = await Promise.all([
+		getPublicBranchHeadSha(input.workspace.repoOwner, input.workspace.repoName, input.workspace.defaultBranch).catch(
+			() => input.workspace.latestCommitSha,
+		),
+		listPublicProjectFolders(base).catch(() => []),
+	]);
 	const projectFiles = await Promise.all(
 		projectFolders.map(async (projectId) => ({
 			projectId,
-			projectFile: await readPublicOptionalJson({ ...base, path: `projects/${projectId}/project.json` }),
+			projectFile: await readPublicOptionalJson({ ...base, path: `projects/${projectId}/project.json` }).catch(() => null),
 		})),
 	);
 

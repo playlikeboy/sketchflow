@@ -1,7 +1,7 @@
 import { GithubAccessTokenError, requireGithubAccessToken } from "@/server/auth";
 import { upsertGithubConnection, upsertUser } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
-import { getAuthenticatedGithubUser } from "@/server/github";
+import { GithubApiError, getAuthenticatedGithubUser } from "@/server/github";
 import { jsonError, jsonOk } from "@/server/http";
 
 export async function GET() {
@@ -33,6 +33,15 @@ export async function GET() {
 				connected: false,
 				reason: error.code,
 				message: error.message,
+				scopes: getGithubOAuthScopes(),
+			});
+		}
+
+		if (error instanceof GithubApiError) {
+			return jsonOk({
+				connected: false,
+				reason: "github_token_unavailable",
+				message: "Reconnect GitHub to refresh repository access.",
 				scopes: getGithubOAuthScopes(),
 			});
 		}
