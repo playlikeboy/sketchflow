@@ -3,7 +3,7 @@ import { GITHUB_REST_API_VERSION } from "@/lib/config";
 import { BadRequestError, HttpError } from "@/server/http";
 
 const GITHUB_API_URL = "https://api.github.com";
-const MAX_FILE_BYTES = 1_000_000;
+const MAX_FILE_BYTES = 8_000_000;
 const GITHUB_REQUEST_TIMEOUT_MS = 3_500;
 
 export type GithubUser = {
@@ -291,7 +291,7 @@ export function validateGithubFileChange(file: GithubFileChange) {
 
 	const size = new TextEncoder().encode(file.content).byteLength;
 	if (size > MAX_FILE_BYTES) {
-		throw new BadRequestError(`File is too large for Git-backed sync: ${file.path}`);
+		throw new BadRequestError(`File is too large for Git-backed sync: ${file.path}. Keep uploaded images under 8 MB.`);
 	}
 
 	return file;

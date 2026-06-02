@@ -85,7 +85,7 @@ export function ExcalidrawLibraryPanel({
 	installingSource,
 	onInstall,
 }: LibraryPanelProps) {
-	const [audience, setAudience] = useState<LibraryAudience>("devs");
+	const [audience, setAudience] = useState<LibraryAudience>("all");
 	const [query, setQuery] = useState("");
 	const { data, error, isLoading, mutate } = useExcalidrawLibraries();
 	const installed = useMemo(() => new Set(installedSources), [installedSources]);
@@ -110,15 +110,15 @@ export function ExcalidrawLibraryPanel({
 	const ActiveIcon = audienceIcons[audience];
 
 	return (
-		<aside className="flex h-full min-h-0 flex-col border-l-2 border-border bg-card">
+		<aside className="flex h-full min-h-0 flex-col border-l bg-background">
 			<div className="shrink-0 border-b px-4 py-3">
 				<div className="flex items-start justify-between gap-3">
 					<div className="min-w-0">
 						<div className="flex items-center gap-2">
 							<Sparkles className="size-4 text-[#CE82FF]" />
-							<h2 className="text-sm font-extrabold text-foreground">Libraries</h2>
+							<h2 className="text-sm font-bold text-foreground">Libraries</h2>
 						</div>
-						<p className="mt-1 text-xs font-semibold text-muted-foreground">
+						<p className="mt-1 text-xs font-medium text-muted-foreground">
 							{data?.total ?? 0} public Excalidraw packs, curated for real work.
 						</p>
 					</div>
@@ -142,14 +142,14 @@ export function ExcalidrawLibraryPanel({
 					</TabsList>
 				</Tabs>
 
-				<div className="mt-3 rounded-xl border bg-background p-3">
+				<div className="mt-3 rounded-lg border bg-card p-3">
 					<div className="flex items-center gap-2">
 						<ActiveIcon className="size-4 text-[#1CB0F6]" />
-						<div className="text-xs font-extrabold uppercase text-muted-foreground">{activeAudience.label}</div>
+						<div className="text-xs font-bold uppercase text-muted-foreground">{activeAudience.label}</div>
 					</div>
 					<div className="mt-2 space-y-1">
 						{audienceCopy[audience].map((line) => (
-							<div key={line} className="flex gap-2 text-xs font-semibold text-muted-foreground">
+							<div key={line} className="flex gap-2 text-xs font-medium text-muted-foreground">
 								<Check className="mt-0.5 size-3 shrink-0 text-[#58CC02]" />
 								<span>{line}</span>
 							</div>
@@ -194,15 +194,15 @@ export function ExcalidrawLibraryPanel({
 								<div
 									key={library.source}
 									className={cn(
-										"rounded-xl border-2 bg-background p-3 shadow-[0_2px_0_var(--border)] transition-colors",
-										isInstalled && "border-[#58CC02]/60",
+										"rounded-lg border bg-card p-3 transition-colors hover:border-foreground/30",
+										isInstalled && "border-[#58CC02]/50 bg-[#58CC02]/5",
 									)}
 								>
 									<LibraryPreview library={library} />
 									<div className="mt-3 flex items-start justify-between gap-3">
 										<div className="min-w-0">
-											<div className="truncate text-sm font-extrabold text-foreground">{library.name}</div>
-											<p className="mt-1 line-clamp-2 text-xs font-semibold text-muted-foreground">
+											<div className="truncate text-sm font-bold text-foreground">{library.name}</div>
+											<p className="mt-1 line-clamp-2 text-xs font-medium text-muted-foreground">
 												{library.description || "Ready-to-use Excalidraw library pack."}
 											</p>
 										</div>
@@ -226,13 +226,13 @@ export function ExcalidrawLibraryPanel({
 									</div>
 
 									<div className="mt-3 flex items-center justify-between gap-2">
-										<div className="min-w-0 truncate text-[11px] font-semibold text-muted-foreground">
+										<div className="min-w-0 truncate text-[11px] font-medium text-muted-foreground">
 											{library.authors[0]?.name ?? "Excalidraw community"}
 										</div>
 										<Button
 											size="sm"
 											variant={isInstalled ? "secondary" : "default"}
-											disabled={isInstalling}
+											disabled={isInstalling || isInstalled}
 											onClick={() => void onInstall(library)}
 										>
 											{isInstalling ? (
@@ -242,7 +242,7 @@ export function ExcalidrawLibraryPanel({
 											) : (
 												<Download className="size-4" />
 											)}
-											{isInstalled ? "Open" : "Import"}
+											{isInstalled ? "Added" : "Import"}
 										</Button>
 									</div>
 								</div>

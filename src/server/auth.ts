@@ -59,7 +59,7 @@ type OAuthConnectionLike = {
 	>;
 };
 
-const STACK_OAUTH_TIMEOUT_MS = 3_500;
+const STACK_OAUTH_TIMEOUT_MS = 10_000;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorFactory: () => Error) {
 	let timeout: ReturnType<typeof setTimeout>;
@@ -118,31 +118,33 @@ function isGithubConnection(account: OAuthConnectionLike) {
 }
 
 async function getGithubConnection(user: StackUserLike, scopes: string[]) {
-	if (user.listConnectedAccounts) {
-		const accounts = await withTimeout(
-			user.listConnectedAccounts(),
+	if (user.getConnectedAccount) {
+		const directAccount = (await withTimeout(
+			user.getConnectedAccount("github", {
+				scopes,
+				or: "return-null",
+			}),
 			STACK_OAUTH_TIMEOUT_MS,
 			() => new GithubAccessTokenError("github_token_unavailable", "GitHub connection check timed out"),
-		);
-		const githubAccount = accounts.find((account) => isOAuthConnectionLike(account) && isGithubConnection(account));
+		)) as OAuthConnectionLike | null;
 
-		if (isOAuthConnectionLike(githubAccount)) {
-			return githubAccount;
+		if (directAccount) {
+			return directAccount;
 		}
 	}
 
-	if (!user.getConnectedAccount) {
+	if (!user.listConnectedAccounts) {
 		return null;
 	}
 
-	return (await withTimeout(
-		user.getConnectedAccount("github", {
-			scopes,
-			or: "return-null",
-		}),
+	const accounts = await withTimeout(
+		user.listConnectedAccounts(),
 		STACK_OAUTH_TIMEOUT_MS,
 		() => new GithubAccessTokenError("github_token_unavailable", "GitHub connection check timed out"),
-	)) as OAuthConnectionLike | null;
+	);
+	const githubAccount = accounts.find((account) => isOAuthConnectionLike(account) && isGithubConnection(account));
+
+	return isOAuthConnectionLike(githubAccount) ? githubAccount : null;
 }
 
 async function getAccessTokenFromConnection(account: OAuthConnectionLike, scopes: string[]) {

@@ -24,10 +24,11 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ExcalidrawLibraryPanel } from "@/components/excalidraw-library-panel";
+import { ProjectDocEditor } from "@/components/project-doc-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { commitWorkspaceFiles, type SketchLoadResponse, type SketchScene } from "@/lib/api";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { ApiError, commitWorkspaceFiles, type SketchLoadResponse, type SketchScene } from "@/lib/api";
 import type { ExcalidrawLibrary } from "@/lib/excalidraw-libraries";
 import { deleteDraft, getDraft, setDraft } from "@/lib/indexeddb";
 import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
@@ -63,6 +64,12 @@ type LibraryDraftValue = {
 };
 
 type EditorMode = "split" | "canvas" | "docs" | "libraries";
+
+const editorModes = new Set<EditorMode>(["split", "canvas", "docs", "libraries"]);
+
+function isEditorMode(value: string | null): value is EditorMode {
+	return Boolean(value && editorModes.has(value as EditorMode));
+}
 
 function shortSha(value: string | null | undefined) {
 	return value ? value.slice(0, 7) : "pending";
@@ -180,7 +187,8 @@ export function EditorClient({
 	const [notesDirty, setNotesDirty] = useState(false);
 	const [hasScene, setHasScene] = useState(false);
 	const [status, setStatus] = useState("Loading sketch");
-	const [localError, setLocalError] = useState<string | null>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
+	const [saveError, setSaveError] = useState<string | null>(null);
 	const [mode, setMode] = useState<EditorMode>("split");
 	const [installedLibrarySources, setInstalledLibrarySources] = useState<string[]>([]);
 	const [installingLibrarySource, setInstallingLibrarySource] = useState<string | null>(null);
@@ -213,10 +221,44 @@ export function EditorClient({
 		isLoading: sketchLoading,
 		mutate: mutateSketch,
 	} = useSketch(sketchInput);
+	const setEditorMode = useCallback((nextMode: EditorMode) => {
+		setMode(nextMode);
+
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		const url = new URL(window.location.href);
+		url.searchParams.set("view", nextMode);
+		window.history.pushState({ sketchflowView: nextMode }, "", url);
+		window.requestAnimationFrame(() => {
+			window.dispatchEvent(new Event("resize"));
+			excalidrawApiRef.current?.refresh();
+		});
+	}, []);
 
 	useEffect(() => {
 		appRef.current = app;
 	}, [app]);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		const readModeFromUrl = () => {
+			const params = new URLSearchParams(window.location.search);
+			const nextMode = params.get("view");
+			setMode(isEditorMode(nextMode) ? nextMode : "split");
+		};
+
+		readModeFromUrl();
+		window.addEventListener("popstate", readModeFromUrl);
+
+		return () => {
+			window.removeEventListener("popstate", readModeFromUrl);
+		};
+	}, []);
 
 	useEffect(() => {
 		installedLibrarySourcesRef.current = installedLibrarySources;
@@ -232,7 +274,8 @@ export function EditorClient({
 		let mounted = true;
 
 		async function hydrateFromData(nextData: SketchLoadResponse) {
-			setLocalError(null);
+			setLoadError(null);
+			setSaveError(null);
 			setInitialData(null);
 			setHasScene(false);
 			sceneRef.current = null;
@@ -274,7 +317,7 @@ export function EditorClient({
 				);
 			} catch (error) {
 				if (!mounted) return;
-				setLocalError(error instanceof Error ? error.message : "Draft could not be opened");
+				setLoadError(error instanceof Error ? error.message : "Draft could not be opened");
 			}
 		}
 
@@ -424,7 +467,7 @@ export function EditorClient({
 		if (!scene || !data) return;
 
 		setSaving(true);
-		setLocalError(null);
+		setSaveError(null);
 		setStatus("Committing to GitHub");
 
 		try {
@@ -495,12 +538,14 @@ export function EditorClient({
 				{ revalidate: false },
 			);
 		} catch (saveError) {
-			setLocalError(
-				saveError instanceof Error
-					? saveError.message
-					: "Sketch was not saved",
-			);
-			setStatus("Save failed");
+			const nextMessage =
+				saveError instanceof ApiError && saveError.code?.startsWith("github_")
+					? "GitHub sync needs a fresh connection. Your local draft is safe."
+					: saveError instanceof Error
+						? saveError.message
+						: "Sketch was not saved";
+			setSaveError(nextMessage);
+			setStatus("Local draft saved");
 		} finally {
 			setSaving(false);
 		}
@@ -511,8 +556,56 @@ export function EditorClient({
 		? `${data.workspace.repoOwner}/${data.workspace.repoName} · projects/${projectId}`
 		: "GitHub-backed visual doc";
 	const loading = authLoading || sketchLoading;
-	const error = localError || (sketchError instanceof Error ? sketchError.message : null);
+	const error = loadError || (sketchError instanceof Error ? sketchError.message : null);
 	const dirty = sceneDirty || notesDirty;
+	const canvasEditor = initialData ? (
+		<div className="h-full min-h-0">
+			<Excalidraw
+				key={currentDraftKey}
+				initialData={initialData}
+				onChange={handleSceneChange}
+				onLibraryChange={handleLibraryChange}
+				excalidrawAPI={(api) => {
+					excalidrawApiRef.current = api;
+				}}
+				UIOptions={{
+					tools: {
+						image: true,
+					},
+				}}
+			/>
+		</div>
+	) : null;
+	const docsPanel = (
+		<div className="flex h-full min-h-0 flex-col border-l bg-card">
+			<div className="flex h-12 shrink-0 items-center justify-between border-b px-4">
+				<div className="flex min-w-0 items-center gap-2">
+					<SquarePen className="size-4 text-[#1CB0F6]" />
+					<div className="min-w-0">
+						<div className="truncate text-sm font-extrabold text-foreground">Project docs</div>
+						<div className="truncate text-xs font-semibold text-muted-foreground">
+							{notesFilePath(projectId)}
+						</div>
+					</div>
+				</div>
+				<Badge variant={notesDirty ? "default" : "secondary"}>
+					{notesDirty ? "Draft" : "Saved"}
+				</Badge>
+			</div>
+			<ProjectDocEditor
+				documentKey={currentNotesDraftKey}
+				markdown={notes}
+				onMarkdownChange={handleNotesChange}
+			/>
+		</div>
+	);
+	const libraryPanel = (
+		<ExcalidrawLibraryPanel
+			installedSources={installedLibrarySources}
+			installingSource={installingLibrarySource}
+			onInstall={handleInstallLibrary}
+		/>
+	);
 
 	return (
 		<main className="flex h-screen min-h-screen flex-col bg-background">
@@ -536,7 +629,7 @@ export function EditorClient({
 						<Button
 							variant={mode === "canvas" ? "secondary" : "ghost"}
 							size="xs"
-							onClick={() => setMode("canvas")}
+							onClick={() => setEditorMode("canvas")}
 						>
 							<Maximize2 className="size-3.5" />
 							Canvas
@@ -544,7 +637,7 @@ export function EditorClient({
 						<Button
 							variant={mode === "split" ? "secondary" : "ghost"}
 							size="xs"
-							onClick={() => setMode("split")}
+							onClick={() => setEditorMode("split")}
 						>
 							<PanelsTopLeft className="size-3.5" />
 							Split
@@ -552,7 +645,7 @@ export function EditorClient({
 						<Button
 							variant={mode === "docs" ? "secondary" : "ghost"}
 							size="xs"
-							onClick={() => setMode("docs")}
+							onClick={() => setEditorMode("docs")}
 						>
 							<FileText className="size-3.5" />
 							Docs
@@ -560,7 +653,7 @@ export function EditorClient({
 						<Button
 							variant={mode === "libraries" ? "secondary" : "ghost"}
 							size="xs"
-							onClick={() => setMode("libraries")}
+							onClick={() => setEditorMode("libraries")}
 						>
 							<BookOpen className="size-3.5" />
 							Libraries
@@ -599,59 +692,28 @@ export function EditorClient({
 						</div>
 					</div>
 				) : initialData ? (
-					<div
-						className={
-							mode === "split" || mode === "libraries"
-								? "grid h-full grid-cols-[minmax(0,1fr)_400px]"
-								: "h-full"
-						}
-					>
-						<div className={mode === "docs" ? "hidden" : "min-h-0"}>
-							<Excalidraw
-								key={currentDraftKey}
-								initialData={initialData}
-								onChange={handleSceneChange}
-								onLibraryChange={handleLibraryChange}
-								excalidrawAPI={(api) => {
-									excalidrawApiRef.current = api;
-								}}
-							/>
-						</div>
-						{mode === "libraries" ? (
-							<ExcalidrawLibraryPanel
-								installedSources={installedLibrarySources}
-								installingSource={installingLibrarySource}
-								onInstall={handleInstallLibrary}
-							/>
-						) : null}
-						<div
-							className={
-								mode === "canvas" || mode === "libraries"
-									? "hidden"
-									: "flex h-full min-h-0 flex-col border-l-2 border-border bg-card"
-							}
-						>
-							<div className="flex h-12 shrink-0 items-center justify-between border-b px-4">
-								<div className="flex min-w-0 items-center gap-2">
-									<SquarePen className="size-4 text-[#1CB0F6]" />
-									<div className="min-w-0">
-										<div className="truncate text-sm font-extrabold text-foreground">Project docs</div>
-										<div className="truncate text-xs font-semibold text-muted-foreground">
-											{notesFilePath(projectId)}
-										</div>
-									</div>
-								</div>
-								<Badge variant={notesDirty ? "default" : "secondary"}>
-									{notesDirty ? "Draft" : "Saved"}
-								</Badge>
+					<div className="relative h-full min-h-0 overflow-hidden">
+						{saveError ? (
+							<div className="absolute left-1/2 top-4 z-20 w-[min(520px,calc(100%-2rem))] -translate-x-1/2 rounded-xl border bg-card px-4 py-3 text-sm shadow-lg">
+								<div className="font-extrabold text-foreground">Cloud sync paused</div>
+								<div className="mt-1 font-semibold text-muted-foreground">{saveError}</div>
 							</div>
-							<Textarea
-								value={notes}
-								onChange={(event) => handleNotesChange(event.target.value)}
-								placeholder="Write docs, decisions, todos, prompts, PRD notes..."
-								className="h-full min-h-0 flex-1 resize-none rounded-none border-0 bg-card p-4 font-mono text-sm leading-6 shadow-none focus-visible:ring-0"
-							/>
-						</div>
+						) : null}
+						{mode === "canvas" ? (
+							canvasEditor
+						) : mode === "docs" ? (
+							<div className="h-full min-h-0">{docsPanel}</div>
+						) : (
+							<ResizablePanelGroup orientation="horizontal" className="h-full min-h-0">
+								<ResizablePanel defaultSize={mode === "libraries" ? 70 : 68} minSize={42}>
+									{canvasEditor}
+								</ResizablePanel>
+								<ResizableHandle withHandle />
+								<ResizablePanel defaultSize={mode === "libraries" ? 30 : 32} minSize={24} maxSize={48}>
+									{mode === "libraries" ? libraryPanel : docsPanel}
+								</ResizablePanel>
+							</ResizablePanelGroup>
+						)}
 					</div>
 				) : null}
 			</section>
