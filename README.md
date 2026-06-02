@@ -165,6 +165,18 @@ If OAuth needs a refresh, the UI shows a recovery card. Users can reconnect GitH
 
 The local token is stored in browser localStorage only. It is sent to same-origin Sketchflow API routes as a fallback and is never written to Postgres or committed to GitHub.
 
+## Versioning And Offline Mode
+
+Project history is planned as project-scoped Git versioning, not workspace-wide rollback. Sketchflow will list commits for `projects/{projectSlug}`, preview any selected commit, and restore that project by copying its files into a new commit on the current branch.
+
+Offline mode is planned in two layers: local draft mode for connected workspaces and pure offline workspaces that live in IndexedDB until the user chooses to sync to GitHub.
+
+Read the implementation plan:
+
+```txt
+docs/project-versioning-offline-plan.md
+```
+
 ## Frontend Areas
 
 ```txt

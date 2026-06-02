@@ -1,5 +1,15 @@
 import Link from "next/link";
-import { ArrowRight, GitBranch, KeyRound, Layers3, RefreshCw, ShieldCheck } from "lucide-react";
+import {
+	ArrowRight,
+	GitBranch,
+	History,
+	KeyRound,
+	Layers3,
+	RefreshCw,
+	RotateCcw,
+	ShieldCheck,
+	WifiOff,
+} from "lucide-react";
 
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
@@ -25,6 +35,24 @@ const sections = [
 		icon: KeyRound,
 		title: "Access",
 		copy: "Reconnect GitHub from the app, or paste a local token when OAuth needs a refresh.",
+	},
+];
+
+const roadmap = [
+	{
+		icon: History,
+		title: "Project history",
+		copy: "Sketchflow will list commits that touched the selected project folder and let you preview each version.",
+	},
+	{
+		icon: RotateCcw,
+		title: "Project restore",
+		copy: "Restores will copy only that project from an older commit into a new commit, keeping the workspace history intact.",
+	},
+	{
+		icon: WifiOff,
+		title: "Offline work",
+		copy: "Connected workspaces can pause sync, and pure offline workspaces can stay in IndexedDB until you choose GitHub sync.",
 	},
 ];
 
@@ -90,6 +118,42 @@ export default function HelpPage() {
 						<Button variant="outline" asChild>
 							<Link href="/app/workspace">Reconnect GitHub</Link>
 						</Button>
+					</div>
+				</div>
+
+				<div className="mt-8 rounded-[18px] border bg-card p-5">
+					<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+						<div>
+							<h2 className="text-lg font-black">Versioning and offline plan</h2>
+							<p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+								History and offline mode are designed around user-owned repos without forcing full workspace
+								rollbacks.
+							</p>
+						</div>
+						<Button variant="outline" asChild>
+							<Link
+								href="https://github.com/SH20RAJ/sketch-flow/blob/main/docs/project-versioning-offline-plan.md"
+								target="_blank"
+							>
+								Read plan
+								<ArrowRight className="size-4" />
+							</Link>
+						</Button>
+					</div>
+
+					<div className="mt-5 grid gap-3 md:grid-cols-3">
+						{roadmap.map((item) => {
+							const Icon = item.icon;
+							return (
+								<div key={item.title} className="rounded-2xl border bg-background p-4">
+									<div className="flex items-center gap-2 text-sm font-extrabold">
+										<Icon className="size-4 text-primary" />
+										{item.title}
+									</div>
+									<p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">{item.copy}</p>
+								</div>
+							);
+						})}
 					</div>
 				</div>
 			</section>
