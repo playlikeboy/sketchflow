@@ -1,4 +1,5 @@
 import { PROJECTS_METADATA_PATH, normalizeProjectsMetadata } from "@/lib/project-metadata";
+import { SKETCHFLOW_APP_URL } from "@/lib/config";
 import { requireGithubAccessToken } from "@/server/auth";
 import { getWorkspace } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
@@ -94,7 +95,7 @@ export async function GET(
 			sketch: sketchFile?.json ?? {
 				type: "excalidraw",
 				version: 2,
-				source: "https://sketchflow.local",
+				source: SKETCHFLOW_APP_URL,
 				elements: [],
 				appState: {
 					viewBackgroundColor: "#ffffff",

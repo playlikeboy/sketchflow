@@ -32,11 +32,20 @@ export const swrKeys = {
 };
 
 export function useAuthMe() {
-	return useSWR<AuthMeResponse>(swrKeys.authMe, getAuthMe);
+	return useSWR<AuthMeResponse>(swrKeys.authMe, getAuthMe, {
+		revalidateOnFocus: true,
+		revalidateOnReconnect: true,
+		dedupingInterval: 2000,
+	});
 }
 
 export function useGithubStatus() {
-	return useSWR<GithubStatus>(swrKeys.githubStatus, getGithubStatus);
+	return useSWR<GithubStatus>(swrKeys.githubStatus, getGithubStatus, {
+		revalidateOnFocus: true,
+		revalidateOnReconnect: true,
+		refreshInterval: 30_000,
+		dedupingInterval: 3000,
+	});
 }
 
 export function useExcalidrawLibraries() {
@@ -46,13 +55,26 @@ export function useExcalidrawLibraries() {
 }
 
 export function useWorkspaces() {
-	return useSWR(swrKeys.workspaces, getWorkspaces);
+	return useSWR(swrKeys.workspaces, getWorkspaces, {
+		revalidateOnFocus: true,
+		revalidateOnReconnect: true,
+		refreshInterval: 20_000,
+		dedupingInterval: 2000,
+		keepPreviousData: true,
+	});
 }
 
 export function useWorkspaceProjects(workspaceId: string | null | undefined) {
 	return useSWR<WorkspaceProjectsResponse>(
 		swrKeys.workspaceProjects(workspaceId),
 		() => getWorkspaceProjects(workspaceId as string),
+		{
+			revalidateOnFocus: true,
+			revalidateOnReconnect: true,
+			refreshInterval: 10_000,
+			dedupingInterval: 1000,
+			keepPreviousData: true,
+		},
 	);
 }
 

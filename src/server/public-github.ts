@@ -1,4 +1,5 @@
 import type { SketchScene } from "@/lib/api";
+import { GITHUB_REST_API_VERSION } from "@/lib/config";
 
 export type PublicProjectFile = {
 	title?: string;
@@ -33,7 +34,7 @@ export async function getPublicRepoDefaultBranch(owner: string, repo: string) {
 		{
 			headers: {
 				Accept: "application/vnd.github+json",
-				"X-GitHub-Api-Version": "2026-03-10",
+				"X-GitHub-Api-Version": GITHUB_REST_API_VERSION,
 			},
 			next: { revalidate: 300 },
 		},

@@ -2,10 +2,6 @@
  * For more details on how to configure Wrangler, refer to:
  * https://developers.cloudflare.com/workers/wrangler/configuration/
  */
-/**
- * For more details on how to configure Wrangler, refer to:
- * https://developers.cloudflare.com/workers/wrangler/configuration/
- */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "sketchflow",
@@ -34,6 +30,10 @@
 	],
 	"observability": {
 		"enabled": true
+	},
+	"route": {
+		"pattern": "sketchflow.space",
+		"custom_domain": true
 	},
 	"upload_source_maps": true
 	/**

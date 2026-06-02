@@ -6,6 +6,7 @@ import {
 	type ProjectsMetadata,
 	type WorkspaceProject,
 } from "@/lib/project-metadata";
+import { SKETCHFLOW_APP_URL } from "@/lib/config";
 import { requireGithubAccessToken } from "@/server/auth";
 import { getWorkspace, recordSyncEvent, updateWorkspaceCommit } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
@@ -257,7 +258,7 @@ export async function POST(
 						{
 							type: "excalidraw",
 							version: 2,
-							source: "https://sketchflow.shraj.workers.dev",
+							source: SKETCHFLOW_APP_URL,
 							elements: [],
 							appState: {
 								viewBackgroundColor: "#ffffff",

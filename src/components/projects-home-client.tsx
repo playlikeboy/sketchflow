@@ -11,6 +11,7 @@ import {
 	GitCommit,
 	GitPullRequest,
 	Globe,
+	KeyRound,
 	Loader2,
 	Plus,
 	RefreshCw,
@@ -32,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import {
 	createWorkspaceProject,
 	syncWorkspaceProjectsMetadata,
+	ApiError,
 	type Workspace,
 } from "@/lib/api";
 import { connectGithubAccount } from "@/lib/github-connect";
@@ -58,7 +60,7 @@ function shortSha(value: string | null) {
 
 function friendlyError(message: string) {
 	if (message.toLowerCase().includes("github")) {
-		return "GitHub is almost connected. Reconnect once and approve access to continue.";
+		return "GitHub access needs a refresh. Open Workspace, reconnect GitHub, and approve repository access.";
 	}
 
 	return message;
@@ -78,6 +80,10 @@ function projectDescription(project: WorkspaceProject) {
 }
 
 function errorCopy(error: unknown) {
+	if (error instanceof ApiError && error.code?.startsWith("github_")) {
+		return "GitHub access needs a refresh. Open Workspace, reconnect GitHub, and approve repository access.";
+	}
+
 	return error instanceof Error ? friendlyError(error.message) : null;
 }
 
@@ -373,8 +379,14 @@ export function ProjectsHomeClient() {
 						</div>
 
 						{projectError ? (
-							<div className="rounded-[16px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-								{projectError}
+							<div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+								<span className="inline-flex items-center gap-2">
+									<KeyRound className="size-4" />
+									{projectError}
+								</span>
+								<Button variant="outline" size="sm" asChild>
+									<Link href="/app/workspace">Open Workspace</Link>
+								</Button>
 							</div>
 						) : null}
 

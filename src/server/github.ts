@@ -1,8 +1,8 @@
 import { PROJECTS_METADATA_PATH, buildProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
+import { GITHUB_REST_API_VERSION } from "@/lib/config";
 import { BadRequestError, HttpError } from "@/server/http";
 
 const GITHUB_API_URL = "https://api.github.com";
-const GITHUB_API_VERSION = process.env.GITHUB_API_VERSION || "2026-03-10";
 const MAX_FILE_BYTES = 1_000_000;
 
 export type GithubUser = {
@@ -102,7 +102,7 @@ async function githubRequest<T>(accessToken: string, path: string, init: Request
 			Accept: "application/vnd.github+json",
 			Authorization: `Bearer ${accessToken}`,
 			"Content-Type": "application/json",
-			"X-GitHub-Api-Version": GITHUB_API_VERSION,
+			"X-GitHub-Api-Version": GITHUB_REST_API_VERSION,
 			...init.headers,
 		},
 	});

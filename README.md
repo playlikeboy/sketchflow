@@ -2,6 +2,8 @@
 
 Sketchflow is a GitHub-native visual workspace for builders. Sketches, project docs, exports, assets, metadata, and history live in a repository the user owns.
 
+Production: <https://sketchflow.space>
+
 The product direction is simple:
 
 > Excalidraw-like creation, Eraser-like project flow, GitHub-native ownership, and AI-ready project memory.
@@ -17,6 +19,8 @@ GitHub repo        -> durable sketches, docs, exports, assets, logs
 Neon Postgres      -> users, GitHub connections, workspaces, billing metadata
 Drizzle ORM        -> typed schema and database access
 Stack Auth         -> authentication and GitHub OAuth connection
+SWR                -> client API cache and active project revalidation
+Cloudflare Worker  -> production runtime at sketchflow.space
 ```
 
 Postgres should not store sketch scenes. It stores only operational metadata such as user identity, connected GitHub accounts, workspace pointers, sync events, and future billing state.
@@ -74,10 +78,19 @@ NEXT_PUBLIC_STACK_PROJECT_ID
 NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY
 STACK_SECRET_SERVER_KEY
 DATABASE_URL
+NEXT_PUBLIC_APP_URL
 GITHUB_API_VERSION
 GITHUB_OAUTH_SCOPES
 SKETCHFLOW_REPO_NAME
 SKETCHFLOW_DEFAULT_BRANCH
+```
+
+Recommended production values:
+
+```txt
+NEXT_PUBLIC_APP_URL=https://sketchflow.space
+GITHUB_API_VERSION=2022-11-28
+GITHUB_OAUTH_SCOPES=repo,read:user,user:email
 ```
 
 Run the app:
@@ -98,6 +111,7 @@ bun run db:generate  # Generate Drizzle migrations
 bun run db:migrate   # Apply generated Drizzle migrations
 bun run preview      # OpenNext Cloudflare preview
 bun run deploy       # Deploy through OpenNext Cloudflare
+bun run cf-typegen   # Generate Cloudflare binding types
 ```
 
 ## Backend API
@@ -112,6 +126,8 @@ GET  /api/workspaces
 POST /api/workspaces
 POST /api/workspaces/bootstrap
 POST /api/workspaces/[workspaceId]/commit
+GET  /api/workspaces/[workspaceId]/projects
+POST /api/workspaces/[workspaceId]/projects
 GET  /api/workspaces/[workspaceId]/projects/[projectId]/sketches/[sketchId]
 ```
 
@@ -129,6 +145,42 @@ The app-first frontend includes:
 - Excalidraw editor route with IndexedDB autosave.
 - Manual GitHub snapshot save for scene JSON, project metadata, and notes.
 - Polished placeholders for collaboration, AI, docs, publishing, exports, timeline, and billing.
+- PWA install metadata with a conservative service worker for static assets only.
+- SWR-backed project lists that revalidate on focus, reconnect, and a short interval.
+
+## Deployment
+
+The Worker is configured for the custom domain:
+
+```txt
+https://sketchflow.space
+```
+
+Deploy manually:
+
+```bash
+bun run deploy
+```
+
+GitHub Actions deploys on pushes to `main`, manual dispatch, and a daily scheduled trigger. CI needs these GitHub Actions secrets:
+
+```txt
+CLOUDFLARE_API_TOKEN
+CLOUDFLARE_ACCOUNT_ID
+NEXT_PUBLIC_STACK_PROJECT_ID
+NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY
+STACK_SECRET_SERVER_KEY
+DATABASE_URL
+NEXT_PUBLIC_APP_URL
+SKETCHFLOW_REPO_NAME
+SKETCHFLOW_DEFAULT_BRANCH
+SKETCHFLOW_GITHUB_API_VERSION
+SKETCHFLOW_GITHUB_OAUTH_SCOPES
+```
+
+The workflow maps `SKETCHFLOW_GITHUB_API_VERSION` to `GITHUB_API_VERSION` and
+`SKETCHFLOW_GITHUB_OAUTH_SCOPES` to `GITHUB_OAUTH_SCOPES`, because GitHub
+Actions blocks secret and variable names that start with `GITHUB_`.
 
 ## Security Notes
 

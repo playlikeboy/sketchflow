@@ -112,6 +112,17 @@ type ApiInit = RequestInit & {
 	json?: unknown;
 };
 
+export class ApiError extends Error {
+	constructor(
+		message: string,
+		readonly status: number,
+		readonly code?: string,
+	) {
+		super(message);
+		this.name = "ApiError";
+	}
+}
+
 export async function apiJson<T>(url: string, init: ApiInit = {}) {
 	const response = await fetch(url, {
 		...init,
@@ -125,8 +136,11 @@ export async function apiJson<T>(url: string, init: ApiInit = {}) {
 
 	if (!response.ok) {
 		const message =
-			data && typeof data === "object" && "error" in data && typeof data.error === "string" ? data.error : "Request failed";
-		throw new Error(message);
+			data && typeof data === "object" && "error" in data && typeof data.error === "string"
+				? data.error
+				: `Request failed with status ${response.status}`;
+		const code = data && typeof data === "object" && "code" in data && typeof data.code === "string" ? data.code : undefined;
+		throw new ApiError(message, response.status, code);
 	}
 
 	return data as T;

@@ -1,4 +1,5 @@
 import type { SketchScene } from "@/lib/api";
+import { SKETCHFLOW_APP_URL } from "@/lib/config";
 
 export function slugify(value: string) {
 	const slug = value
@@ -38,7 +39,7 @@ export function normalizeScene(scene: Partial<SketchScene> | null | undefined): 
 	return {
 		type: scene?.type ?? "excalidraw",
 		version: scene?.version ?? 2,
-		source: scene?.source ?? "https://sketchflow.local",
+		source: scene?.source ?? SKETCHFLOW_APP_URL,
 		elements: Array.isArray(scene?.elements) ? scene.elements : [],
 		appState: {
 			viewBackgroundColor: "#ffffff",

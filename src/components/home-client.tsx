@@ -7,47 +7,87 @@ import {
 	ArrowRight,
 	BookOpen,
 	Boxes,
+	BrainCircuit,
+	CheckCircle2,
+	Code2,
 	FileText,
 	GitBranch,
-	LayoutDashboard,
+	Globe,
+	Layers3,
 	Loader2,
 	Moon,
 	Network,
 	PenTool,
+	RefreshCw,
 	ShieldCheck,
 	Sparkles,
 	Sun,
+	Users,
+	Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
+import { SKETCHFLOW_APP_URL } from "@/lib/config";
 import { useAuthMe } from "@/lib/swr-hooks";
 
-const pillars = [
-	{
-		icon: PenTool,
-		title: "Sketch",
-		description: "A full Excalidraw canvas with libraries, quick diagrams, and local autosave.",
-	},
-	{
-		icon: FileText,
-		title: "Document",
-		description: "Project notes live beside the canvas and save back into the same repo.",
-	},
+const repoFiles = [
+	"projects/day1/sketches/system-map.excalidraw.json",
+	"projects/day1/docs/notes.md",
+	"projects/projects-metadata.json",
+	".sketchflow/workspace.json",
+];
+
+const workflow = [
 	{
 		icon: GitBranch,
-		title: "Own",
-		description: "Sketches, docs, metadata, assets, and public pages stay in your GitHub repo.",
+		title: "Connect a repo",
+		description: "Create or connect a public GitHub workspace and keep every project folder portable.",
+	},
+	{
+		icon: PenTool,
+		title: "Sketch and write",
+		description: "Use a full Excalidraw canvas with notes saved beside every project.",
+	},
+	{
+		icon: RefreshCw,
+		title: "Commit snapshots",
+		description: "Local drafts stay instant. GitHub commits store durable project history.",
+	},
+	{
+		icon: Globe,
+		title: "Publish from GitHub",
+		description: "Share public project pages and embeds backed by repo files.",
 	},
 ];
 
-const useCases = [
-	{ icon: Network, label: "Architecture maps" },
-	{ icon: LayoutDashboard, label: "Product flows" },
-	{ icon: BookOpen, label: "Teaching boards" },
-	{ icon: Boxes, label: "Reusable libraries" },
+const personas = [
+	{
+		icon: Network,
+		title: "Architects",
+		description: "Map systems, dependencies, services, and decision trails without losing context.",
+	},
+	{
+		icon: Code2,
+		title: "Developers",
+		description: "Turn sketches into project docs, issue context, exports, and future AI memory.",
+	},
+	{
+		icon: BookOpen,
+		title: "Teachers",
+		description: "Build lesson boards, explain flows, publish references, and reuse libraries.",
+	},
+];
+
+const features = [
+	{ icon: ShieldCheck, label: "User-owned data" },
+	{ icon: FileText, label: "Docs beside sketches" },
+	{ icon: Boxes, label: "Excalidraw libraries" },
+	{ icon: BrainCircuit, label: "AI-ready memory" },
+	{ icon: Users, label: "Collab-ready rooms" },
+	{ icon: Layers3, label: "Project index" },
 ];
 
 export function HomeClient() {
@@ -80,9 +120,22 @@ export function HomeClient() {
 
 	return (
 		<main className="min-h-screen bg-background text-foreground">
-			<header className="border-b bg-background/95">
-				<div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
-					<BrandMark subtitle="GitHub-native canvas" />
+			<header className="sticky top-0 z-30 border-b bg-background/88 backdrop-blur-xl">
+				<div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+					<Link href="/" aria-label="Sketchflow home">
+						<BrandMark subtitle="GitHub-native canvas" />
+					</Link>
+					<nav className="hidden items-center gap-5 text-sm font-bold text-muted-foreground md:flex">
+						<a href="#workflow" className="hover:text-foreground">
+							Workflow
+						</a>
+						<a href="#use-cases" className="hover:text-foreground">
+							Use cases
+						</a>
+						<a href="#ownership" className="hover:text-foreground">
+							Ownership
+						</a>
+					</nav>
 					<div className="flex items-center gap-2">
 						<Button
 							variant="ghost"
@@ -96,88 +149,148 @@ export function HomeClient() {
 							Sign in
 						</Button>
 						<Button size="sm" onClick={() => void app.redirectToSignUp()}>
-							Get started
+							Start free
 							<ArrowRight className="size-4" />
 						</Button>
 					</div>
 				</div>
 			</header>
 
-			<section className="mx-auto grid max-w-6xl gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[1fr_460px] lg:items-center lg:py-24">
+			<section className="mx-auto grid max-w-7xl gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:py-20">
 				<div>
 					<div className="inline-flex items-center gap-2 rounded-full border bg-muted px-3 py-1 text-xs font-bold text-muted-foreground">
 						<Sparkles className="size-3.5 text-primary" />
-						GitHub-native visual workspace
+						Excalidraw comfort, GitHub ownership
 					</div>
-					<h1 className="mt-5 max-w-3xl text-4xl font-extrabold tracking-normal text-foreground sm:text-6xl">
-						Sketch, document, and publish from your own repo.
+					<h1 className="mt-5 max-w-4xl text-4xl font-black leading-[1.02] sm:text-6xl">
+						The visual workspace that lives in your GitHub repo.
 					</h1>
-					<p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-muted-foreground">
-						Sketchflow is a focused workspace for builders who want diagrams, project docs,
-						public pages, and visual memory without giving up data ownership.
+					<p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-muted-foreground sm:text-lg">
+						Sketchflow gives builders one place to sketch systems, write notes, publish project pages,
+						and keep all durable files in a repo they control.
 					</p>
 					<div className="mt-8 flex flex-wrap gap-3">
 						<Button size="lg" onClick={() => void app.redirectToSignUp()}>
 							Create workspace
 							<ArrowRight className="size-4" />
 						</Button>
-						<Button variant="outline" size="lg" onClick={() => void app.redirectToSignIn()}>
-							Sign in
+						<Button variant="outline" size="lg" asChild>
+							<Link href="/app">
+								Open app
+								<GitBranch className="size-4" />
+							</Link>
 						</Button>
 					</div>
-				</div>
-
-				<div className="rounded-2xl border bg-card p-4 shadow-sm">
-					<div className="rounded-xl border bg-muted p-3">
-						<div className="flex items-center justify-between text-xs font-bold text-muted-foreground">
-							<span>SH20RAJ/sketchflow-workspace</span>
-							<span>main</span>
-						</div>
-					</div>
-					<div className="mt-4 grid gap-3">
+					<div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
 						{[
-							"projects/day1/sketches/system-map.excalidraw.json",
-							"projects/day1/docs/notes.md",
-							"projects/projects-metadata.json",
-						].map((item) => (
-							<div key={item} className="rounded-xl border bg-background px-3 py-3 font-mono text-xs font-semibold text-muted-foreground">
-								{item}
+							["GitHub", "source of truth"],
+							["IndexedDB", "instant drafts"],
+							["SWR", "active project cache"],
+						].map(([title, label]) => (
+							<div key={title} className="rounded-[16px] border bg-card px-4 py-3">
+								<div className="text-lg font-black">{title}</div>
+								<div className="text-xs font-bold text-muted-foreground">{label}</div>
 							</div>
 						))}
 					</div>
-					<div className="mt-4 rounded-xl border bg-background p-4">
-						<div className="flex items-center gap-2 text-sm font-extrabold">
-							<ShieldCheck className="size-4 text-primary" />
-							Your repo is the source of truth
+				</div>
+
+				<div className="rounded-[24px] border bg-card p-4 shadow-sm">
+					<div className="rounded-[18px] border bg-muted p-4">
+						<div className="flex items-center justify-between gap-3 text-xs font-bold text-muted-foreground">
+							<span>SH20RAJ/sketchflow-workspace</span>
+							<span>main</span>
 						</div>
-						<p className="mt-2 text-sm font-semibold text-muted-foreground">
-							Sketchflow stores only app metadata. Your project files stay in GitHub.
-						</p>
+						<div className="mt-4 grid gap-2">
+							{repoFiles.map((item) => (
+								<div
+									key={item}
+									className="flex items-center gap-3 rounded-[14px] border bg-background px-3 py-3 font-mono text-xs font-semibold text-muted-foreground"
+								>
+									<GitBranch className="size-4 shrink-0 text-primary" />
+									<span className="truncate">{item}</span>
+								</div>
+							))}
+						</div>
+					</div>
+					<div className="mt-4 grid gap-3 sm:grid-cols-2">
+						<div className="rounded-[18px] border bg-background p-4">
+							<div className="flex items-center gap-2 text-sm font-black">
+								<Zap className="size-4 text-primary" />
+								Fast first
+							</div>
+							<p className="mt-2 text-sm font-semibold text-muted-foreground">
+								Draft locally, then sync intentional snapshots.
+							</p>
+						</div>
+						<div className="rounded-[18px] border bg-background p-4">
+							<div className="flex items-center gap-2 text-sm font-black">
+								<ShieldCheck className="size-4 text-primary" />
+								Portable
+							</div>
+							<p className="mt-2 text-sm font-semibold text-muted-foreground">
+								Files stay readable, public, and forkable.
+							</p>
+						</div>
 					</div>
 				</div>
 			</section>
 
-			<section className="mx-auto max-w-6xl px-5 pb-16 sm:px-8">
-				<div className="grid gap-4 md:grid-cols-3">
-					{pillars.map((pillar) => {
-						const Icon = pillar.icon;
-						return (
-							<div key={pillar.title} className="rounded-2xl border bg-card p-5 shadow-sm">
-								<div className="grid size-10 place-items-center rounded-xl bg-muted text-primary">
-									<Icon className="size-5" />
+			<section id="workflow" className="border-y bg-muted/35">
+				<div className="mx-auto max-w-7xl px-5 py-14 sm:px-8">
+					<div className="max-w-2xl">
+						<h2 className="text-3xl font-black">A calmer way to build visual project memory.</h2>
+						<p className="mt-3 text-sm font-semibold leading-6 text-muted-foreground">
+							Sketchflow keeps the live editing surface light and the durable history explicit.
+						</p>
+					</div>
+					<div className="mt-8 grid gap-4 md:grid-cols-4">
+						{workflow.map((step) => {
+							const Icon = step.icon;
+							return (
+								<div key={step.title} className="rounded-[20px] border bg-card p-5 shadow-sm">
+									<div className="grid size-10 place-items-center rounded-[14px] bg-primary/10 text-primary">
+										<Icon className="size-5" />
+									</div>
+									<h3 className="mt-4 text-base font-black">{step.title}</h3>
+									<p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">{step.description}</p>
 								</div>
-								<h2 className="mt-4 text-lg font-extrabold">{pillar.title}</h2>
-								<p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">{pillar.description}</p>
-							</div>
-						);
-					})}
+							);
+						})}
+					</div>
 				</div>
+			</section>
 
+			<section id="use-cases" className="mx-auto max-w-7xl px-5 py-14 sm:px-8">
+				<div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+					<div>
+						<h2 className="text-3xl font-black">Built for people who explain systems.</h2>
+						<p className="mt-3 text-sm font-semibold leading-6 text-muted-foreground">
+							Architects, developers, teachers, founders, and teams get one organized workspace
+							instead of scattered canvases and forgotten notes.
+						</p>
+					</div>
+					<div className="grid gap-4 md:grid-cols-3">
+						{personas.map((item) => {
+							const Icon = item.icon;
+							return (
+								<div key={item.title} className="rounded-[20px] border bg-card p-5">
+									<Icon className="size-5 text-primary" />
+									<h3 className="mt-4 text-base font-black">{item.title}</h3>
+									<p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">{item.description}</p>
+								</div>
+							);
+						})}
+					</div>
+				</div>
 				<div className="mt-8 flex flex-wrap gap-2">
-					{useCases.map((item) => {
+					{features.map((item) => {
 						const Icon = item.icon;
 						return (
-							<div key={item.label} className="inline-flex items-center gap-2 rounded-full border bg-muted px-3 py-2 text-sm font-bold text-muted-foreground">
+							<div
+								key={item.label}
+								className="inline-flex items-center gap-2 rounded-full border bg-muted px-3 py-2 text-sm font-bold text-muted-foreground"
+							>
 								<Icon className="size-4" />
 								{item.label}
 							</div>
@@ -186,12 +299,50 @@ export function HomeClient() {
 				</div>
 			</section>
 
+			<section id="ownership" className="mx-auto max-w-7xl px-5 pb-16 sm:px-8">
+				<div className="grid gap-4 lg:grid-cols-3">
+					<div className="rounded-[24px] border bg-card p-6 lg:col-span-2">
+						<div className="flex items-center gap-2 text-sm font-black text-primary">
+							<CheckCircle2 className="size-4" />
+							Why this is different
+						</div>
+						<h2 className="mt-3 text-3xl font-black">Sketchflow is not another locked whiteboard.</h2>
+						<p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-muted-foreground">
+							The app database stays small. GitHub stores the real project files: scene JSON,
+							notes, metadata, assets, exports, and public pages.
+						</p>
+						<div className="mt-6 grid gap-3 md:grid-cols-3">
+							{["No sketch DB lock-in", "Commit-based history", "Public pages from repos"].map((item) => (
+								<div key={item} className="rounded-[16px] border bg-muted/45 px-4 py-3 text-sm font-black">
+									{item}
+								</div>
+							))}
+						</div>
+					</div>
+					<div className="rounded-[24px] border bg-primary p-6 text-primary-foreground">
+						<h2 className="text-2xl font-black">Start with one repo.</h2>
+						<p className="mt-3 text-sm font-bold leading-6 opacity-80">
+							Add projects, docs, canvases, libraries, exports, and public embeds from the same workspace.
+						</p>
+						<Button className="mt-6 w-full" variant="secondary" onClick={() => void app.redirectToSignUp()}>
+							Create workspace
+							<ArrowRight className="size-4" />
+						</Button>
+					</div>
+				</div>
+			</section>
+
 			<footer className="border-t">
-				<div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-6 text-xs font-bold text-muted-foreground sm:px-8">
+				<div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-xs font-bold text-muted-foreground sm:px-8">
 					<span>Sketchflow</span>
-					<Link href="/app" className="hover:text-foreground">
-						Open app
-					</Link>
+					<div className="flex items-center gap-4">
+						<a href={SKETCHFLOW_APP_URL} className="hover:text-foreground">
+							sketchflow.space
+						</a>
+						<Link href="/app" className="hover:text-foreground">
+							Open app
+						</Link>
+					</div>
 				</div>
 			</footer>
 		</main>

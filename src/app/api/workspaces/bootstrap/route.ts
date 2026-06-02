@@ -1,3 +1,4 @@
+import { SKETCHFLOW_APP_URL } from "@/lib/config";
 import { normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
 import {
 	recordSyncEvent,
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
 
 		const repoName = validateGithubRepoName(optionalString(body, "repoName") || getOptionalEnv("SKETCHFLOW_REPO_NAME", "sketchflow-workspace"));
 		const isPrivate = optionalBoolean(body, "private") ?? false;
-		const appUrl = getOptionalEnv("NEXT_PUBLIC_APP_URL", "https://sketchflow.shraj.workers.dev");
+		const appUrl = getOptionalEnv("NEXT_PUBLIC_APP_URL", SKETCHFLOW_APP_URL);
 		const requestedOwner = optionalString(body, "repoOwner");
 		const authenticatedGithubUser = await getAuthenticatedGithubUser(accessToken);
 		const repoOwner = requestedOwner || authenticatedGithubUser.login;
