@@ -270,7 +270,7 @@ async function readPublicWorkspaceProjects(input: {
 }
 
 export async function GET(
-	_request: Request,
+	request: Request,
 	{ params }: { params: Promise<{ workspaceId: string }> },
 ) {
 	try {
@@ -287,7 +287,7 @@ export async function GET(
 				? await readPublicWorkspaceProjects({ workspace })
 				: await (async () => {
 						const scopes = getGithubOAuthScopes();
-						const { accessToken } = await requireGithubAccessToken(scopes);
+						const { accessToken } = await requireGithubAccessToken(scopes, request);
 						return readWorkspaceProjects({ accessToken, workspace });
 					})();
 
@@ -313,7 +313,7 @@ export async function POST(
 	try {
 		const { workspaceId } = await params;
 		const scopes = getGithubOAuthScopes();
-		const { accessToken, user } = await requireGithubAccessToken(scopes);
+		const { accessToken, user } = await requireGithubAccessToken(scopes, request);
 		const workspace = await getWorkspace(user.id, workspaceId);
 
 		if (!workspace) {

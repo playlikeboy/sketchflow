@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 		const stackUser = await requireUser();
 		const user = normalizeStackUser(stackUser);
 		const scopes = getGithubOAuthScopes();
-		const { accessToken } = await requireGithubAccessToken(scopes);
+		const { accessToken } = await requireGithubAccessToken(scopes, request);
 
 	const body = await request.json().catch(() => ({}));
 		if (!isJsonObject(body)) {

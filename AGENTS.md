@@ -14,6 +14,7 @@ Sketchflow is a GitHub-native visual workspace. User-owned GitHub repos are the 
 - Do not commit every stroke to GitHub. Use IndexedDB for instant local drafts and explicit or debounced snapshot commits for durable sync.
 - Prefer GitHub multi-file commits through trees/commits/refs for snapshot saves.
 - Do not use jsDelivr for private data, live collaboration, or mutable latest state. Use it only for public, immutable, commit-pinned assets.
+- Browser-stored GitHub PATs are a local fallback only. Never store them in Postgres, sync events, repo files, logs, or commits.
 
 ## Frontend Guidance
 
@@ -21,7 +22,9 @@ Sketchflow is a GitHub-native visual workspace. User-owned GitHub repos are the 
 - Keep the UI dense, calm, and work-focused: GitHub, Linear, Notion, and Excalidraw are the reference mood.
 - Use Tailwind CSS and lucide-react icons. Do not introduce a component framework without an explicit decision.
 - Use `@excalidraw/excalidraw` only in client-rendered components.
-- Keep visible placeholders for planned systems: collaboration, AI, docs, publishing, billing, exports, and timeline.
+- Use BlockNote for project docs editing.
+- Use SWR for authenticated app API data and scope workspace caches by the Stack user id.
+- Keep the app minimal. Avoid explanatory panels in core workspace/project pages unless they unblock an action.
 
 ## Verification
 

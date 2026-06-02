@@ -24,6 +24,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ExcalidrawLibraryPanel } from "@/components/excalidraw-library-panel";
+import { GithubAccessCard } from "@/components/github-access-card";
 import { ProjectDocEditor } from "@/components/project-doc-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,7 @@ import type { ExcalidrawLibrary } from "@/lib/excalidraw-libraries";
 import { deleteDraft, getDraft, setDraft } from "@/lib/indexeddb";
 import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
 import { draftKey, humanizeSlug, normalizeScene, notesFilePath, projectFilePath, sketchFilePath } from "@/lib/sketchflow";
-import { useAuthMe, useSketch } from "@/lib/swr-hooks";
+import { useAuthMe, useGithubStatus, useSketch } from "@/lib/swr-hooks";
 
 const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
 	ssr: false,
@@ -214,6 +215,7 @@ export function EditorClient({
 		[currentDraftKey],
 	);
 	const { data: auth, isLoading: authLoading } = useAuthMe();
+	const { data: githubStatus, mutate: mutateGithubStatus } = useGithubStatus(auth?.user?.id);
 	const sketchInput = auth?.authenticated ? { workspaceId, projectId, sketchId } : null;
 	const {
 		data,
@@ -697,6 +699,18 @@ export function EditorClient({
 							<div className="absolute left-1/2 top-4 z-20 w-[min(520px,calc(100%-2rem))] -translate-x-1/2 rounded-xl border bg-card px-4 py-3 text-sm shadow-lg">
 								<div className="font-extrabold text-foreground">Cloud sync paused</div>
 								<div className="mt-1 font-semibold text-muted-foreground">{saveError}</div>
+								{saveError.toLowerCase().includes("github") ? (
+									<div className="mt-3">
+										<GithubAccessCard
+											compact
+											scopes={githubStatus?.scopes}
+											onRecovered={async () => {
+												await mutateGithubStatus();
+												setSaveError(null);
+											}}
+										/>
+									</div>
+								) : null}
 							</div>
 						) : null}
 						{mode === "canvas" ? (

@@ -26,7 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ wor
 	try {
 		const { workspaceId } = await params;
 		const scopes = getGithubOAuthScopes();
-		const { accessToken, user } = await requireGithubAccessToken(scopes);
+		const { accessToken, user } = await requireGithubAccessToken(scopes, request);
 		const workspace = await getWorkspace(user.id, workspaceId);
 
 		if (!workspace) {

@@ -4,10 +4,10 @@ import { getGithubOAuthScopes } from "@/server/env";
 import { GithubApiError, getAuthenticatedGithubUser } from "@/server/github";
 import { jsonError, jsonOk } from "@/server/http";
 
-export async function GET() {
+export async function GET(request: Request) {
 	try {
 		const scopes = getGithubOAuthScopes();
-		const { accessToken, user } = await requireGithubAccessToken(scopes);
+		const { accessToken, user, source } = await requireGithubAccessToken(scopes, request);
 		const githubUser = await getAuthenticatedGithubUser(accessToken);
 
 		await upsertUser(user);
@@ -26,6 +26,7 @@ export async function GET() {
 				avatarUrl: githubUser.avatar_url,
 				htmlUrl: githubUser.html_url,
 			},
+			source,
 		});
 	} catch (error) {
 		if (error instanceof GithubAccessTokenError) {

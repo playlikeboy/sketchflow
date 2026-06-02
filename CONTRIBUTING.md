@@ -1,54 +1,68 @@
 # Contributing to Sketchflow
 
-Thanks for helping build Sketchflow. This project is early, so the most valuable contributions keep the architecture simple, user-owned, and easy to reason about.
+Thanks for helping build Sketchflow. The project is early, so contributions should keep the product simple, fast, and user-owned.
 
-## Local Development
-
-Install dependencies:
+## Setup
 
 ```bash
 bun install
-```
-
-Set up environment files:
-
-```bash
 cp .env.example .env.local
 cp .dev.vars.example .dev.vars
-```
-
-Fill in Stack Auth and Neon values locally. Do not commit secrets.
-
-Run the dev server:
-
-```bash
 bun run dev
 ```
 
+Open <http://localhost:3000>.
+
+## Environment
+
+Do not commit secrets. Local files such as `.env.local` and `.dev.vars` are ignored and should stay local.
+
+Required local values:
+
+```txt
+NEXT_PUBLIC_STACK_PROJECT_ID
+NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY
+STACK_SECRET_SERVER_KEY
+DATABASE_URL
+NEXT_PUBLIC_APP_URL
+GITHUB_API_VERSION
+GITHUB_OAUTH_SCOPES
+SKETCHFLOW_REPO_NAME
+SKETCHFLOW_DEFAULT_BRANCH
+```
+
+## Architecture Rules
+
+- GitHub repos are the durable source of truth for sketches, docs, exports, assets, metadata, and public project pages.
+- Postgres stores only users, GitHub connection metadata, workspace pointers, billing metadata, and sync events.
+- Use Drizzle for schema and database queries.
+- Use IndexedDB for instant local drafts.
+- Use batched GitHub commits for snapshots.
+- Do not commit every canvas stroke.
+- Do not serve private or mutable live data through jsDelivr.
+
+## Frontend Rules
+
+- Keep the app minimal, dense, and work-focused.
+- Use Tailwind CSS, shadcn UI primitives, and lucide-react icons.
+- Use Excalidraw only in client-rendered components.
+- Use BlockNote for project docs editing.
+- Use SWR for client API data and active revalidation.
+- Keep workspace/project views scoped to the signed-in user id.
+
 ## Database Workflow
 
-Sketchflow uses Drizzle with Neon Postgres.
-
 ```bash
-bun run db:push      # apply schema directly during development
-bun run db:generate  # generate migration files when migrations are needed
+bun run db:push      # development schema push
+bun run db:generate  # generate migrations when needed
 bun run db:migrate   # apply generated migrations
 ```
 
-Keep sketch content out of Postgres. Store only metadata pointers, billing state, and sync events in the database.
+Run `bun run db:push` only when schema changes are intentional.
 
-## Code Style
+## Checks
 
-- Use TypeScript and keep strict types useful.
-- Prefer small server helpers over duplicated route logic.
-- Prefer explicit JSON response shapes for APIs.
-- Keep GitHub repo writes batched into multi-file commits.
-- Use IndexedDB for local editor drafts.
-- Use lucide-react icons for tool buttons and navigation items.
-
-## Pull Request Checklist
-
-Before opening a PR:
+Before handoff or PR:
 
 ```bash
 bunx tsc --noEmit
@@ -61,19 +75,22 @@ If schema changed:
 bun run db:push
 ```
 
+## Pull Requests
+
 Include:
 
 - What changed.
 - How it was tested.
-- Any data model or API changes.
-- Any follow-up work that remains.
+- Any API, schema, or repo-file format changes.
+- Any follow-up work.
 
 ## Security
 
-- Never commit secrets, access tokens, PATs, database URLs, or `.env.local`.
-- Rotate any secret that was pasted into chat, logs, screenshots, or a PR.
-- Prefer Stack Auth GitHub connected accounts over raw PAT flows.
-- Do not expose private GitHub repo content through public CDN URLs.
+- Never commit tokens, PATs, OAuth secrets, Stack Auth secrets, database URLs, or Cloudflare tokens.
+- Rotate leaked secrets immediately.
+- Prefer Stack Auth GitHub OAuth.
+- Browser-stored GitHub tokens are allowed only as a user-controlled local fallback.
+- Do not log access tokens or include them in sync events.
 
 ## Issues
 
@@ -82,5 +99,5 @@ When reporting a bug, include:
 - Expected behavior.
 - Actual behavior.
 - Steps to reproduce.
-- Browser and OS, if frontend-related.
-- Relevant API route or GitHub repo state, if sync-related.
+- Browser and OS.
+- Relevant workspace/project URL, if safe to share.

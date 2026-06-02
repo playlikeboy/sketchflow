@@ -70,19 +70,28 @@ const sectionConfig = {
 
 const templates = [
 	{
+		id: "system-map",
 		title: "System Map",
 		description: "A technical architecture map with canvas, notes, components, and follow-up decisions.",
 		icon: Boxes,
 	},
 	{
+		id: "product-flow",
 		title: "Product Flow",
 		description: "A product journey canvas for flows, edge cases, docs, and user-facing milestones.",
 		icon: LayoutTemplate,
 	},
 	{
+		id: "lesson-board",
 		title: "Lesson Board",
 		description: "A teaching board with diagrams, references, examples, and classroom notes.",
 		icon: BookOpen,
+	},
+	{
+		id: "repo-map",
+		title: "Repo Map",
+		description: "A codebase map for modules, ownership, dependencies, and refactor notes.",
+		icon: FileText,
 	},
 ];
 
@@ -114,7 +123,7 @@ export function AppSectionClient({ section }: { section: AppSection }) {
 		data: workspaceData,
 		isLoading: workspacesLoading,
 		mutate: mutateWorkspaces,
-	} = useWorkspaces();
+	} = useWorkspaces(auth?.user?.id);
 	const workspaces = useMemo(() => workspaceData?.workspaces ?? [], [workspaceData]);
 	const selectedWorkspace = useMemo(
 		() => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0] ?? null,
@@ -194,7 +203,7 @@ export function AppSectionClient({ section }: { section: AppSection }) {
 					<Card>
 						<CardHeader>
 							<CardTitle>Create a workspace first</CardTitle>
-							<CardDescription>A workspace is a GitHub repo. Projects, docs, and public pages appear after you connect one.</CardDescription>
+							<CardDescription>Connect GitHub to start adding projects.</CardDescription>
 						</CardHeader>
 						<CardContent>
 							<Button asChild>
@@ -208,7 +217,7 @@ export function AppSectionClient({ section }: { section: AppSection }) {
 				) : null}
 
 				{section === "templates" ? (
-					<div className="grid gap-4 md:grid-cols-3">
+					<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 						{templates.map((template) => {
 							const Icon = template.icon;
 							return (
@@ -221,9 +230,9 @@ export function AppSectionClient({ section }: { section: AppSection }) {
 										<CardDescription>{template.description}</CardDescription>
 									</CardHeader>
 									<CardContent>
-										<Button variant="outline" size="sm" asChild>
-											<Link href="/app">
-												Start from projects
+										<Button variant="outline" size="sm" className="w-full justify-between" asChild>
+											<Link href={`/app?template=${template.id}`}>
+												Use template
 												<ArrowRight className="size-4" />
 											</Link>
 										</Button>

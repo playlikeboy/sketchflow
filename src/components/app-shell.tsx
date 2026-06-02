@@ -4,22 +4,17 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useStackApp } from "@stackframe/stack";
 import {
-  Bot,
-  BookOpen,
   Boxes,
   Clock3,
   FileText,
   Folder,
   GitBranch,
   Globe,
-  Image,
   LayoutDashboard,
   LogOut,
   Plus,
   Search,
   Settings,
-  Share2,
-  Users,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -61,17 +56,10 @@ const navItems = [
   { label: "Docs", href: "/app/docs", icon: FileText },
   { label: "Public", href: "/app/public", icon: Globe },
   { label: "Templates", href: "/app/templates", icon: Boxes },
+  { label: "Help", href: "/help", icon: FileText },
 ];
 
 const CREATE_WORKSPACE_VALUE = "__create_workspace__";
-
-const futureItems = [
-  { label: "Collab", icon: Users },
-  { label: "AI", icon: Bot },
-  { label: "Exports", icon: Image },
-  { label: "Share", icon: Share2 },
-  { label: "Notes", icon: BookOpen },
-];
 
 function AppSidebar({
   workspaces = [],
@@ -167,33 +155,13 @@ function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator className="mx-2 w-auto" />
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="font-extrabold uppercase tracking-[0.8px] text-sidebar-foreground/60">
-            Coming next
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <div className="grid grid-cols-2 gap-1.5 px-1 group-data-[collapsible=icon]:hidden">
-              {futureItems.map((item) => (
-                <div
-                  key={item.label}
-                  className="flex h-7 items-center gap-1.5 rounded-xl border-2 border-sidebar-border bg-sidebar px-2 text-xs font-bold text-sidebar-foreground/50 shadow-[0_1px_0_var(--sidebar-border)]"
-                >
-                  <item.icon className="size-3 shrink-0" />
-                  <span className="truncate">{item.label}</span>
-                </div>
-              ))}
-            </div>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter className="p-3 border-t-2 border-sidebar-border">
         <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
           <Button variant="ghost" size="icon" className="size-8 shrink-0 text-sidebar-foreground/60 hover:text-[#58CC02]" asChild>
-            <Link href="/app" aria-label="Projects">
-              <LayoutDashboard className="size-4" />
+            <Link href="https://github.com/SH20RAJ/sketch-flow" target="_blank" aria-label="Contribute on GitHub">
+              <GitBranch className="size-4" />
             </Link>
           </Button>
           <div className="flex-1 group-data-[collapsible=icon]:hidden" />

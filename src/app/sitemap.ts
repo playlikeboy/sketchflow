@@ -18,5 +18,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
 			changeFrequency: "daily",
 			priority: 0.7,
 		},
+		{
+			url: `${SKETCHFLOW_APP_URL}/help`,
+			lastModified: now,
+			changeFrequency: "monthly",
+			priority: 0.5,
+		},
 	];
 }

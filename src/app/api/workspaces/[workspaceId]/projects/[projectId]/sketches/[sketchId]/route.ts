@@ -53,7 +53,7 @@ async function readOptionalText(input: {
 }
 
 export async function GET(
-	_request: Request,
+	request: Request,
 	{ params }: { params: Promise<{ workspaceId: string; projectId: string; sketchId: string }> },
 ) {
 	try {
@@ -128,7 +128,7 @@ export async function GET(
 		}
 
 		const scopes = getGithubOAuthScopes();
-		const { accessToken } = await requireGithubAccessToken(scopes);
+		const { accessToken } = await requireGithubAccessToken(scopes, request);
 		const base = {
 			accessToken,
 			owner: workspace.repoOwner,

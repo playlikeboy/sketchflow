@@ -135,6 +135,9 @@ export function HomeClient() {
 						<a href="#ownership" className="hover:text-foreground">
 							Ownership
 						</a>
+						<Link href="/help" className="hover:text-foreground">
+							Help
+						</Link>
 					</nav>
 					<div className="flex items-center gap-2">
 						<Button
@@ -147,6 +150,11 @@ export function HomeClient() {
 						</Button>
 						<Button variant="ghost" size="sm" onClick={() => void app.redirectToSignIn()}>
 							Sign in
+						</Button>
+						<Button variant="outline" size="icon-sm" asChild>
+							<Link href="https://github.com/SH20RAJ/sketch-flow" target="_blank" aria-label="Sketchflow on GitHub">
+								<GitBranch className="size-4" />
+							</Link>
 						</Button>
 						<Button size="sm" onClick={() => void app.redirectToSignUp()}>
 							Start free
@@ -341,6 +349,9 @@ export function HomeClient() {
 						</a>
 						<Link href="/app" className="hover:text-foreground">
 							Open app
+						</Link>
+						<Link href="https://github.com/SH20RAJ/sketch-flow" target="_blank" className="hover:text-foreground">
+							GitHub
 						</Link>
 					</div>
 				</div>

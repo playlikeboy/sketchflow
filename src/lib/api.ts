@@ -1,5 +1,6 @@
 import type { ProjectsMetadata, WorkspaceProject } from "@/lib/project-metadata";
 import type { ExcalidrawLibrariesResponse } from "@/lib/excalidraw-libraries";
+import { getStoredGithubToken } from "@/lib/github-token";
 
 export type Workspace = {
 	id: string;
@@ -33,6 +34,7 @@ export type GithubStatus =
 				avatarUrl: string | null;
 				htmlUrl: string;
 			};
+			source?: "stack-auth" | "local-token";
 	  }
 	| {
 			connected: false;
@@ -124,10 +126,12 @@ export class ApiError extends Error {
 }
 
 export async function apiJson<T>(url: string, init: ApiInit = {}) {
+	const githubToken = getStoredGithubToken();
 	const response = await fetch(url, {
 		...init,
 		headers: {
 			...(init.json ? { "Content-Type": "application/json" } : null),
+			...(githubToken ? { "X-Sketchflow-Github-Token": githubToken } : null),
 			...init.headers,
 		},
 		body: init.json ? JSON.stringify(init.json) : init.body,

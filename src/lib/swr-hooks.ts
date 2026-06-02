@@ -19,8 +19,8 @@ import type { ExcalidrawLibrariesResponse } from "@/lib/excalidraw-libraries";
 export const swrKeys = {
 	authMe: "/api/auth/me",
 	excalidrawLibraries: "/api/excalidraw/libraries",
-	githubStatus: "/api/github/status",
-	workspaces: "/api/workspaces",
+	githubStatus: (stackUserId: string | null | undefined) => (stackUserId ? ["/api/github/status", stackUserId] : null),
+	workspaces: (stackUserId: string | null | undefined) => (stackUserId ? ["/api/workspaces", stackUserId] : null),
 	workspaceProjects: (workspaceId: string | null | undefined) =>
 		workspaceId ? `/api/workspaces/${encodeURIComponent(workspaceId)}/projects` : null,
 	sketch: (input: { workspaceId: string; projectId: string; sketchId: string } | null) =>
@@ -39,8 +39,8 @@ export function useAuthMe() {
 	});
 }
 
-export function useGithubStatus() {
-	return useSWR<GithubStatus>(swrKeys.githubStatus, getGithubStatus, {
+export function useGithubStatus(stackUserId: string | null | undefined) {
+	return useSWR<GithubStatus>(swrKeys.githubStatus(stackUserId), getGithubStatus, {
 		revalidateOnFocus: true,
 		revalidateOnReconnect: true,
 		refreshInterval: 30_000,
@@ -54,13 +54,12 @@ export function useExcalidrawLibraries() {
 	});
 }
 
-export function useWorkspaces() {
-	return useSWR(swrKeys.workspaces, getWorkspaces, {
+export function useWorkspaces(stackUserId: string | null | undefined) {
+	return useSWR(swrKeys.workspaces(stackUserId), getWorkspaces, {
 		revalidateOnFocus: true,
 		revalidateOnReconnect: true,
 		refreshInterval: 20_000,
 		dedupingInterval: 2000,
-		keepPreviousData: true,
 	});
 }
 

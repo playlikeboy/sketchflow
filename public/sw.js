@@ -1,5 +1,13 @@
-const CACHE_NAME = "sketchflow-static-v1";
-const STATIC_ASSETS = ["/favicon.svg", "/pwa-icon.svg"];
+const CACHE_NAME = "sketchflow-static-v2";
+const STATIC_ASSETS = [
+	"/favicon.ico",
+	"/favicon.svg",
+	"/logo.png",
+	"/pwa-192.png",
+	"/pwa-512.png",
+	"/apple-touch-icon.png",
+	"/og-image.png",
+];
 
 self.addEventListener("install", (event) => {
 	event.waitUntil(

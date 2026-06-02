@@ -15,6 +15,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { GithubAccessCard } from "@/components/github-access-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +42,7 @@ function shortSha(value: string | null) {
 
 function friendlyError(message: string) {
 	if (message.toLowerCase().includes("github")) {
-		return "GitHub needs one more connection step. Reconnect and approve access to continue.";
+		return "GitHub access needs a refresh.";
 	}
 
 	return message;
@@ -63,12 +64,12 @@ export function WorkspaceClient() {
 		data: workspacesData,
 		isLoading: workspacesLoading,
 		mutate: mutateWorkspaces,
-	} = useWorkspaces();
+	} = useWorkspaces(auth?.user?.id);
 	const {
 		data: githubStatus,
 		isLoading: githubLoading,
 		mutate: mutateGithubStatus,
-	} = useGithubStatus();
+	} = useGithubStatus(auth?.user?.id);
 	const workspaces = useMemo(() => workspacesData?.workspaces ?? [], [workspacesData]);
 	const selectedWorkspace = useMemo(
 		() => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0] ?? null,
@@ -143,7 +144,7 @@ export function WorkspaceClient() {
 	return (
 		<AppShell
 			title="Workspace"
-			subtitle={selectedWorkspace ? `${selectedWorkspace.repoOwner}/${selectedWorkspace.repoName}` : "Create or connect a GitHub repo"}
+			subtitle={selectedWorkspace ? `${selectedWorkspace.repoOwner}/${selectedWorkspace.repoName}` : "Create or connect a repo"}
 			syncLabel={selectedWorkspace ? `Synced ${shortSha(selectedWorkspace.latestCommitSha)}` : undefined}
 			workspaces={workspaces}
 			selectedWorkspaceId={selectedWorkspace?.id ?? null}
@@ -157,20 +158,27 @@ export function WorkspaceClient() {
 				</Button>
 			}
 		>
-			<div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-[1fr_380px]">
+			<div className="mx-auto max-w-6xl">
 				<section className="space-y-5">
 					{localError ? (
-						<div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-							{localError}
-						</div>
+						localError.toLowerCase().includes("github") ? (
+							<GithubAccessCard
+								scopes={githubStatus?.scopes}
+								onRecovered={async () => {
+									await refresh();
+								}}
+							/>
+						) : (
+							<div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+								{localError}
+							</div>
+						)
 					) : null}
 
 					<Card>
 						<CardHeader>
 							<CardTitle>Create workspace</CardTitle>
-							<CardDescription>
-								A workspace is one GitHub repo. Use separate repos for different products, teams, clients, or public portfolios.
-							</CardDescription>
+							<CardDescription>Create a repo-backed workspace.</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
 							{githubConnected ? (
@@ -179,9 +187,6 @@ export function WorkspaceClient() {
 										<ShieldCheck className="size-4 text-primary" />
 										GitHub connected
 									</div>
-									<p className="mt-1 text-sm font-semibold text-muted-foreground">
-										Sketchflow can create or connect repos for your workspaces.
-									</p>
 								</div>
 							) : (
 								<div className="rounded-2xl border bg-muted/40 p-4">
@@ -189,9 +194,6 @@ export function WorkspaceClient() {
 										<GitBranch className="size-4 text-primary" />
 										Connect GitHub
 									</div>
-									<p className="mt-1 text-sm font-semibold text-muted-foreground">
-										Connect once to create repo-backed workspaces.
-									</p>
 									<Button className="mt-3" disabled={connectingGithub} onClick={handleConnectGithub}>
 										{connectingGithub ? <Loader2 className="size-4 animate-spin" /> : <GitBranch className="size-4" />}
 										Connect GitHub
@@ -226,9 +228,7 @@ export function WorkspaceClient() {
 					<Card>
 						<CardHeader>
 							<CardTitle>Connected workspaces</CardTitle>
-							<CardDescription>
-								Each workspace is a GitHub repo with projects, docs, assets, and Sketchflow metadata.
-							</CardDescription>
+							<CardDescription>Your repos connected to Sketchflow.</CardDescription>
 						</CardHeader>
 						<CardContent className="grid gap-3">
 							{filteredWorkspaces.length > 0 ? (
@@ -274,22 +274,7 @@ export function WorkspaceClient() {
 						</CardContent>
 					</Card>
 				</section>
-
-				<aside className="space-y-4">
-					<Card size="sm">
-						<CardHeader>
-							<CardTitle>Workspace model</CardTitle>
-							<CardDescription>Keep the hierarchy simple.</CardDescription>
-						</CardHeader>
-						<CardContent className="space-y-3 text-sm font-semibold text-muted-foreground">
-							<div className="rounded-xl border bg-muted/40 p-3">Workspace = one GitHub repo</div>
-							<div className="rounded-xl border bg-muted/40 p-3">Project = one folder inside /projects</div>
-							<div className="rounded-xl border bg-muted/40 p-3">Sketch + docs = files in that project</div>
-						</CardContent>
-					</Card>
-				</aside>
 			</div>
 		</AppShell>
 	);
 }
-

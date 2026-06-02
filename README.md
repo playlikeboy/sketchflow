@@ -1,33 +1,51 @@
 # Sketchflow
 
-Sketchflow is a GitHub-native visual workspace for builders. Sketches, project docs, exports, assets, metadata, and history live in a repository the user owns.
+Sketchflow is a GitHub-native visual workspace for builders. It combines an Excalidraw canvas, project docs, public pages, templates, and repo-backed project memory while keeping durable user data in GitHub.
 
-Production: <https://sketchflow.space>
+Production: <https://sketchflow.space>  
+Repository: <https://github.com/SH20RAJ/sketch-flow>
 
-The product direction is simple:
+## Product
 
-> Excalidraw-like creation, Eraser-like project flow, GitHub-native ownership, and AI-ready project memory.
-
-## Architecture
-
-Sketchflow keeps durable product data in GitHub and keeps the app database intentionally small.
+Sketchflow is built around one principle:
 
 ```txt
-Browser IndexedDB  -> instant local drafts
-Sketchflow API     -> auth, GitHub sync, metadata pointers
-GitHub repo        -> durable sketches, docs, exports, assets, logs
-Neon Postgres      -> users, GitHub connections, workspaces, billing metadata
-Drizzle ORM        -> typed schema and database access
-Stack Auth         -> authentication and GitHub OAuth connection
-SWR                -> client API cache and active project revalidation
-Cloudflare Worker  -> production runtime at sketchflow.space
+GitHub owns the durable files.
+Sketchflow owns the fast editing experience.
 ```
 
-Postgres should not store sketch scenes. It stores only operational metadata such as user identity, connected GitHub accounts, workspace pointers, sync events, and future billing state.
+Users can create multiple workspaces. Each workspace is one GitHub repo. Each workspace can contain multiple projects under `projects/`.
 
-## Repository Data Model
+## Tech Stack
 
-Bootstrapped user repos follow this shape:
+```txt
+Next.js 16 App Router       -> app, API routes, metadata, PWA manifest
+React 19                   -> client UI
+Tailwind CSS + shadcn UI    -> product interface
+Excalidraw                  -> canvas editor
+BlockNote                   -> project docs editor
+SWR                         -> client API cache and active revalidation
+Stack Auth                  -> auth and GitHub OAuth connection
+Drizzle ORM                 -> typed Postgres schema
+Neon Postgres               -> users, workspace pointers, sync events
+GitHub REST API             -> repo bootstrap, reads, multi-file commits
+OpenNext Cloudflare         -> Worker deployment
+jsDelivr                    -> public immutable commit-pinned assets
+```
+
+## Data Model
+
+Postgres stores only app metadata:
+
+```txt
+users
+github_connections
+workspaces
+sync_events
+billing_customers
+```
+
+Sketches, docs, assets, exports, project metadata, and public pages live in the user-owned GitHub repo:
 
 ```txt
 .sketchflow/
@@ -38,6 +56,7 @@ Bootstrapped user repos follow this shape:
     public-projects.json
     search-index.json
 projects/
+  projects-metadata.json
   {projectSlug}/
     project.json
     sketches/
@@ -48,14 +67,6 @@ projects/
     assets/
 ```
 
-Commit-pinned public assets can be served through jsDelivr:
-
-```txt
-https://cdn.jsdelivr.net/gh/{owner}/{repo}@{commitSha}/{path}
-```
-
-Use jsDelivr only for public, immutable assets. Private data, live collaboration, and latest mutable state must go through authenticated APIs.
-
 ## Local Setup
 
 Install dependencies:
@@ -64,7 +75,7 @@ Install dependencies:
 bun install
 ```
 
-Create local env files from the examples:
+Create local environment files:
 
 ```bash
 cp .env.example .env.local
@@ -85,38 +96,40 @@ SKETCHFLOW_REPO_NAME
 SKETCHFLOW_DEFAULT_BRANCH
 ```
 
-Recommended production values:
+Recommended values:
 
 ```txt
 NEXT_PUBLIC_APP_URL=https://sketchflow.space
 GITHUB_API_VERSION=2022-11-28
 GITHUB_OAUTH_SCOPES=repo,read:user,user:email
+SKETCHFLOW_REPO_NAME=sketchflow-workspace
+SKETCHFLOW_DEFAULT_BRANCH=main
 ```
 
-Run the app:
+Run locally:
 
 ```bash
 bun run dev
 ```
 
-Open `http://localhost:3000`.
+Open <http://localhost:3000>.
 
 ## Scripts
 
 ```bash
-bun run dev          # Next.js development server
+bun run dev          # Next.js dev server
 bun run build        # Production build
 bun run db:push      # Push Drizzle schema to Neon
-bun run db:generate  # Generate Drizzle migrations
-bun run db:migrate   # Apply generated Drizzle migrations
+bun run db:generate  # Generate migrations
+bun run db:migrate   # Apply migrations
 bun run preview      # OpenNext Cloudflare preview
-bun run deploy       # Deploy through OpenNext Cloudflare
-bun run cf-typegen   # Generate Cloudflare binding types
+bun run deploy       # OpenNext Cloudflare deploy
+bun run cf-typegen   # Generate Cloudflare env types
 ```
 
-## Backend API
+## API
 
-Current implemented API surface:
+Implemented routes:
 
 ```txt
 GET  /api/auth/me
@@ -129,40 +142,76 @@ POST /api/workspaces/[workspaceId]/commit
 GET  /api/workspaces/[workspaceId]/projects
 POST /api/workspaces/[workspaceId]/projects
 GET  /api/workspaces/[workspaceId]/projects/[projectId]/sketches/[sketchId]
+GET  /api/excalidraw/libraries
+GET  /api/excalidraw/libraries/file
 ```
 
-The workspace bootstrap endpoint creates or connects a GitHub repo, writes the `.sketchflow` starter files, records metadata in Neon, and returns a commit-pinned CDN base URL.
+GitHub sync uses batched multi-file commits. The app does not commit every canvas stroke. Instant drafts live in IndexedDB.
 
-The commit endpoint writes one multi-file commit to the connected GitHub repo. It is meant for snapshot saves, not every canvas stroke.
+## GitHub Access
 
-## Frontend MVP
+Primary flow:
 
-The app-first frontend includes:
+1. User signs in with Stack Auth.
+2. User connects GitHub OAuth with `repo`, `read:user`, and `user:email` scopes.
+3. Sketchflow creates or connects a workspace repo.
+4. Saves create GitHub commits.
 
-- Signed-out product entry with Stack Auth links.
-- Signed-in onboarding with GitHub connection and repo bootstrap.
-- Authenticated dashboard with workspace cards and sync state.
-- Excalidraw editor route with IndexedDB autosave.
-- Manual GitHub snapshot save for scene JSON, project metadata, and notes.
-- Polished placeholders for collaboration, AI, docs, publishing, exports, timeline, and billing.
-- PWA install metadata with a conservative service worker for static assets only.
-- SWR-backed project lists that revalidate on focus, reconnect, and a short interval.
+Fallback flow:
+
+If OAuth needs a refresh, the UI shows a recovery card. Users can reconnect GitHub or paste a local browser-only GitHub token generated here:
+
+<https://github.com/settings/tokens/new?description=Sketchflow%20local%20sync%20token&scopes=repo,read:user,user:email>
+
+The local token is stored in browser localStorage only. It is sent to same-origin Sketchflow API routes as a fallback and is never written to Postgres or committed to GitHub.
+
+## Frontend Areas
+
+```txt
+/                 landing page
+/app              project grid for the selected workspace
+/app/workspace    workspace creation and GitHub access
+/app/recent       recent projects
+/app/docs         project docs index
+/app/public       public project pages
+/app/templates    starter project templates
+/help             help and GitHub recovery steps
+/share/...        public project page
+/embed/...        embeddable public project view
+```
+
+## PWA
+
+Sketchflow includes:
+
+```txt
+public/favicon.ico
+public/logo.png
+public/og-image.png
+public/pwa-192.png
+public/pwa-512.png
+public/apple-touch-icon.png
+public/sw.js
+src/app/manifest.ts
+```
+
+The service worker only caches static same-origin assets. API responses and private GitHub data are not cached by the service worker.
 
 ## Deployment
 
-The Worker is configured for the custom domain:
+The Worker is configured for:
 
 ```txt
 https://sketchflow.space
 ```
 
-Deploy manually:
+Manual deploy:
 
 ```bash
 bun run deploy
 ```
 
-GitHub Actions deploys on pushes to `main`, manual dispatch, and a daily scheduled trigger. CI needs these GitHub Actions secrets:
+GitHub Actions deploys on pushes to `main`, manual dispatch, and a daily schedule. Required GitHub Actions secrets:
 
 ```txt
 CLOUDFLARE_API_TOKEN
@@ -178,25 +227,27 @@ SKETCHFLOW_GITHUB_API_VERSION
 SKETCHFLOW_GITHUB_OAUTH_SCOPES
 ```
 
-The workflow maps `SKETCHFLOW_GITHUB_API_VERSION` to `GITHUB_API_VERSION` and
-`SKETCHFLOW_GITHUB_OAUTH_SCOPES` to `GITHUB_OAUTH_SCOPES`, because GitHub
-Actions blocks secret and variable names that start with `GITHUB_`.
+GitHub Actions maps `SKETCHFLOW_GITHUB_API_VERSION` to `GITHUB_API_VERSION` and `SKETCHFLOW_GITHUB_OAUTH_SCOPES` to `GITHUB_OAUTH_SCOPES` because GitHub blocks secret names beginning with `GITHUB_`.
 
-## Security Notes
+## Security
 
-- Never commit `.env.local`, `.dev.vars`, API keys, OAuth tokens, or database URLs.
-- Rotate any secret that has been pasted into chat or logs.
-- Prefer Stack Auth connected accounts over raw GitHub PATs.
-- GitHub is the durable source of truth, but not a live database.
-- Do not commit every canvas change. Batch snapshots and keep live collaboration ephemeral.
+- Never commit `.env.local`, `.dev.vars`, API keys, OAuth secrets, PATs, or database URLs.
+- Rotate any secret pasted into chat, screenshots, logs, or PRs.
+- Keep private repo data off jsDelivr and public CDN URLs.
+- Keep GitHub as durable storage, IndexedDB as instant local draft storage, and Postgres as metadata only.
+- Prefer OAuth. Local tokens are an explicit browser-only fallback.
 
-## Roadmap
+## Verification
 
-1. Save/load Excalidraw sketches from GitHub.
-2. Public read-only project pages with commit-pinned assets.
-3. Version timeline and visual history.
-4. Docs beside sketches.
-5. Export pipeline for SVG, PNG, Markdown, and docs.
-6. Live collaboration with Yjs and Redis.
-7. AI BYOK and managed credits.
-8. Dodo Payments billing and plan entitlements.
+Before handoff:
+
+```bash
+bunx tsc --noEmit
+bun run build
+```
+
+If schema changes:
+
+```bash
+bun run db:push
+```

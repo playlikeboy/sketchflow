@@ -60,6 +60,7 @@ type OAuthConnectionLike = {
 };
 
 const STACK_OAUTH_TIMEOUT_MS = 10_000;
+const LOCAL_GITHUB_TOKEN_HEADER = "x-sketchflow-github-token";
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorFactory: () => Error) {
 	let timeout: ReturnType<typeof setTimeout>;
@@ -189,8 +190,22 @@ export async function requireUser() {
 	return user;
 }
 
-export async function requireGithubAccessToken(scopes: string[]) {
+function getLocalGithubToken(request?: Request) {
+	const token = request?.headers.get(LOCAL_GITHUB_TOKEN_HEADER)?.trim();
+	return token || null;
+}
+
+export async function requireGithubAccessToken(scopes: string[], request?: Request) {
 	const user = await requireUser();
+	const localToken = getLocalGithubToken(request);
+
+	if (localToken) {
+		return {
+			accessToken: localToken,
+			user: normalizeStackUser(user),
+			source: "local-token" as const,
+		};
+	}
 
 	if (!user.listConnectedAccounts && !user.getConnectedAccount) {
 		throw new UnauthorizedError("GitHub account is not connected");
@@ -220,5 +235,6 @@ export async function requireGithubAccessToken(scopes: string[]) {
 	return {
 		accessToken,
 		user: normalizeStackUser(user),
+		source: "stack-auth" as const,
 	};
 }

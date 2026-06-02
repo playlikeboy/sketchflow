@@ -122,12 +122,12 @@ export function DashboardClient() {
 		error: workspacesError,
 		isLoading: workspacesLoading,
 		mutate: mutateWorkspaces,
-	} = useWorkspaces();
+	} = useWorkspaces(auth?.user?.id);
 	const {
 		data: githubData,
 		error: githubError,
 		mutate: mutateGithubStatus,
-	} = useGithubStatus();
+	} = useGithubStatus(auth?.user?.id);
 	const {
 		data: projectsResponse,
 		error: workspaceProjectsError,
@@ -177,14 +177,20 @@ export function DashboardClient() {
 	}, [auth]);
 
 	useEffect(() => {
-		if (workspaceData?.workspaces) {
-			setWorkspaces(workspaceData.workspaces);
-			setSelectedWorkspaceId((current) =>
-				current && workspaceData.workspaces.some((workspace) => workspace.id === current)
-					? current
-					: workspaceData.workspaces[0]?.id ?? null,
-			);
+		if (!workspaceData?.workspaces) {
+			setWorkspaces([]);
+			setSelectedWorkspaceId(null);
+			setProjects([]);
+			setSelectedProjectId(null);
+			return;
 		}
+
+		setWorkspaces(workspaceData.workspaces);
+		setSelectedWorkspaceId((current) =>
+			current && workspaceData.workspaces.some((workspace) => workspace.id === current)
+				? current
+				: workspaceData.workspaces[0]?.id ?? null,
+		);
 	}, [workspaceData]);
 
 	useEffect(() => {

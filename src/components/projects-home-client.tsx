@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useStackApp } from "@stackframe/stack";
 import {
 	ArrowRight,
@@ -20,6 +20,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { GithubAccessCard } from "@/components/github-access-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,7 +61,7 @@ function shortSha(value: string | null) {
 
 function friendlyError(message: string) {
 	if (message.toLowerCase().includes("github")) {
-		return "GitHub access needs a refresh. Open Workspace, reconnect GitHub, and approve repository access.";
+		return "GitHub access needs a refresh.";
 	}
 
 	return message;
@@ -81,16 +82,36 @@ function projectDescription(project: WorkspaceProject) {
 
 function errorCopy(error: unknown) {
 	if (error instanceof ApiError && error.code?.startsWith("github_")) {
-		return "GitHub access needs a refresh. Open Workspace, reconnect GitHub, and approve repository access.";
+		return "GitHub access needs a refresh.";
 	}
 
 	return error instanceof Error ? friendlyError(error.message) : null;
 }
 
+const templateDrafts: Record<string, { title: string; description: string }> = {
+	"system-map": {
+		title: "System Map",
+		description: "Architecture canvas, notes, dependencies, and decisions.",
+	},
+	"product-flow": {
+		title: "Product Flow",
+		description: "User journey, edge cases, releases, and product notes.",
+	},
+	"lesson-board": {
+		title: "Lesson Board",
+		description: "Teaching canvas, references, examples, and classroom notes.",
+	},
+	"repo-map": {
+		title: "Repo Map",
+		description: "Codebase structure, modules, ownership, and follow-up docs.",
+	},
+};
+
 export function ProjectsHomeClient() {
 	const app = useStackApp();
 	const appRef = useRef(app);
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
 	const [connectingGithub, setConnectingGithub] = useState(false);
 	const [syncingIndex, setSyncingIndex] = useState(false);
@@ -100,6 +121,7 @@ export function ProjectsHomeClient() {
 	const [projectSearch, setProjectSearch] = useState("");
 	const [localError, setLocalError] = useState<string | null>(null);
 	const syncedMissingMetadataRef = useRef<string | null>(null);
+	const appliedTemplateRef = useRef<string | null>(null);
 
 	const {
 		data: auth,
@@ -111,12 +133,12 @@ export function ProjectsHomeClient() {
 		error: workspacesError,
 		isLoading: workspacesLoading,
 		mutate: mutateWorkspaces,
-	} = useWorkspaces();
+	} = useWorkspaces(auth?.user?.id);
 	const {
 		data: githubStatus,
 		error: githubError,
 		mutate: mutateGithubStatus,
-	} = useGithubStatus();
+	} = useGithubStatus(auth?.user?.id);
 
 	const workspaces = useMemo(() => workspaceData?.workspaces ?? [], [workspaceData]);
 	const selectedWorkspace = useMemo(
@@ -168,6 +190,22 @@ export function ProjectsHomeClient() {
 			void appRef.current.redirectToSignIn();
 		}
 	}, [auth]);
+
+	useEffect(() => {
+		const template = searchParams.get("template");
+		if (!template || appliedTemplateRef.current === template) {
+			return;
+		}
+
+		const draft = templateDrafts[template];
+		if (!draft) {
+			return;
+		}
+
+		appliedTemplateRef.current = template;
+		setNewProjectTitle(draft.title);
+		setNewProjectDescription(draft.description);
+	}, [searchParams]);
 
 	useEffect(() => {
 		setSelectedWorkspaceId((current) =>
@@ -337,9 +375,18 @@ export function ProjectsHomeClient() {
 		>
 			<div className="mx-auto flex max-w-7xl flex-col gap-5">
 				{pageError ? (
-					<div className="rounded-[16px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-						{pageError}
-					</div>
+					pageError.toLowerCase().includes("github") ? (
+						<GithubAccessCard
+							scopes={githubStatus?.scopes}
+							onRecovered={async () => {
+								await refresh();
+							}}
+						/>
+					) : (
+						<div className="rounded-[16px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+							{pageError}
+						</div>
+					)
 				) : null}
 
 				{selectedWorkspace ? (
@@ -379,15 +426,21 @@ export function ProjectsHomeClient() {
 						</div>
 
 						{projectError ? (
-							<div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-								<span className="inline-flex items-center gap-2">
-									<KeyRound className="size-4" />
-									{projectError}
-								</span>
-								<Button variant="outline" size="sm" asChild>
-									<Link href="/app/workspace">Open Workspace</Link>
-								</Button>
-							</div>
+							projectError.toLowerCase().includes("github") ? (
+								<GithubAccessCard
+									scopes={githubStatus?.scopes}
+									onRecovered={async () => {
+										await refresh();
+									}}
+								/>
+							) : (
+								<div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+									<span className="inline-flex items-center gap-2">
+										<KeyRound className="size-4" />
+										{projectError}
+									</span>
+								</div>
+							)
 						) : null}
 
 						<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -530,9 +583,7 @@ export function ProjectsHomeClient() {
 						<Card className="md:col-span-2 xl:col-span-1">
 							<CardHeader>
 								<CardTitle>Create your first workspace</CardTitle>
-								<CardDescription>
-									A workspace is a GitHub repo. Once connected, this page becomes your project grid.
-								</CardDescription>
+								<CardDescription>Connect GitHub and create your first project repo.</CardDescription>
 							</CardHeader>
 							<CardContent className="flex flex-wrap gap-2">
 								{githubConnected ? (

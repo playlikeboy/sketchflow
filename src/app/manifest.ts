@@ -15,14 +15,19 @@ export default function manifest(): MetadataRoute.Manifest {
 		id: SKETCHFLOW_APP_URL,
 		icons: [
 			{
-				src: "/favicon.svg",
-				sizes: "any",
-				type: "image/svg+xml",
+				src: "/pwa-192.png",
+				sizes: "192x192",
+				type: "image/png",
 			},
 			{
-				src: "/pwa-icon.svg",
+				src: "/pwa-512.png",
 				sizes: "512x512",
-				type: "image/svg+xml",
+				type: "image/png",
+			},
+			{
+				src: "/logo.png",
+				sizes: "512x512",
+				type: "image/png",
 				purpose: "maskable",
 			},
 		],
