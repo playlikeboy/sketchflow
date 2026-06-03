@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@blocknote/core/fonts/inter.css";
-@import "@blocknote/react/style.css";
+@import "@blocknote/shadcn/style.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -328,4 +328,11 @@
   border-color: var(--border);
   background: var(--popover);
   color: var(--popover-foreground);
+}
+
+.sketchflow-doc-editor .bn-suggestion-menu,
+.sketchflow-doc-editor .bn-formatting-toolbar,
+.sketchflow-doc-editor .bn-grid-suggestion-menu,
+.sketchflow-doc-editor .bn-menu-dropdown {
+  z-index: 60;
 }

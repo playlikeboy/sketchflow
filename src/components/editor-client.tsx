@@ -223,6 +223,16 @@ export function EditorClient({
 		isLoading: sketchLoading,
 		mutate: mutateSketch,
 	} = useSketch(sketchInput);
+	const refreshEditorFrame = useCallback(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		window.requestAnimationFrame(() => {
+			window.dispatchEvent(new Event("resize"));
+			excalidrawApiRef.current?.refresh();
+		});
+	}, []);
 	const setEditorMode = useCallback((nextMode: EditorMode) => {
 		setMode(nextMode);
 
@@ -233,11 +243,8 @@ export function EditorClient({
 		const url = new URL(window.location.href);
 		url.searchParams.set("view", nextMode);
 		window.history.pushState({ sketchflowView: nextMode }, "", url);
-		window.requestAnimationFrame(() => {
-			window.dispatchEvent(new Event("resize"));
-			excalidrawApiRef.current?.refresh();
-		});
-	}, []);
+		refreshEditorFrame();
+	}, [refreshEditorFrame]);
 
 	useEffect(() => {
 		appRef.current = app;
@@ -560,6 +567,21 @@ export function EditorClient({
 	const loading = authLoading || sketchLoading;
 	const error = loadError || (sketchError instanceof Error ? sketchError.message : null);
 	const dirty = sceneDirty || notesDirty;
+	const panelLayout = mode === "libraries"
+		? {
+				canvas: "64%",
+				side: "36%",
+				canvasMin: "44%",
+				sideMin: "28%",
+				sideMax: "52%",
+			}
+		: {
+				canvas: "50%",
+				side: "50%",
+				canvasMin: "34%",
+				sideMin: "34%",
+				sideMax: "66%",
+			};
 	const canvasEditor = initialData ? (
 		<div className="h-full min-h-0">
 			<Excalidraw
@@ -718,12 +740,27 @@ export function EditorClient({
 						) : mode === "docs" ? (
 							<div className="h-full min-h-0">{docsPanel}</div>
 						) : (
-							<ResizablePanelGroup orientation="horizontal" className="h-full min-h-0">
-								<ResizablePanel defaultSize={mode === "libraries" ? 70 : 68} minSize={42}>
+							<ResizablePanelGroup
+								key={mode}
+								id={`editor-${mode}-layout`}
+								orientation="horizontal"
+								className="h-full min-h-0"
+								onLayoutChanged={refreshEditorFrame}
+							>
+								<ResizablePanel
+									id={`editor-${mode}-canvas`}
+									defaultSize={panelLayout.canvas}
+									minSize={panelLayout.canvasMin}
+								>
 									{canvasEditor}
 								</ResizablePanel>
 								<ResizableHandle withHandle />
-								<ResizablePanel defaultSize={mode === "libraries" ? 30 : 32} minSize={24} maxSize={48}>
+								<ResizablePanel
+									id={`editor-${mode}-side`}
+									defaultSize={panelLayout.side}
+									minSize={panelLayout.sideMin}
+									maxSize={panelLayout.sideMax}
+								>
 									{mode === "libraries" ? libraryPanel : docsPanel}
 								</ResizablePanel>
 							</ResizablePanelGroup>

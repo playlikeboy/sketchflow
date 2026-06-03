@@ -19,6 +19,7 @@
 		"@base-ui/react": "^1.5.0",
 		"@blocknote/core": "^0.51.4",
 		"@blocknote/react": "^0.51.4",
+		"@blocknote/shadcn": "0.51.4",
 		"@excalidraw/excalidraw": "^0.18.1",
 		"@fontsource/nunito": "^5.2.7",
 		"@fontsource/nunito-sans": "^5.2.7",

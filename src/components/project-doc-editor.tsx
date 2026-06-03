@@ -1,6 +1,7 @@
 "use client";
 
-import { BlockNoteViewRaw, useCreateBlockNote, useEditorChange } from "@blocknote/react";
+import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
+import { BlockNoteView } from "@blocknote/shadcn";
 import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -112,7 +113,7 @@ export function ProjectDocEditor({
 					</div>
 				</div>
 			) : null}
-			<BlockNoteViewRaw editor={editor} className="sketchflow-doc-editor h-full" />
+			<BlockNoteView editor={editor} className="sketchflow-doc-editor h-full" />
 			{uploadError ? (
 				<div className="absolute bottom-3 left-3 right-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
 					{uploadError}
