@@ -42,7 +42,7 @@ export async function GET(request: Request) {
 			return jsonOk({
 				connected: false,
 				reason: "github_token_unavailable",
-				message: "Reconnect GitHub to refresh repository access.",
+				message: "Refresh GitHub access or paste a local token with repository access.",
 				scopes: getGithubOAuthScopes(),
 			});
 		}

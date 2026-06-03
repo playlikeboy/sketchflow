@@ -30,6 +30,14 @@ export function jsonOk<T>(data: T, init?: ResponseInit) {
 	return NextResponse.json(data, init);
 }
 
+function errorCode(error: unknown) {
+	if (error && typeof error === "object" && "code" in error && typeof error.code === "string") {
+		return { code: error.code };
+	}
+
+	return {};
+}
+
 export function jsonError(error: unknown) {
 	if (error instanceof UnauthorizedError) {
 		return NextResponse.json({ error: error.message }, { status: 401 });
@@ -40,7 +48,7 @@ export function jsonError(error: unknown) {
 	}
 
 	if (error instanceof HttpError) {
-		return NextResponse.json({ error: error.message }, { status: error.status });
+		return NextResponse.json({ error: error.message, ...errorCode(error) }, { status: error.status });
 	}
 
 	console.error(error);

@@ -59,7 +59,7 @@ type OAuthConnectionLike = {
 	>;
 };
 
-const STACK_OAUTH_TIMEOUT_MS = 10_000;
+const STACK_OAUTH_TIMEOUT_MS = 25_000;
 const LOCAL_GITHUB_TOKEN_HEADER = "x-sketchflow-github-token";
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorFactory: () => Error) {
@@ -193,6 +193,10 @@ export async function requireUser() {
 function getLocalGithubToken(request?: Request) {
 	const token = request?.headers.get(LOCAL_GITHUB_TOKEN_HEADER)?.trim();
 	return token || null;
+}
+
+export function hasLocalGithubToken(request?: Request) {
+	return Boolean(getLocalGithubToken(request));
 }
 
 export async function requireGithubAccessToken(scopes: string[], request?: Request) {

@@ -9,7 +9,6 @@ import {
 	FileText,
 	FolderOpen,
 	GitCommit,
-	GitPullRequest,
 	Globe,
 	KeyRound,
 	Loader2,
@@ -37,7 +36,6 @@ import {
 	ApiError,
 	type Workspace,
 } from "@/lib/api";
-import { connectGithubAccount } from "@/lib/github-connect";
 import type { WorkspaceProject } from "@/lib/project-metadata";
 import { slugify } from "@/lib/sketchflow";
 import {
@@ -113,7 +111,6 @@ export function ProjectsHomeClient() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
-	const [connectingGithub, setConnectingGithub] = useState(false);
 	const [syncingIndex, setSyncingIndex] = useState(false);
 	const [newProjectTitle, setNewProjectTitle] = useState("");
 	const [newProjectDescription, setNewProjectDescription] = useState("");
@@ -253,24 +250,6 @@ export function ProjectsHomeClient() {
 			mutateGithubStatus(),
 			mutateProjects(),
 		]);
-	}
-
-	async function handleConnectGithub() {
-		setConnectingGithub(true);
-		setLocalError(null);
-
-		try {
-			await connectGithubAccount(app, githubStatus?.scopes);
-			await mutateGithubStatus();
-		} catch (connectError) {
-			setLocalError(
-				connectError instanceof Error
-					? friendlyError(connectError.message)
-					: "GitHub connection did not finish",
-			);
-		} finally {
-			setConnectingGithub(false);
-		}
 	}
 
 	async function handleSyncProjectIndex() {
@@ -594,14 +573,14 @@ export function ProjectsHomeClient() {
 										</Link>
 									</Button>
 								) : (
-									<Button disabled={connectingGithub} onClick={handleConnectGithub}>
-										{connectingGithub ? (
-											<Loader2 className="size-4 animate-spin" />
-										) : (
-											<GitPullRequest className="size-4" />
-										)}
-										Connect GitHub
-									</Button>
+									<div className="w-full">
+										<GithubAccessCard
+											scopes={githubStatus?.scopes}
+											onRecovered={async () => {
+												await refresh();
+											}}
+										/>
+									</div>
 								)}
 							</CardContent>
 						</Card>

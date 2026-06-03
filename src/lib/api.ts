@@ -129,6 +129,7 @@ export async function apiJson<T>(url: string, init: ApiInit = {}) {
 	const githubToken = getStoredGithubToken();
 	const response = await fetch(url, {
 		...init,
+		credentials: "same-origin",
 		headers: {
 			...(init.json ? { "Content-Type": "application/json" } : null),
 			...(githubToken ? { "X-Sketchflow-Github-Token": githubToken } : null),

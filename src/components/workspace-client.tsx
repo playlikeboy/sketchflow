@@ -5,7 +5,6 @@ import { useStackApp } from "@stackframe/stack";
 import {
 	ArrowRight,
 	FolderOpen,
-	GitBranch,
 	Loader2,
 	Plus,
 	RefreshCw,
@@ -28,7 +27,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { WorkspaceAdvancedOptions } from "@/components/workspace-advanced-options";
 import { bootstrapWorkspace } from "@/lib/api";
-import { connectGithubAccount } from "@/lib/github-connect";
 import { sketchHref, repoHref, repoFolderHref } from "@/lib/workspace-routes";
 import {
 	useAuthMe,
@@ -56,7 +54,6 @@ export function WorkspaceClient() {
 	const [repoName, setRepoName] = useState("sketchflow-workspace");
 	const [isPrivate, setIsPrivate] = useState(false);
 	const [advancedOpen, setAdvancedOpen] = useState(false);
-	const [connectingGithub, setConnectingGithub] = useState(false);
 	const [bootstrapping, setBootstrapping] = useState(false);
 	const [localError, setLocalError] = useState<string | null>(null);
 	const { data: auth, isLoading: authLoading } = useAuthMe();
@@ -109,20 +106,6 @@ export function WorkspaceClient() {
 	async function refresh() {
 		setLocalError(null);
 		await Promise.all([mutateWorkspaces(), mutateGithubStatus()]);
-	}
-
-	async function handleConnectGithub() {
-		setConnectingGithub(true);
-		setLocalError(null);
-
-		try {
-			await connectGithubAccount(app, githubStatus?.scopes);
-			await mutateGithubStatus();
-		} catch (error) {
-			setLocalError(error instanceof Error ? friendlyError(error.message) : "GitHub connection did not finish");
-		} finally {
-			setConnectingGithub(false);
-		}
 	}
 
 	async function handleCreateWorkspace() {
@@ -189,16 +172,12 @@ export function WorkspaceClient() {
 									</div>
 								</div>
 							) : (
-								<div className="rounded-2xl border bg-muted/40 p-4">
-									<div className="flex items-center gap-2 text-sm font-extrabold">
-										<GitBranch className="size-4 text-primary" />
-										Connect GitHub
-									</div>
-									<Button className="mt-3" disabled={connectingGithub} onClick={handleConnectGithub}>
-										{connectingGithub ? <Loader2 className="size-4 animate-spin" /> : <GitBranch className="size-4" />}
-										Connect GitHub
-									</Button>
-								</div>
+								<GithubAccessCard
+									scopes={githubStatus?.scopes}
+									onRecovered={async () => {
+										await refresh();
+									}}
+								/>
 							)}
 
 							<div className="grid gap-3 sm:grid-cols-[1fr_auto]">

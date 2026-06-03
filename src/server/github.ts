@@ -4,7 +4,7 @@ import { BadRequestError, HttpError } from "@/server/http";
 
 const GITHUB_API_URL = "https://api.github.com";
 const MAX_FILE_BYTES = 8_000_000;
-const GITHUB_REQUEST_TIMEOUT_MS = 3_500;
+const GITHUB_REQUEST_TIMEOUT_MS = 15_000;
 
 export type GithubUser = {
 	login: string;
@@ -77,7 +77,19 @@ export type GithubCommitResult = {
 	files: string[];
 };
 
+type GithubApiErrorCode = "github_api_error" | "github_token_unavailable";
+
+function githubApiErrorCode(status: number): GithubApiErrorCode {
+	if (status === 401 || status === 403 || status === 404 || status === 504) {
+		return "github_token_unavailable";
+	}
+
+	return "github_api_error";
+}
+
 export class GithubApiError extends HttpError {
+	readonly code: GithubApiErrorCode;
+
 	constructor(
 		message: string,
 		status: number,
@@ -85,6 +97,7 @@ export class GithubApiError extends HttpError {
 	) {
 		super(message, status);
 		this.name = "GithubApiError";
+		this.code = githubApiErrorCode(status);
 	}
 }
 

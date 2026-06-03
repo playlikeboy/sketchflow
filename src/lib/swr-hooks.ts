@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 
 import {
@@ -15,19 +16,40 @@ import {
 	type WorkspaceProjectsResponse,
 } from "@/lib/api";
 import type { ExcalidrawLibrariesResponse } from "@/lib/excalidraw-libraries";
+import { GITHUB_TOKEN_CHANGED_EVENT, getStoredGithubTokenFingerprint } from "@/lib/github-token";
+
+function useGithubTokenFingerprint() {
+	const [fingerprint, setFingerprint] = useState("none");
+
+	useEffect(() => {
+		const updateFingerprint = () => setFingerprint(getStoredGithubTokenFingerprint());
+
+		updateFingerprint();
+		window.addEventListener(GITHUB_TOKEN_CHANGED_EVENT, updateFingerprint);
+		window.addEventListener("storage", updateFingerprint);
+
+		return () => {
+			window.removeEventListener(GITHUB_TOKEN_CHANGED_EVENT, updateFingerprint);
+			window.removeEventListener("storage", updateFingerprint);
+		};
+	}, []);
+
+	return fingerprint;
+}
 
 export const swrKeys = {
 	authMe: "/api/auth/me",
 	excalidrawLibraries: "/api/excalidraw/libraries",
-	githubStatus: (stackUserId: string | null | undefined) => (stackUserId ? ["/api/github/status", stackUserId] : null),
+	githubStatus: (stackUserId: string | null | undefined, githubTokenKey = "none") =>
+		stackUserId ? ["/api/github/status", stackUserId, githubTokenKey] : null,
 	workspaces: (stackUserId: string | null | undefined) => (stackUserId ? ["/api/workspaces", stackUserId] : null),
-	workspaceProjects: (workspaceId: string | null | undefined) =>
-		workspaceId ? `/api/workspaces/${encodeURIComponent(workspaceId)}/projects` : null,
-	sketch: (input: { workspaceId: string; projectId: string; sketchId: string } | null) =>
+	workspaceProjects: (workspaceId: string | null | undefined, githubTokenKey = "none") =>
+		workspaceId ? [`/api/workspaces/${encodeURIComponent(workspaceId)}/projects`, githubTokenKey] : null,
+	sketch: (input: { workspaceId: string; projectId: string; sketchId: string } | null, githubTokenKey = "none") =>
 		input
-			? `/api/workspaces/${encodeURIComponent(input.workspaceId)}/projects/${encodeURIComponent(
+			? [`/api/workspaces/${encodeURIComponent(input.workspaceId)}/projects/${encodeURIComponent(
 					input.projectId,
-				)}/sketches/${encodeURIComponent(input.sketchId)}`
+				)}/sketches/${encodeURIComponent(input.sketchId)}`, githubTokenKey]
 			: null,
 };
 
@@ -40,7 +62,9 @@ export function useAuthMe() {
 }
 
 export function useGithubStatus(stackUserId: string | null | undefined) {
-	return useSWR<GithubStatus>(swrKeys.githubStatus(stackUserId), getGithubStatus, {
+	const githubTokenKey = useGithubTokenFingerprint();
+
+	return useSWR<GithubStatus>(swrKeys.githubStatus(stackUserId, githubTokenKey), getGithubStatus, {
 		revalidateOnFocus: true,
 		revalidateOnReconnect: true,
 		refreshInterval: 30_000,
@@ -64,8 +88,10 @@ export function useWorkspaces(stackUserId: string | null | undefined) {
 }
 
 export function useWorkspaceProjects(workspaceId: string | null | undefined) {
+	const githubTokenKey = useGithubTokenFingerprint();
+
 	return useSWR<WorkspaceProjectsResponse>(
-		swrKeys.workspaceProjects(workspaceId),
+		swrKeys.workspaceProjects(workspaceId, githubTokenKey),
 		() => getWorkspaceProjects(workspaceId as string),
 		{
 			revalidateOnFocus: true,
@@ -78,7 +104,9 @@ export function useWorkspaceProjects(workspaceId: string | null | undefined) {
 }
 
 export function useSketch(input: { workspaceId: string; projectId: string; sketchId: string } | null) {
-	return useSWR<SketchLoadResponse>(swrKeys.sketch(input), () => getSketch(input as {
+	const githubTokenKey = useGithubTokenFingerprint();
+
+	return useSWR<SketchLoadResponse>(swrKeys.sketch(input, githubTokenKey), () => getSketch(input as {
 		workspaceId: string;
 		projectId: string;
 		sketchId: string;

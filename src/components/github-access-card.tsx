@@ -61,17 +61,25 @@ export function GithubAccessCard({
 		}
 
 		setBusy("token");
-		setStoredGithubToken(nextToken);
-		setToken("");
-		setHasToken(true);
-		await finish("Local GitHub token saved.");
-		setBusy(null);
+		try {
+			setStoredGithubToken(nextToken);
+			setToken("");
+			setHasToken(true);
+			await finish("Local GitHub token saved.");
+		} finally {
+			setBusy(null);
+		}
 	}
 
 	async function clearToken() {
-		clearStoredGithubToken();
-		setHasToken(false);
-		await finish("Local GitHub token removed.");
+		setBusy("token");
+		try {
+			clearStoredGithubToken();
+			setHasToken(false);
+			await finish("Local GitHub token removed.");
+		} finally {
+			setBusy(null);
+		}
 	}
 
 	return (
@@ -92,26 +100,24 @@ export function GithubAccessCard({
 				</Button>
 			</div>
 
-			{compact ? null : (
-				<div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-					<Input
-						value={token}
-						onChange={(event) => setToken(event.target.value)}
-						placeholder={hasToken ? "Local token saved" : "Paste GitHub token"}
-						type="password"
-						autoComplete="off"
-						aria-label="GitHub personal access token"
-					/>
-					<Button variant="outline" disabled={busy === "token"} onClick={saveToken}>
-						{busy === "token" ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
-						Use local token
-					</Button>
-					<Button variant="ghost" disabled={!hasToken} onClick={clearToken}>
-						<Trash2 className="size-4" />
-						Clear
-					</Button>
-				</div>
-			)}
+			<div className={compact ? "mt-3 grid gap-2" : "mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto]"}>
+				<Input
+					value={token}
+					onChange={(event) => setToken(event.target.value)}
+					placeholder={hasToken ? "Local token saved" : "Paste GitHub token"}
+					type="password"
+					autoComplete="off"
+					aria-label="GitHub personal access token"
+				/>
+				<Button variant="outline" disabled={busy === "token"} onClick={saveToken}>
+					{busy === "token" ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
+					Use local token
+				</Button>
+				<Button variant="ghost" disabled={!hasToken} onClick={clearToken}>
+					<Trash2 className="size-4" />
+					Clear
+				</Button>
+			</div>
 
 			<div className="mt-3 flex flex-wrap items-center gap-3 text-xs font-semibold text-muted-foreground">
 				{hasToken ? (

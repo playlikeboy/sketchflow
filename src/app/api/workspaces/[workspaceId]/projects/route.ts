@@ -7,7 +7,7 @@ import {
 	type WorkspaceProject,
 } from "@/lib/project-metadata";
 import { GITHUB_REST_API_VERSION, SKETCHFLOW_APP_URL } from "@/lib/config";
-import { normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
+import { hasLocalGithubToken, normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
 import { getWorkspace, recordSyncEvent, updateWorkspaceCommit } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
 import {
@@ -25,7 +25,7 @@ import { isJsonObject, optionalString } from "@/server/validation";
 import { humanizeSlug, notesFilePath, projectFilePath, sketchFilePath, slugify } from "@/lib/sketchflow";
 
 const PUBLIC_GITHUB_API_URL = "https://api.github.com";
-const PUBLIC_GITHUB_TIMEOUT_MS = 3_500;
+const PUBLIC_GITHUB_TIMEOUT_MS = 10_000;
 
 async function publicGithubFetch(url: string) {
 	const controller = new AbortController();
@@ -269,6 +269,20 @@ async function readPublicWorkspaceProjects(input: {
 	};
 }
 
+async function readAuthenticatedWorkspaceProjects(
+	request: Request,
+	workspace: {
+		repoOwner: string;
+		repoName: string;
+		defaultBranch: string;
+		visibility: "private" | "public";
+	},
+) {
+	const scopes = getGithubOAuthScopes();
+	const { accessToken } = await requireGithubAccessToken(scopes, request);
+	return readWorkspaceProjects({ accessToken, workspace });
+}
+
 export async function GET(
 	request: Request,
 	{ params }: { params: Promise<{ workspaceId: string }> },
@@ -282,14 +296,14 @@ export async function GET(
 			throw new NotFoundError("Workspace not found");
 		}
 
-		const result =
-			workspace.visibility === "public"
-				? await readPublicWorkspaceProjects({ workspace })
-				: await (async () => {
-						const scopes = getGithubOAuthScopes();
-						const { accessToken } = await requireGithubAccessToken(scopes, request);
-						return readWorkspaceProjects({ accessToken, workspace });
-					})();
+		let result =
+			workspace.visibility === "public" && !hasLocalGithubToken(request)
+				? await readPublicWorkspaceProjects({ workspace }).catch(() => readAuthenticatedWorkspaceProjects(request, workspace))
+				: await readAuthenticatedWorkspaceProjects(request, workspace);
+
+		if (workspace.visibility === "public" && !result.metadataPresent && result.projects.length === 0) {
+			result = await readAuthenticatedWorkspaceProjects(request, workspace);
+		}
 
 		return jsonOk({
 			workspace: {
