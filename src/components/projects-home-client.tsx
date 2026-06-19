@@ -37,7 +37,8 @@ import {
 	type Workspace,
 } from "@/lib/api";
 import type { WorkspaceProject } from "@/lib/project-metadata";
-import { slugify } from "@/lib/sketchflow";
+import { slugify, draftKey, humanizeSlug } from "@/lib/sketchflow";
+import { getLocalProjects, saveLocalProject, setDraft } from "@/lib/indexeddb";
 import {
 	DEFAULT_SKETCH_ID,
 	embedHref,
@@ -148,7 +149,28 @@ export function ProjectsHomeClient() {
 		isLoading: projectsLoading,
 		mutate: mutateProjects,
 	} = useWorkspaceProjects(selectedWorkspace?.id, auth?.user?.id);
-	const projects = projectsResponse?.projects ?? [];
+
+	const [localProjects, setLocalProjects] = useState<WorkspaceProject[]>([]);
+
+	useEffect(() => {
+		if (selectedWorkspace?.id) {
+			getLocalProjects(selectedWorkspace.id).then(setLocalProjects);
+		} else {
+			setLocalProjects([]);
+		}
+	}, [selectedWorkspace?.id]);
+
+	const remoteProjects = projectsResponse?.projects ?? [];
+	const projects = useMemo(() => {
+		const merged = [...remoteProjects];
+		for (const lp of localProjects) {
+			if (!merged.some((p) => p.id === lp.id)) {
+				merged.push(lp);
+			}
+		}
+		return merged;
+	}, [remoteProjects, localProjects]);
+
 	const metadataPresent = projectsResponse?.metadataPresent ?? false;
 	const filteredProjects = useMemo(() => {
 		const query = projectSearch.trim().toLowerCase();
@@ -279,26 +301,105 @@ export function ProjectsHomeClient() {
 		setCreatingProject(true);
 		setLocalError(null);
 
+		const title = newProjectTitle.trim() || "Untitled Project";
+		const projectId = slugify(title);
+
 		try {
-			const title = newProjectTitle.trim() || "Untitled Project";
-			const projectId = slugify(title);
-			const response = await createWorkspaceProject({
-				workspaceId: selectedWorkspace.id,
-				title,
-				description: newProjectDescription.trim() || undefined,
-				projectId,
-				sketchId: DEFAULT_SKETCH_ID,
-				visibility: selectedWorkspace.visibility,
-			});
-			const createdProject = response.projects.find((project) => project.id === projectId);
+			try {
+				const response = await createWorkspaceProject({
+					workspaceId: selectedWorkspace.id,
+					title,
+					description: newProjectDescription.trim() || undefined,
+					projectId,
+					sketchId: DEFAULT_SKETCH_ID,
+					visibility: selectedWorkspace.visibility,
+				});
+				const createdProject = response.projects.find((project) => project.id === projectId);
 
-			await mutateProjects(response, { revalidate: false });
-			await mutateWorkspaces();
-			setNewProjectTitle("");
-			setNewProjectDescription("");
+				await mutateProjects(response, { revalidate: false });
+				await mutateWorkspaces();
+				setNewProjectTitle("");
+				setNewProjectDescription("");
 
-			if (createdProject) {
-				router.push(sketchHref(selectedWorkspace.id, createdProject.id, firstSketchId(createdProject)));
+				if (createdProject) {
+					router.push(sketchHref(selectedWorkspace.id, createdProject.id, firstSketchId(createdProject)));
+				}
+			} catch (apiError) {
+				console.warn("GitHub creation failed or requires reauth, staging project locally...", apiError);
+
+				const now = new Date().toISOString();
+				const localProject: WorkspaceProject = {
+					id: projectId,
+					title,
+					description: newProjectDescription.trim() || undefined,
+					visibility: selectedWorkspace.visibility,
+					createdAt: now,
+					updatedAt: now,
+					defaultSketch: `projects/${projectId}/sketches/${DEFAULT_SKETCH_ID}.excalidraw.json`,
+					defaultSketchId: DEFAULT_SKETCH_ID,
+					notesFile: `projects/${projectId}/docs/notes.md`,
+					projectFile: `projects/${projectId}/project.json`,
+					sketches: [
+						{
+							id: DEFAULT_SKETCH_ID,
+							title: humanizeSlug(DEFAULT_SKETCH_ID),
+							file: `projects/${projectId}/sketches/${DEFAULT_SKETCH_ID}.excalidraw.json`,
+						}
+					],
+					sharing: {
+						enabled: selectedWorkspace.visibility === "public",
+						embed: selectedWorkspace.visibility === "public",
+					},
+					isLocalOnly: true,
+				};
+
+				// Prepare IndexedDB drafts
+				const currentDraft = draftKey(selectedWorkspace.id, projectId, DEFAULT_SKETCH_ID, auth?.user?.id);
+
+				await setDraft(currentDraft, {
+					scene: {
+						type: "excalidraw",
+						version: 2,
+						source: "https://sketchflow.space",
+						elements: [],
+						appState: {
+							viewBackgroundColor: "#ffffff",
+						},
+						files: {},
+					},
+					updatedAt: now,
+				});
+
+				await setDraft(`${currentDraft}:notes`, {
+					notes: `# ${title}\n\nThis project is offline. Re-connect GitHub and save to sync.\n`,
+					updatedAt: now,
+				});
+
+				await setDraft(`${currentDraft}:state`, {
+					state: {
+						viewMode: "split",
+						lastActiveSketchId: DEFAULT_SKETCH_ID,
+						panelSizes: [50, 50],
+						history: [
+							{
+								action: "Project created offline",
+								user: auth?.user?.displayName || auth?.user?.primaryEmail || "Offline User",
+								timestamp: now,
+							}
+						]
+					},
+					updatedAt: now,
+				});
+
+				await saveLocalProject(selectedWorkspace.id, localProject);
+
+				const updatedLocals = await getLocalProjects(selectedWorkspace.id);
+				setLocalProjects(updatedLocals);
+
+				setNewProjectTitle("");
+				setNewProjectDescription("");
+
+				router.push(sketchHref(selectedWorkspace.id, projectId, DEFAULT_SKETCH_ID));
 			}
 		} catch (createError) {
 			setLocalError(
@@ -479,14 +580,29 @@ export function ProjectsHomeClient() {
 											<CardHeader>
 												<div className="flex items-start justify-between gap-3">
 													<div className="min-w-0">
-														<CardTitle className="truncate">{project.title}</CardTitle>
+														<div className="flex items-center gap-2">
+															<CardTitle className="truncate">{project.title}</CardTitle>
+															{project.isLocalOnly && (
+																<span className="relative flex h-2 w-2 shrink-0" title="Offline (Sync Required)">
+																	<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+																	<span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+																</span>
+															)}
+														</div>
 														<CardDescription className="line-clamp-2">
 															{projectDescription(project)}
 														</CardDescription>
 													</div>
-													<Badge variant={project.visibility === "public" ? "default" : "outline"}>
-														{project.visibility}
-													</Badge>
+													<div className="flex flex-col items-end gap-1.5 shrink-0">
+														<Badge variant={project.visibility === "public" ? "default" : "outline"}>
+															{project.visibility}
+														</Badge>
+														{project.isLocalOnly && (
+															<Badge variant="destructive" className="bg-red-600 text-white text-[9px] py-0.5 px-1.5 font-extrabold uppercase tracking-wide border-none rounded">
+																Offline
+															</Badge>
+														)}
+													</div>
 												</div>
 											</CardHeader>
 											<CardContent className="flex flex-1 flex-col gap-4">

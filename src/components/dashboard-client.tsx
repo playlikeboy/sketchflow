@@ -42,7 +42,8 @@ import {
 } from "@/lib/api";
 import { connectGithubAccount } from "@/lib/github-connect";
 import type { WorkspaceProject } from "@/lib/project-metadata";
-import { slugify } from "@/lib/sketchflow";
+import { slugify, draftKey, humanizeSlug } from "@/lib/sketchflow";
+import { getLocalProjects, saveLocalProject, setDraft } from "@/lib/indexeddb";
 import {
 	useAuthMe,
 	useGithubStatus,
@@ -93,6 +94,7 @@ export function DashboardClient() {
 	const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
 	const [projects, setProjects] = useState<WorkspaceProject[]>([]);
+	const [localProjects, setLocalProjects] = useState<WorkspaceProject[]>([]);
 	const [syncingProjects, setSyncingProjects] = useState(false);
 	const [projectsError, setProjectsError] = useState<string | null>(null);
 	const [metadataPresent, setMetadataPresent] = useState(false);
@@ -139,15 +141,25 @@ export function DashboardClient() {
 		() => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0] ?? null,
 		[selectedWorkspaceId, workspaces],
 	);
+	const combinedProjects = useMemo(() => {
+		const merged = [...projects];
+		for (const lp of localProjects) {
+			if (!merged.some((p) => p.id === lp.id)) {
+				merged.push(lp);
+			}
+		}
+		return merged;
+	}, [projects, localProjects]);
+
 	const selectedProject = useMemo(
-		() => projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null,
-		[selectedProjectId, projects],
+		() => combinedProjects.find((project) => project.id === selectedProjectId) ?? combinedProjects[0] ?? null,
+		[selectedProjectId, combinedProjects],
 	);
 	const filteredProjects = useMemo(() => {
 		const query = projectSearch.trim().toLowerCase();
-		if (!query) return projects;
+		if (!query) return combinedProjects;
 
-		return projects.filter((project) => {
+		return combinedProjects.filter((project) => {
 			const haystack = [
 				project.id,
 				project.title,
@@ -161,7 +173,7 @@ export function DashboardClient() {
 
 			return haystack.includes(query);
 		});
-	}, [projectSearch, projects]);
+	}, [projectSearch, combinedProjects]);
 	const githubConnected = githubStatus?.connected === true;
 	const loading = authLoading || workspacesLoading;
 	const projectsLoading = workspaceProjectsLoading || syncingProjects;
@@ -180,10 +192,19 @@ export function DashboardClient() {
 		setWorkspaces([]);
 		setSelectedWorkspaceId(null);
 		setProjects([]);
+		setLocalProjects([]);
 		setSelectedProjectId(null);
 		setError(null);
 		setProjectsError(null);
 	}, [auth?.user?.id]);
+
+	useEffect(() => {
+		if (selectedWorkspaceId) {
+			getLocalProjects(selectedWorkspaceId).then(setLocalProjects);
+		} else {
+			setLocalProjects([]);
+		}
+	}, [selectedWorkspaceId]);
 
 
 	useEffect(() => {
@@ -366,26 +387,107 @@ export function DashboardClient() {
 		setCreatingProject(true);
 		setProjectsError(null);
 
+		const title = newProjectTitle.trim() || "Untitled Project";
+		const projectId = slugify(title);
+
 		try {
-			const title = newProjectTitle.trim() || "Untitled Project";
-			const response = await createWorkspaceProject({
-				workspaceId: selectedWorkspace.id,
-				title,
-				description: newProjectDescription.trim() || undefined,
-				projectId: slugify(title),
-				sketchId: DEFAULT_SKETCH_ID,
-				visibility: selectedWorkspace.visibility,
-			});
-			const createdProject = response.projects.find((project) => project.id === slugify(title));
+			try {
+				const response = await createWorkspaceProject({
+					workspaceId: selectedWorkspace.id,
+					title,
+					description: newProjectDescription.trim() || undefined,
+					projectId,
+					sketchId: DEFAULT_SKETCH_ID,
+					visibility: selectedWorkspace.visibility,
+				});
+				const createdProject = response.projects.find((project) => project.id === projectId);
 
-			await mutateProjects(response, { revalidate: false });
-			await mutateWorkspaces();
-			setSelectedProjectId(createdProject?.id ?? response.projects[0]?.id ?? null);
-			setNewProjectTitle("");
-			setNewProjectDescription("");
+				await mutateProjects(response, { revalidate: false });
+				await mutateWorkspaces();
+				setSelectedProjectId(createdProject?.id ?? response.projects[0]?.id ?? null);
+				setNewProjectTitle("");
+				setNewProjectDescription("");
 
-			if (createdProject) {
-				router.push(sketchHref(selectedWorkspace.id, createdProject.id, firstSketchId(createdProject)));
+				if (createdProject) {
+					router.push(sketchHref(selectedWorkspace.id, createdProject.id, firstSketchId(createdProject)));
+				}
+			} catch (apiError) {
+				console.warn("GitHub creation failed or requires reauth, staging project locally...", apiError);
+
+				const now = new Date().toISOString();
+				const localProject: WorkspaceProject = {
+					id: projectId,
+					title,
+					description: newProjectDescription.trim() || undefined,
+					visibility: selectedWorkspace.visibility,
+					createdAt: now,
+					updatedAt: now,
+					defaultSketch: `projects/${projectId}/sketches/${DEFAULT_SKETCH_ID}.excalidraw.json`,
+					defaultSketchId: DEFAULT_SKETCH_ID,
+					notesFile: `projects/${projectId}/docs/notes.md`,
+					projectFile: `projects/${projectId}/project.json`,
+					sketches: [
+						{
+							id: DEFAULT_SKETCH_ID,
+							title: humanizeSlug(DEFAULT_SKETCH_ID),
+							file: `projects/${projectId}/sketches/${DEFAULT_SKETCH_ID}.excalidraw.json`,
+						}
+					],
+					sharing: {
+						enabled: selectedWorkspace.visibility === "public",
+						embed: selectedWorkspace.visibility === "public",
+					},
+					isLocalOnly: true,
+				};
+
+				// Prepare IndexedDB drafts
+				const currentDraft = draftKey(selectedWorkspace.id, projectId, DEFAULT_SKETCH_ID, auth?.user?.id);
+
+				await setDraft(currentDraft, {
+					scene: {
+						type: "excalidraw",
+						version: 2,
+						source: "https://sketchflow.space",
+						elements: [],
+						appState: {
+							viewBackgroundColor: "#ffffff",
+						},
+						files: {},
+					},
+					updatedAt: now,
+				});
+
+				await setDraft(`${currentDraft}:notes`, {
+					notes: `# ${title}\n\nThis project is offline. Re-connect GitHub and save to sync.\n`,
+					updatedAt: now,
+				});
+
+				await setDraft(`${currentDraft}:state`, {
+					state: {
+						viewMode: "split",
+						lastActiveSketchId: DEFAULT_SKETCH_ID,
+						panelSizes: [50, 50],
+						history: [
+							{
+								action: "Project created offline",
+								user: auth?.user?.displayName || auth?.user?.primaryEmail || "Offline User",
+								timestamp: now,
+							}
+						]
+					},
+					updatedAt: now,
+				});
+
+				await saveLocalProject(selectedWorkspace.id, localProject);
+
+				const updatedLocals = await getLocalProjects(selectedWorkspace.id);
+				setLocalProjects(updatedLocals);
+
+				setNewProjectTitle("");
+				setNewProjectDescription("");
+				setSelectedProjectId(projectId);
+
+				router.push(sketchHref(selectedWorkspace.id, projectId, DEFAULT_SKETCH_ID));
 			}
 		} catch (createError) {
 			setProjectsError(
@@ -594,6 +696,12 @@ export function DashboardClient() {
 															<Badge variant="secondary" className="font-normal">
 																{project.visibility}
 															</Badge>
+															{project.isLocalOnly && (
+																<Badge variant="destructive" className="animate-pulse bg-red-600 text-white border-none gap-1 py-0.5 px-2 rounded-full text-[10px] font-extrabold">
+																	<span className="h-1.5 w-1.5 rounded-full bg-white" />
+																	Offline (Sync Required)
+																</Badge>
+															)}
 														</div>
 														<div className="mt-1 text-sm text-muted-foreground">
 															projects/{project.id} · {project.sketches.length} sketch

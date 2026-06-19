@@ -44,10 +44,10 @@ import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ApiError, commitWorkspaceFiles, restoreProjectVersion, type SketchLoadResponse, type SketchScene } from "@/lib/api";
 import type { ExcalidrawLibrary } from "@/lib/excalidraw-libraries";
-import { deleteDraft, getDraft, setDraft } from "@/lib/indexeddb";
+import { deleteDraft, getDraft, setDraft, deleteLocalProject } from "@/lib/indexeddb";
 import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
 import { draftKey, humanizeSlug, normalizeScene, notesFilePath, projectFilePath, sketchFilePath } from "@/lib/sketchflow";
-import { useAuthMe, useGithubStatus, useSketch, useProjectHistorySnapshot } from "@/lib/swr-hooks";
+import { useAuthMe, useGithubStatus, useSketch, useProjectHistorySnapshot, useWorkspaces } from "@/lib/swr-hooks";
 import { cn } from "@/lib/utils";
 
 const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
@@ -248,6 +248,10 @@ export function EditorClient({
 	const sourceRef = useRef<"github" | "local">("github");
 	const { data: auth, isLoading: authLoading } = useAuthMe();
 	const { data: githubStatus, mutate: mutateGithubStatus } = useGithubStatus(auth?.user?.id);
+	const { data: workspacesData } = useWorkspaces(auth?.user?.id);
+	const workspace = useMemo(() => {
+		return workspacesData?.workspaces?.find((w) => w.id === workspaceId) || null;
+	}, [workspacesData, workspaceId]);
 	const currentDraftKey = useMemo(
 		() => draftKey(workspaceId, projectId, sketchId, auth?.user?.id),
 		[workspaceId, projectId, sketchId, auth?.user?.id],
@@ -380,7 +384,7 @@ export function EditorClient({
 	useEffect(() => {
 		let mounted = true;
 
-		async function hydrateFromData(nextData: SketchLoadResponse) {
+		async function hydrateFromData(nextData: SketchLoadResponse | null) {
 			setLoadError(null);
 			setSaveError(null);
 			setInitialData(null);
@@ -393,20 +397,35 @@ export function EditorClient({
 			setNotesDirty(false);
 
 			try {
-				const githubScene = normalizeScene(nextData.sketch);
 				const [localSceneDraft, localNotesDraft, localLibraryDraft, localStateDraft] = await Promise.all([
 					getDraft<DraftValue>(currentDraftKey),
 					getDraft<NotesDraftValue>(currentNotesDraftKey),
 					getDraft<LibraryDraftValue>(currentLibraryDraftKey),
 					getDraft<StateDraftValue>(currentStateDraftKey),
 				]);
-				const githubState = nextData.state;
+
+				const isLocalFallback = !nextData && (localSceneDraft !== null || localNotesDraft !== null || localStateDraft !== null);
+
+				if (!nextData && !isLocalFallback) {
+					setLoadError(sketchError instanceof Error ? sketchError.message : "Project not found locally or on GitHub.");
+					return;
+				}
+
+				const githubScene = nextData ? normalizeScene(nextData.sketch) : {
+					type: "excalidraw",
+					version: 2,
+					source: "https://sketchflow.space",
+					elements: [],
+					appState: { viewBackgroundColor: "#ffffff" },
+					files: {},
+				};
+				const githubState = nextData?.state;
 				const initialMode = localStateDraft?.value?.state?.viewMode ?? (isEditorMode(githubState?.viewMode ?? null) ? githubState!.viewMode : "split");
 				const initialPanelSizes = localStateDraft?.value?.state?.panelSizes ?? githubState?.panelSizes ?? [50, 50];
 				const nextScene = localSceneDraft?.value?.scene
 					? normalizeScene(localSceneDraft.value.scene)
 					: githubScene;
-				const nextNotes = localNotesDraft?.value?.notes ?? nextData.notes ?? fallbackNotes(projectId, sketchId);
+				const nextNotes = localNotesDraft?.value?.notes ?? nextData?.notes ?? fallbackNotes(projectId, sketchId);
 				const restoredLocal = Boolean(localSceneDraft?.value?.scene || localNotesDraft?.value?.notes || localStateDraft?.value?.state);
 				const nextLibraryItems = localLibraryDraft?.value?.libraryItems;
 				const nextInstalledSources = localLibraryDraft?.value?.installedSources ?? [];
@@ -416,18 +435,20 @@ export function EditorClient({
 				sceneRef.current = nextScene;
 				notesRef.current = nextNotes;
 				installedLibrarySourcesRef.current = nextInstalledSources;
-				sourceRef.current = restoredLocal ? "local" : "github";
+				sourceRef.current = restoredLocal || isLocalFallback ? "local" : "github";
 				setInitialData(toInitialData(nextScene, resolvedTheme, nextLibraryItems));
 				setPanelSizes(initialPanelSizes);
 				setNotes(nextNotes);
 				setMode(initialMode as EditorMode);
 				setInstalledLibrarySources(nextInstalledSources);
 				setHasScene(true);
-				setSource(restoredLocal ? "local" : "github");
+				setSource(restoredLocal || isLocalFallback ? "local" : "github");
 				setStatus(
-					restoredLocal
-						? "Restored local draft"
-						: "Loaded from GitHub",
+					isLocalFallback
+						? "Local draft (Offline)"
+						: restoredLocal
+							? "Restored local draft"
+							: "Loaded from GitHub",
 				);
 			} catch (error) {
 				if (!mounted) return;
@@ -437,6 +458,8 @@ export function EditorClient({
 
 		if (data) {
 			void hydrateFromData(data);
+		} else if (sketchError || (!sketchLoading && !data)) {
+			void hydrateFromData(null);
 		}
 
 		return () => {
@@ -448,7 +471,7 @@ export function EditorClient({
 				clearTimeout(notesTimer.current);
 			}
 		};
-	}, [currentDraftKey, currentLibraryDraftKey, currentNotesDraftKey, data, projectId, sketchId]);
+	}, [currentDraftKey, currentLibraryDraftKey, currentNotesDraftKey, data, sketchError, sketchLoading, projectId, sketchId, resolvedTheme]);
 
 	const queueSceneDraftSave = useCallback((nextScene: SketchScene) => {
 		if (sceneTimer.current) {
@@ -578,7 +601,7 @@ export function EditorClient({
 
 	async function handleManualSave() {
 		const scene = sceneRef.current;
-		if (!scene || !data) return;
+		if (!scene || (!data && !workspace)) return;
 
 		setSaving(true);
 		setSaveError(null);
@@ -592,24 +615,24 @@ export function EditorClient({
 				clearTimeout(notesTimer.current);
 			}
 
-			const project = buildProjectFile(projectId, sketchId, data.project);
+			const project = buildProjectFile(projectId, sketchId, data?.project);
 			const projectMetadata = mergeProjectsMetadata({
-				existing: data.projectsMetadata,
+				existing: data?.projectsMetadata,
 				project: projectFromProjectJson({
 					projectId,
 					projectJson: project,
-					fallbackVisibility: data.workspace.visibility,
+					fallbackVisibility: data?.workspace?.visibility ?? workspace?.visibility ?? "public",
 					fallbackSketchId: sketchId,
 				}),
 				workspace: {
-					owner: data.workspace.repoOwner,
-					repo: data.workspace.repoName,
-					defaultBranch: data.workspace.defaultBranch,
+					owner: data?.workspace?.repoOwner ?? workspace?.repoOwner ?? "",
+					repo: data?.workspace?.repoName ?? workspace?.repoName ?? "",
+					defaultBranch: data?.workspace?.defaultBranch ?? workspace?.defaultBranch ?? "main",
 				},
 			});
 			const nextNotes = notesRef.current || fallbackNotes(projectId, sketchId);
 			const nextHistory = appendProjectHistoryLog(
-				data.state?.history,
+				data?.state?.history,
 				`Saved changes (mode: ${mode})`,
 				auth?.user?.displayName || auth?.user?.primaryEmail
 			);
@@ -647,6 +670,12 @@ export function EditorClient({
 				],
 			});
 
+			try {
+				await deleteLocalProject(workspaceId, projectId);
+			} catch (err) {
+				console.warn("Could not delete local staged project from registry:", err);
+			}
+
 			await Promise.all([
 				deleteDraft(currentDraftKey),
 				deleteDraft(currentNotesDraftKey),
@@ -661,7 +690,22 @@ export function EditorClient({
 			setStatus(`Synced to GitHub · ${shortSha(response.commit.sha)}`);
 			await mutateSketch(
 				buildUpdatedSketchData({
-					data,
+					data: data || {
+						workspace: workspace!,
+						projectSlug: projectId,
+						sketchSlug: sketchId,
+						project: project,
+						projectsMetadata: projectMetadata,
+						sketch: scene,
+						notes: nextNotes,
+						state: nextState,
+						files: {
+							project: project,
+							sketch: scene,
+							notes: nextNotes,
+							state: nextState,
+						}
+					},
 					commitSha: response.commit.sha,
 					projectMetadata,
 					notes: nextNotes,
@@ -718,7 +762,9 @@ export function EditorClient({
 	const title = humanizeSlug(sketchId);
 	const subtitle = data
 		? `${data.workspace.repoOwner}/${data.workspace.repoName} · projects/${projectId}`
-		: "GitHub-backed visual doc";
+		: workspace
+			? `${workspace.repoOwner}/${workspace.repoName} · projects/${projectId} (Offline)`
+			: "GitHub-backed visual doc";
 	const loading = authLoading || sketchLoading || !mounted;
 	const error = loadError || (sketchError instanceof Error ? sketchError.message : null);
 	const dirty = sceneDirty || notesDirty;
@@ -843,7 +889,7 @@ export function EditorClient({
 			onPreviewShaChange={setSelectedPreviewSha}
 			onRestore={handleRestoreProject}
 			restoringSha={restoringSha}
-			workspace={data?.workspace}
+			workspace={data?.workspace ?? workspace}
 		/>
 	);
 
@@ -863,7 +909,7 @@ export function EditorClient({
 							<BreadcrumbItem className="hidden sm:inline-flex max-w-[100px] truncate">
 								<BreadcrumbLink asChild>
 									<Link href="/app" className="text-muted-foreground/75 hover:text-primary">
-										{data?.workspace.repoName}
+										{data?.workspace?.repoName ?? workspace?.repoName ?? "Workspace"}
 									</Link>
 								</BreadcrumbLink>
 							</BreadcrumbItem>
@@ -976,15 +1022,20 @@ export function EditorClient({
 								</span>
 								Unsaved
 							</span>
+						) : !data || (status && status.includes("Offline")) ? (
+							<span className="flex items-center gap-1.5 text-red-500 font-extrabold animate-pulse">
+								<span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+								Offline (Unsynced)
+							</span>
 						) : (
 							<span className="flex items-center gap-1 text-emerald-500/80">
 								<span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-								Synced ({shortSha(data?.workspace.latestCommitSha)})
+								Synced ({shortSha(data?.workspace?.latestCommitSha ?? workspace?.latestCommitSha)})
 							</span>
 						)}
 					</div>
 
-					<Button disabled={!hasScene || saving || !dirty} onClick={handleManualSave} size="sm" className="h-8 py-0 px-3.5 rounded-xl font-bold transition-all shadow-sm">
+					<Button disabled={!hasScene || saving || (!dirty && !!data)} onClick={handleManualSave} size="sm" className="h-8 py-0 px-3.5 rounded-xl font-bold transition-all shadow-sm">
 						{saving ? (
 							<Loader2 className="size-4 animate-spin" />
 						) : (

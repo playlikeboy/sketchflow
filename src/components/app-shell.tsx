@@ -17,7 +17,8 @@ import {
   Search,
   Settings,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState, useEffect } from "react";
+import { getLocalProjects, hasAnyLocalProjects } from "@/lib/indexeddb";
 
 import { BrandMark } from "@/components/brand-mark";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +75,22 @@ function AppSidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [hasUnsynced, setHasUnsynced] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    function check() {
+      hasAnyLocalProjects().then((val) => {
+        if (active) setHasUnsynced(val);
+      }).catch(() => {});
+    }
+    check();
+    const interval = setInterval(check, 3000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [pathname]);
 
   function handleWorkspaceValue(value: string) {
     if (value === CREATE_WORKSPACE_VALUE) {
@@ -150,6 +167,12 @@ function AppSidebar({
                   >
                     <item.icon className="size-4" />
                     <span className="truncate group-data-[collapsible=icon]:hidden">{item.label}</span>
+                    {item.label === "Projects" && hasUnsynced && (
+                      <span className="relative flex h-2 w-2 shrink-0 ml-auto group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:top-1 group-data-[collapsible=icon]:right-1" title="Offline projects require sync">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+                      </span>
+                    )}
                   </Link>
                 </SidebarMenuItem>
               ))}
@@ -201,6 +224,27 @@ export function AppShell({
 }) {
   const app = useStackApp();
   const { mutate } = useSWRConfig();
+  const [hasWorkspaceUnsynced, setHasWorkspaceUnsynced] = useState(false);
+
+  useEffect(() => {
+    if (!selectedWorkspaceId) {
+      setHasWorkspaceUnsynced(false);
+      return;
+    }
+    const wsId = selectedWorkspaceId;
+    let active = true;
+    function check() {
+      getLocalProjects(wsId).then((projects) => {
+        if (active) setHasWorkspaceUnsynced(projects.length > 0);
+      }).catch(() => {});
+    }
+    check();
+    const interval = setInterval(check, 3000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [selectedWorkspaceId]);
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -237,6 +281,12 @@ export function AppShell({
                   {syncLabel}
                 </Badge>
               ) : null}
+              {hasWorkspaceUnsynced && (
+                <Badge variant="destructive" className="animate-pulse bg-red-600 hover:bg-red-600 text-white gap-1.5 text-xs font-extrabold border-none py-1 px-3 rounded-full uppercase tracking-wider shrink-0 cursor-pointer" title="Some projects in this workspace are only saved locally and need syncing to GitHub. Save inside the project to sync.">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
+                  Sync Required
+                </Badge>
+              )}
               {action}
               <Button
                 variant="ghost"

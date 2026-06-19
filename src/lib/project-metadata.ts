@@ -26,6 +26,7 @@ export type WorkspaceProject = {
 		enabled: boolean;
 		embed: boolean;
 	};
+	isLocalOnly?: boolean;
 };
 
 export type ProjectsMetadata = {

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/card";
 import type { Workspace } from "@/lib/api";
 import type { WorkspaceProject } from "@/lib/project-metadata";
+import { getLocalProjects } from "@/lib/indexeddb";
 import {
 	DEFAULT_SKETCH_ID,
 	embedHref,
@@ -135,7 +136,28 @@ export function AppSectionClient({ section }: { section: AppSection }) {
 		isLoading: projectsLoading,
 		mutate: mutateProjects,
 	} = useWorkspaceProjects(selectedWorkspace?.id, auth?.user?.id);
-	const projects = projectsData?.projects ?? [];
+
+	const [localProjects, setLocalProjects] = useState<WorkspaceProject[]>([]);
+
+	useEffect(() => {
+		if (selectedWorkspace?.id) {
+			getLocalProjects(selectedWorkspace.id).then(setLocalProjects);
+		} else {
+			setLocalProjects([]);
+		}
+	}, [selectedWorkspace?.id]);
+
+	const remoteProjects = projectsData?.projects ?? [];
+	const projects = useMemo(() => {
+		const merged = [...remoteProjects];
+		for (const lp of localProjects) {
+			if (!merged.some((p) => p.id === lp.id)) {
+				merged.push(lp);
+			}
+		}
+		return merged;
+	}, [remoteProjects, localProjects]);
+
 	const query = search.trim().toLowerCase();
 	const visibleTemplates = useMemo(() => {
 		if (!query) return templatesData;
@@ -291,14 +313,29 @@ function ProjectSectionCard({
 			<CardHeader>
 				<div className="flex flex-wrap items-start justify-between gap-3">
 					<div>
-						<CardTitle>{project.title}</CardTitle>
+						<div className="flex items-center gap-2">
+							<CardTitle>{project.title}</CardTitle>
+							{project.isLocalOnly && (
+								<span className="relative flex h-2 w-2 shrink-0" title="Offline (Sync Required)">
+									<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+									<span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+								</span>
+							)}
+						</div>
 						<CardDescription>
 							projects/{project.id} · updated {formatDate(project.updatedAt)}
 						</CardDescription>
 					</div>
-					<Badge variant={project.visibility === "public" ? "default" : "outline"}>
-						{project.visibility}
-					</Badge>
+					<div className="flex flex-col items-end gap-1.5 shrink-0">
+						<Badge variant={project.visibility === "public" ? "default" : "outline"}>
+							{project.visibility}
+						</Badge>
+						{project.isLocalOnly && (
+							<Badge variant="destructive" className="bg-red-600 text-white text-[9px] py-0.5 px-1.5 font-extrabold uppercase tracking-wide border-none rounded">
+								Offline
+							</Badge>
+						)}
+					</div>
 				</div>
 			</CardHeader>
 			<CardContent className="flex flex-wrap gap-2">

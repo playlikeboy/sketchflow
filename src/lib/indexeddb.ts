@@ -73,3 +73,56 @@ export async function deleteDraft(key: string) {
 
 	await withDraftStore<undefined>("readwrite", (store) => store.delete(key));
 }
+
+export async function getLocalProjects(workspaceId: string): Promise<any[]> {
+	const result = await getDraft<any[]>(`local-projects:${workspaceId}`);
+	return result?.value ?? [];
+}
+
+export async function saveLocalProject(workspaceId: string, project: any) {
+	const existing = await getLocalProjects(workspaceId);
+	const updated = [project, ...existing.filter((p: any) => p.id !== project.id)];
+	await setDraft(`local-projects:${workspaceId}`, updated);
+}
+
+export async function deleteLocalProject(workspaceId: string, projectId: string) {
+	const existing = await getLocalProjects(workspaceId);
+	const updated = existing.filter((p: any) => p.id !== projectId);
+	await setDraft(`local-projects:${workspaceId}`, updated);
+}
+
+export async function hasAnyLocalProjects(): Promise<boolean> {
+	if (typeof indexedDB === "undefined") {
+		return false;
+	}
+	try {
+		const db = await openSketchflowDb();
+		return new Promise<boolean>((resolve, reject) => {
+			const transaction = db.transaction(STORE_NAME, "readonly");
+			const store = transaction.objectStore(STORE_NAME);
+			const request = store.openCursor();
+			let found = false;
+			request.onsuccess = (event) => {
+				const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+				if (cursor) {
+					if (typeof cursor.key === "string" && cursor.key.startsWith("local-projects:")) {
+						const list = cursor.value?.value;
+						if (Array.isArray(list) && list.length > 0) {
+							found = true;
+							resolve(true);
+							return;
+						}
+					}
+					cursor.continue();
+				} else {
+					resolve(found);
+				}
+			};
+			request.onerror = () => reject(request.error);
+			transaction.oncomplete = () => db.close();
+		});
+	} catch (e) {
+		console.warn("Error checking local projects in IndexedDB:", e);
+		return false;
+	}
+}
