@@ -95,6 +95,7 @@ export function HomeClient() {
 	const router = useRouter();
 	const { theme, setTheme } = useTheme();
 	const [mounted, setMounted] = useState(false);
+	const [activeDemoTab, setActiveDemoTab] = useState<"canvas" | "notes" | "git">("canvas");
 	const { data: auth, isLoading } = useAuthMe();
 
 	useEffect(() => {
@@ -180,11 +181,10 @@ export function HomeClient() {
 						Excalidraw comfort, GitHub ownership
 					</div>
 					<h1 className="mt-5 max-w-4xl text-4xl font-black leading-[1.02] sm:text-6xl">
-						The visual workspace that lives in your GitHub repo.
+						The GitHub-native visual workspace.
 					</h1>
 					<p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-muted-foreground sm:text-lg">
-						Sketchflow gives builders one place to sketch systems, write notes, publish project pages,
-						and keep all durable files in a repo they control.
+						Create visual architecture maps, draft documentation side-by-side, and keep every sketch, note, and asset cleanly versioned inside your own repository.
 					</p>
 					<div className="mt-8 flex flex-wrap gap-3">
 						<button
@@ -216,41 +216,119 @@ export function HomeClient() {
 					</div>
 				</div>
 
-				<div className="rounded-[24px] border bg-card p-4 shadow-sm">
-					<div className="rounded-[18px] border bg-muted p-4">
-						<div className="flex items-center justify-between gap-3 text-xs font-bold text-muted-foreground">
-							<span>SH20RAJ/sketchflow-workspace</span>
-							<span>main</span>
+				<div className="rounded-[24px] border bg-card p-4 shadow-md flex flex-col min-h-[360px]">
+					<div className="flex items-center justify-between border-b pb-2 mb-3">
+						<div className="flex gap-2">
+							<button 
+								onClick={() => setActiveDemoTab("canvas")}
+								className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+									activeDemoTab === "canvas" ? "bg-primary text-white shadow-[0_2px_0_var(--duo-feather-shadow)]" : "hover:bg-muted text-muted-foreground"
+								}`}
+							>
+								🗺️ Canvas
+							</button>
+							<button 
+								onClick={() => setActiveDemoTab("notes")}
+								className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+									activeDemoTab === "notes" ? "bg-primary text-white shadow-[0_2px_0_var(--duo-feather-shadow)]" : "hover:bg-muted text-muted-foreground"
+								}`}
+							>
+								📝 Notes
+							</button>
+							<button 
+								onClick={() => setActiveDemoTab("git")}
+								className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+									activeDemoTab === "git" ? "bg-primary text-white shadow-[0_2px_0_var(--duo-feather-shadow)]" : "hover:bg-muted text-muted-foreground"
+								}`}
+							>
+								📜 Git Log
+							</button>
 						</div>
-						<div className="mt-4 grid gap-2">
-							{repoFiles.map((item) => (
-								<div
-									key={item}
-									className="flex items-center gap-3 rounded-[14px] border bg-background px-3 py-3 font-mono text-xs font-semibold text-muted-foreground"
-								>
-									<GitBranch className="size-4 shrink-0 text-primary" />
-									<span className="truncate">{item}</span>
-								</div>
-							))}
+						<div className="text-[10px] font-extrabold text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+							demo-repo / main
 						</div>
 					</div>
+
+					<div className="flex-1 rounded-[18px] border bg-muted/30 p-4 flex flex-col justify-center min-h-[220px]">
+						{activeDemoTab === "canvas" && (
+							<div className="space-y-4 flex flex-col items-center justify-center h-full py-4">
+								<div className="flex items-center justify-center gap-6 w-full max-w-sm">
+									<div className="flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-card shadow-sm text-center w-24">
+										<Globe className="size-5 text-[#1CB0F6]" />
+										<span className="text-[10px] font-extrabold">Client</span>
+									</div>
+									<div className="text-muted-foreground">➔</div>
+									<div className="flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-card shadow-sm text-center w-24">
+										<Code2 className="size-5 text-[#58CC02]" />
+										<span className="text-[10px] font-extrabold">App API</span>
+									</div>
+									<div className="text-muted-foreground">➔</div>
+									<div className="flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-card shadow-sm text-center w-24">
+										<GitBranch className="size-5 text-[#CE82FF]" />
+										<span className="text-[10px] font-extrabold">GitHub</span>
+									</div>
+								</div>
+								<div className="text-[10px] font-bold text-muted-foreground text-center max-w-xs mt-2 leading-relaxed">
+									Visual whiteboards commit shapes directly as raw JSON commits
+								</div>
+							</div>
+						)}
+
+						{activeDemoTab === "notes" && (
+							<div className="font-sans space-y-2 text-left text-xs leading-relaxed text-foreground">
+								<div className="text-sm font-extrabold text-primary mb-1"># Project System Map</div>
+								<p className="text-muted-foreground font-semibold">Architecture notes saved in `/docs/notes.md` alongside drawings:</p>
+								<ul className="space-y-1.5 mt-2">
+									<li className="flex items-center gap-2 font-bold"><span className="text-primary">✔</span> Data is stored in your private/public repo</li>
+									<li className="flex items-center gap-2 font-bold"><span className="text-primary">✔</span> No proprietary server databases</li>
+									<li className="flex items-center gap-2 font-bold"><span className="text-primary">✔</span> Simple portable markdown files</li>
+								</ul>
+							</div>
+						)}
+
+						{activeDemoTab === "git" && (
+							<div className="space-y-2.5 font-mono text-[10px] text-left w-full">
+								<div className="flex justify-between items-center p-2 rounded-lg bg-card border">
+									<div className="flex items-center gap-2">
+										<span className="w-1.5 h-1.5 rounded-full bg-primary" />
+										<span className="font-bold text-foreground">feat: update product flow design</span>
+									</div>
+									<span className="text-muted-foreground">a1b2c3d</span>
+								</div>
+								<div className="flex justify-between items-center p-2 rounded-lg bg-card border opacity-85">
+									<div className="flex items-center gap-2">
+										<span className="w-1.5 h-1.5 rounded-full bg-primary" />
+										<span className="font-bold text-foreground">docs: add api notes document</span>
+									</div>
+									<span className="text-muted-foreground">e4f5g6h</span>
+								</div>
+								<div className="flex justify-between items-center p-2 rounded-lg bg-card border opacity-70">
+									<div className="flex items-center gap-2">
+										<span className="w-1.5 h-1.5 rounded-full bg-primary" />
+										<span className="font-bold text-foreground">Initial commit: setup</span>
+									</div>
+									<span className="text-muted-foreground">j7k8l9m</span>
+								</div>
+							</div>
+						)}
+					</div>
 					<div className="mt-4 grid gap-3 sm:grid-cols-2">
-						<div className="rounded-[18px] border bg-background p-4">
+						<div className="rounded-[18px] border bg-background p-4 shadow-sm hover:border-primary/45 transition-colors">
 							<div className="flex items-center gap-2 text-sm font-black">
 								<Zap className="size-4 text-primary" />
-								Fast first
+								Fast Drafts
 							</div>
-							<p className="mt-2 text-sm font-semibold text-muted-foreground">
-								Draft locally, then sync intentional snapshots.
+							<p className="mt-1.5 text-xs font-semibold text-muted-foreground leading-relaxed">
+								Autosaves locally to IndexedDB instantly. Commit to GitHub only when ready.
 							</p>
 						</div>
-						<div className="rounded-[18px] border bg-background p-4">
+						<div className="rounded-[18px] border bg-background p-4 shadow-sm hover:border-primary/45 transition-colors">
 							<div className="flex items-center gap-2 text-sm font-black">
 								<ShieldCheck className="size-4 text-primary" />
-								Portable
+								100% Portable
 							</div>
-							<p className="mt-2 text-sm font-semibold text-muted-foreground">
-								Files stay readable, public, and forkable.
+							<p className="mt-1.5 text-xs font-semibold text-muted-foreground leading-relaxed">
+								Your sketches stay inside your repository. No vendor database lock-in.
 							</p>
 						</div>
 					</div>
