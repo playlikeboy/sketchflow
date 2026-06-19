@@ -2,3 +2,7 @@ recreate README and all other docs and contributor md and update the app also th
 
 also create a plan for reverting to specific commit only for a project not for whole workspace by copying the data of the perticular project file to new commit also show preview of the commits done in a list also can share the data link of that commit version of that project from github , also identify if the repo is privete or not , also give option to users to use the app offline and dont sync to github until user says and also where can use the app purely offline
 
+
+improve ux component /;link place,emts landing page, metadata ..text/copy of the website and fix all git  
+
+also users can create online stores.

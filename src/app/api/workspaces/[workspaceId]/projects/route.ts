@@ -8,13 +8,14 @@ import {
 } from "@/lib/project-metadata";
 import { GITHUB_REST_API_VERSION, SKETCHFLOW_APP_URL } from "@/lib/config";
 import { hasLocalGithubToken, normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
-import { getWorkspace, recordSyncEvent, updateWorkspaceCommit } from "@/server/db/repositories";
+import { getWorkspace, recordSyncEvent, updateWorkspaceCommit, upsertWorkspace } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
 import {
 	GithubApiError,
 	type GithubDirectoryItem,
 	createCommitOnBranch,
 	getBranchHeadSha,
+	getGithubRepository,
 	jsDelivrBaseUrl,
 	listGithubDirectory,
 	readGithubFileText,
@@ -290,10 +291,28 @@ export async function GET(
 	try {
 		const { workspaceId } = await params;
 		const user = normalizeStackUser(await requireUser());
-		const workspace = await getWorkspace(user.id, workspaceId);
+		let workspace = await getWorkspace(user.id, workspaceId);
 
 		if (!workspace) {
 			throw new NotFoundError("Workspace not found");
+		}
+
+		let dynamicVisibility = workspace.visibility;
+		try {
+			const scopes = getGithubOAuthScopes();
+			const { accessToken } = await requireGithubAccessToken(scopes, request);
+			const repoDetails = await getGithubRepository(accessToken, workspace.repoOwner, workspace.repoName);
+			dynamicVisibility = repoDetails.private ? "private" : "public";
+
+			if (dynamicVisibility !== workspace.visibility) {
+				workspace = await upsertWorkspace(user.id, {
+					repoOwner: workspace.repoOwner,
+					repoName: workspace.repoName,
+					visibility: dynamicVisibility,
+				});
+			}
+		} catch (error) {
+			// Fallback silently on network/auth errors to maintain static DB visibility
 		}
 
 		let result =
