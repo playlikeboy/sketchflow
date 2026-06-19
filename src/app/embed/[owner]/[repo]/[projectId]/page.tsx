@@ -19,8 +19,8 @@ export default async function EmbedProjectPage({
 	const scene = await readPublicSketch({ owner, repo, branch, projectId, project }).catch(() => null);
 
 	return (
-		<main className="min-h-screen bg-background p-4">
-			<div className="flex h-full min-h-[520px] flex-col rounded-xl border bg-card p-4">
+		<main className="h-screen w-screen bg-background p-4 overflow-hidden">
+			<div className="flex h-full w-full flex-col rounded-xl border bg-card p-4">
 				<div className="mb-4 flex items-center justify-between gap-3">
 					<div>
 						<div className="text-sm font-semibold">{project?.title || projectId}</div>
@@ -33,7 +33,7 @@ export default async function EmbedProjectPage({
 					</Badge>
 				</div>
 				<div className="min-h-0 flex-1">
-					<PublicSketchViewer scene={scene} />
+					<PublicSketchViewer scene={scene} className="h-full w-full" />
 				</div>
 				<Link className="mt-3 inline-flex text-xs text-primary" href={`/share/${owner}/${repo}/${projectId}`} target="_blank">
 					Open share page

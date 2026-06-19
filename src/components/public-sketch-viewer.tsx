@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import type { SketchScene } from "@/lib/api";
 import { normalizeScene } from "@/lib/sketchflow";
+import { cn } from "@/lib/utils";
 
 const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
   ssr: false,
@@ -34,7 +35,13 @@ function toInitialData(scene: SketchScene, resolvedTheme?: string): ExcalidrawIn
   };
 }
 
-export function PublicSketchViewer({ scene }: { scene: Partial<SketchScene> | null }) {
+export function PublicSketchViewer({
+  scene,
+  className = "h-[550px] w-full",
+}: {
+  scene: Partial<SketchScene> | null;
+  className?: string;
+}) {
   const [mounted, setMounted] = useState(false);
   const { resolvedTheme } = useTheme();
 
@@ -47,7 +54,7 @@ export function PublicSketchViewer({ scene }: { scene: Partial<SketchScene> | nu
 
   if (!mounted) {
     return (
-      <div className="grid h-full min-h-[420px] place-items-center text-sm font-bold text-muted-foreground border-2 border-border rounded-[16px] bg-card">
+      <div className={cn("grid place-items-center text-sm font-bold text-muted-foreground border-2 border-border rounded-[16px] bg-card", className)}>
         <div className="flex items-center gap-2">
           <Loader2 className="size-4 animate-spin text-[#58CC02]" />
           Loading canvas
@@ -57,7 +64,7 @@ export function PublicSketchViewer({ scene }: { scene: Partial<SketchScene> | nu
   }
 
   return (
-    <div className="h-full min-h-[420px] overflow-hidden rounded-[16px] border-2 border-border bg-card shadow-[0_2px_0_var(--border)]">
+    <div className={cn("overflow-hidden rounded-[16px] border-2 border-border bg-card shadow-[0_2px_0_var(--border)]", className)}>
       <Excalidraw 
         initialData={initialData} 
         viewModeEnabled 
