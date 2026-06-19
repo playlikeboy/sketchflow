@@ -13,6 +13,7 @@ import type {
 import {
 	ArrowLeft,
 	BookOpen,
+	Clock,
 	FileText,
 	GitBranch,
 	Loader2,
@@ -26,6 +27,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ExcalidrawLibraryPanel } from "@/components/excalidraw-library-panel";
 import { GithubAccessCard } from "@/components/github-access-card";
+import { HistoryPanel } from "@/components/history-panel";
 import { ProjectDocEditor } from "@/components/project-doc-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +37,7 @@ import type { ExcalidrawLibrary } from "@/lib/excalidraw-libraries";
 import { deleteDraft, getDraft, setDraft } from "@/lib/indexeddb";
 import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
 import { draftKey, humanizeSlug, normalizeScene, notesFilePath, projectFilePath, sketchFilePath } from "@/lib/sketchflow";
-import { useAuthMe, useGithubStatus, useSketch } from "@/lib/swr-hooks";
+import { useAuthMe, useGithubStatus, useSketch, useProjectHistorySnapshot } from "@/lib/swr-hooks";
 
 const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
 	ssr: false,
@@ -65,9 +67,9 @@ type LibraryDraftValue = {
 	updatedAt: string;
 };
 
-type EditorMode = "split" | "canvas" | "docs" | "libraries";
+type EditorMode = "split" | "canvas" | "docs" | "libraries" | "history";
 
-const editorModes = new Set<EditorMode>(["split", "canvas", "docs", "libraries"]);
+const editorModes = new Set<EditorMode>(["split", "canvas", "docs", "libraries", "history"]);
 
 function isEditorMode(value: string | null): value is EditorMode {
 	return Boolean(value && editorModes.has(value as EditorMode));
@@ -224,6 +226,15 @@ export function EditorClient({
 		isLoading: sketchLoading,
 		mutate: mutateSketch,
 	} = useSketch(sketchInput, auth?.user?.id);
+	const [selectedPreviewSha, setSelectedPreviewSha] = useState<string | null>(null);
+	const {
+		data: snapshotData,
+		isLoading: snapshotLoading,
+	} = useProjectHistorySnapshot(workspaceId, projectId, selectedPreviewSha, auth?.user?.id);
+	const previewInitialData = useMemo(() => {
+		if (!snapshotData?.sketch) return null;
+		return toInitialData(normalizeScene(snapshotData.sketch));
+	}, [snapshotData]);
 	const refreshEditorFrame = useCallback(() => {
 		if (typeof window === "undefined") {
 			return;
@@ -287,6 +298,7 @@ export function EditorClient({
 			setLoadError(null);
 			setSaveError(null);
 			setInitialData(null);
+			setSelectedPreviewSha(null);
 			setHasScene(false);
 			sceneRef.current = null;
 			sceneDirtyRef.current = false;
@@ -568,7 +580,7 @@ export function EditorClient({
 	const loading = authLoading || sketchLoading;
 	const error = loadError || (sketchError instanceof Error ? sketchError.message : null);
 	const dirty = sceneDirty || notesDirty;
-	const panelLayout = mode === "libraries"
+	const panelLayout = mode === "libraries" || mode === "history"
 		? {
 				canvas: "64%",
 				side: "36%",
@@ -583,7 +595,44 @@ export function EditorClient({
 				sideMin: "34%",
 				sideMax: "66%",
 			};
-	const canvasEditor = initialData ? (
+	const canvasEditor = selectedPreviewSha ? (
+		previewInitialData ? (
+			<div className="relative h-full min-h-0">
+				{snapshotLoading ? (
+					<div className="absolute inset-0 z-30 grid place-items-center bg-background/50 backdrop-blur-sm">
+						<Loader2 className="size-6 animate-spin text-primary" />
+					</div>
+				) : null}
+				<div className="absolute left-1/2 top-4 z-20 flex items-center gap-3 rounded-full border bg-card px-4 py-2 text-xs font-bold shadow-md">
+					<span className="inline-flex items-center gap-1.5 text-[#CE82FF]">
+						<GitBranch className="size-3.5" />
+						Viewing preview ({selectedPreviewSha.slice(0, 7)})
+					</span>
+					<Button variant="ghost" size="xs" className="h-6 px-2 hover:bg-muted" onClick={() => setSelectedPreviewSha(null)}>
+						<X className="size-3" />
+						Close Preview
+					</Button>
+				</div>
+				<Excalidraw
+					key={selectedPreviewSha}
+					initialData={previewInitialData}
+					viewModeEnabled={true}
+					UIOptions={{
+						tools: {
+							image: false,
+						},
+					}}
+				/>
+			</div>
+		) : (
+			<div className="grid h-full place-items-center text-sm font-bold text-muted-foreground">
+				<div className="flex items-center gap-2">
+					<Loader2 className="size-4 animate-spin text-[#CE82FF]" />
+					Loading preview
+				</div>
+			</div>
+		)
+	) : initialData ? (
 		<div className="h-full min-h-0">
 			<Excalidraw
 				key={currentDraftKey}
@@ -601,7 +650,17 @@ export function EditorClient({
 			/>
 		</div>
 	) : null;
-	const docsPanel = (
+	const docsPanel = selectedPreviewSha ? (
+		<div className="flex h-full min-h-0 flex-col border-l bg-card p-4 overflow-y-auto">
+			<div className="text-sm font-extrabold text-foreground mb-3 flex items-center justify-between gap-3 border-b pb-2">
+				<span className="text-[#CE82FF]">Project docs (Preview)</span>
+				<Badge variant="outline">Read-Only</Badge>
+			</div>
+			<div className="prose dark:prose-invert text-xs whitespace-pre-wrap font-mono rounded-lg border p-3 bg-muted/20">
+				{snapshotData?.notes || "No notes saved for this version"}
+			</div>
+		</div>
+	) : (
 		<div className="flex h-full min-h-0 flex-col border-l bg-card">
 			<div className="flex h-12 shrink-0 items-center justify-between border-b px-4">
 				<div className="flex min-w-0 items-center gap-2">
@@ -629,6 +688,15 @@ export function EditorClient({
 			installedSources={installedLibrarySources}
 			installingSource={installingLibrarySource}
 			onInstall={handleInstallLibrary}
+		/>
+	);
+	const historyPanel = (
+		<HistoryPanel
+			workspaceId={workspaceId}
+			projectId={projectId}
+			userId={auth?.user?.id}
+			selectedPreviewSha={selectedPreviewSha}
+			onPreviewShaChange={setSelectedPreviewSha}
 		/>
 	);
 
@@ -682,6 +750,14 @@ export function EditorClient({
 						>
 							<BookOpen className="size-3.5" />
 							Libraries
+						</Button>
+						<Button
+							variant={mode === "history" ? "secondary" : "ghost"}
+							size="xs"
+							onClick={() => setEditorMode("history")}
+						>
+							<Clock className="size-3.5" />
+							History
 						</Button>
 					</div>
 					<Badge variant="secondary" className="hidden gap-1.5 font-extrabold md:inline-flex">
@@ -775,7 +851,7 @@ export function EditorClient({
 									minSize={panelLayout.sideMin}
 									maxSize={panelLayout.sideMax}
 								>
-									{mode === "libraries" ? libraryPanel : docsPanel}
+									{mode === "libraries" ? libraryPanel : mode === "history" ? historyPanel : docsPanel}
 								</ResizablePanel>
 							</ResizablePanelGroup>
 						)}

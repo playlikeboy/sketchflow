@@ -183,6 +183,20 @@ export async function getBranchHeadSha(accessToken: string, owner: string, repo:
 	return ref.object.sha;
 }
 
+export async function getPathCommits(input: {
+	accessToken: string;
+	owner: string;
+	repo: string;
+	path: string;
+}) {
+	validateGithubFilePath(input.path);
+
+	return githubRequest<unknown[]>(
+		input.accessToken,
+		repoApiPath(input.owner, input.repo, `/commits?path=${encodeURIComponent(input.path)}`),
+	);
+}
+
 export async function readGithubFileText(input: {
 	accessToken: string;
 	owner: string;

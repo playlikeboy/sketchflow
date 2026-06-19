@@ -226,3 +226,33 @@ export function commitWorkspaceFiles(input: {
 		},
 	});
 }
+
+export type CommitHistoryResponse = {
+	commits: Array<{
+		sha: string;
+		message: string;
+		authorName: string;
+		authorDate: string;
+		htmlUrl: string;
+	}>;
+};
+
+export type ProjectSnapshotResponse = {
+	project: unknown;
+	sketch: SketchScene | null;
+	notes: string;
+};
+
+export function getProjectHistory(workspaceId: string, projectId: string) {
+	return apiJson<CommitHistoryResponse>(
+		`/api/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(projectId)}/history`,
+	);
+}
+
+export function getProjectHistorySnapshot(workspaceId: string, projectId: string, commitSha: string) {
+	return apiJson<ProjectSnapshotResponse>(
+		`/api/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(projectId)}/history/${encodeURIComponent(
+			commitSha,
+		)}`,
+	);
+}

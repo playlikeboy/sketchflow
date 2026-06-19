@@ -10,10 +10,14 @@ import {
 	getSketch,
 	getWorkspaceProjects,
 	getWorkspaces,
+	getProjectHistory,
+	getProjectHistorySnapshot,
 	type AuthMeResponse,
 	type GithubStatus,
 	type SketchLoadResponse,
 	type WorkspaceProjectsResponse,
+	type CommitHistoryResponse,
+	type ProjectSnapshotResponse,
 } from "@/lib/api";
 import type { ExcalidrawLibrariesResponse } from "@/lib/excalidraw-libraries";
 import { GITHUB_TOKEN_CHANGED_EVENT, getStoredGithubTokenFingerprint } from "@/lib/github-token";
@@ -61,6 +65,37 @@ export const swrKeys = {
 					`/api/workspaces/${encodeURIComponent(input.workspaceId)}/projects/${encodeURIComponent(
 						input.projectId,
 					)}/sketches/${encodeURIComponent(input.sketchId)}`,
+					stackUserId,
+					githubTokenKey,
+				]
+			: null,
+	projectHistory: (
+		workspaceId: string | null | undefined,
+		projectId: string | null | undefined,
+		stackUserId: string | null | undefined,
+		githubTokenKey = "none",
+	) =>
+		workspaceId && projectId && stackUserId
+			? [
+					`/api/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(
+						projectId,
+					)}/history`,
+					stackUserId,
+					githubTokenKey,
+				]
+			: null,
+	projectHistorySnapshot: (
+		workspaceId: string | null | undefined,
+		projectId: string | null | undefined,
+		commitSha: string | null | undefined,
+		stackUserId: string | null | undefined,
+		githubTokenKey = "none",
+	) =>
+		workspaceId && projectId && commitSha && stackUserId
+			? [
+					`/api/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(
+						projectId,
+					)}/history/${encodeURIComponent(commitSha)}`,
 					stackUserId,
 					githubTokenKey,
 				]
@@ -132,6 +167,42 @@ export function useSketch(
 			),
 		{
 			revalidateOnFocus: false,
+		},
+	);
+}
+
+export function useProjectHistory(
+	workspaceId: string | null | undefined,
+	projectId: string | null | undefined,
+	stackUserId: string | null | undefined,
+) {
+	const githubTokenKey = useGithubTokenFingerprint();
+
+	return useSWR<CommitHistoryResponse>(
+		swrKeys.projectHistory(workspaceId, projectId, stackUserId, githubTokenKey),
+		() => getProjectHistory(workspaceId as string, projectId as string),
+		{
+			revalidateOnFocus: false,
+			revalidateOnReconnect: true,
+			dedupingInterval: 5000,
+		},
+	);
+}
+
+export function useProjectHistorySnapshot(
+	workspaceId: string | null | undefined,
+	projectId: string | null | undefined,
+	commitSha: string | null | undefined,
+	stackUserId: string | null | undefined,
+) {
+	const githubTokenKey = useGithubTokenFingerprint();
+
+	return useSWR<ProjectSnapshotResponse>(
+		swrKeys.projectHistorySnapshot(workspaceId, projectId, commitSha, stackUserId, githubTokenKey),
+		() => getProjectHistorySnapshot(workspaceId as string, projectId as string, commitSha as string),
+		{
+			revalidateOnFocus: false,
+			revalidateOnReconnect: false,
 		},
 	);
 }
