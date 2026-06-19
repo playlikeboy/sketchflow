@@ -1,0 +1,662 @@
+[
+  {
+    "id": "3d-image-rotations-on-scroll",
+    "title": "3D Image Rotations on Scroll",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/06/RotatingOnScrolAnimation_demo-1.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/06/RotatingOnScrolAnimation_featured-400x300.png?x13474",
+    "demoLink": "https://tympanus.net/Development/RotatingOnScrollAnimations/",
+    "author": "Manoela Ilic",
+    "tags": [
+      "3D",
+      "GSAP",
+      "scroll"
+    ],
+    "price": 39.99
+  },
+  {
+    "id": "thumbnail-flow-animation-with-gsap-motionpath",
+    "title": "Thumbnail Flow Animation with GSAP MotionPath",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/06/motionpath_demo.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/06/motionpath-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/MotionPathTransition/",
+    "author": "Iqbal Muthahhary",
+    "tags": [
+      "GSAP",
+      "MotionPath",
+      "stack"
+    ],
+    "price": 19.99
+  },
+  {
+    "id": "infinite-parallax-scroll-with-gsap-amp-lenis",
+    "title": "Infinite Parallax Scroll with GSAP &amp; Lenis",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/InfiniteScrollParallax_demo.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/InfiniteScrollParallax-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/InfiniteScrollParallax/",
+    "author": "Joe Ben Taylor",
+    "tags": [
+      "GSAP",
+      "infinite",
+      "parallax",
+      "scroll"
+    ],
+    "price": 49.99
+  },
+  {
+    "id": "scroll-driven-3d-cube-gallery-in-webflow-with-gsap",
+    "title": "Scroll-Driven 3D Cube Gallery in Webflow with GSAP",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/video_cube_demo_opt.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/Webflow_GSAP_Cube-400x300.webp?x13474",
+    "demoLink": "https://gsap-cubic-scrollable-image-gallery.webflow.io/",
+    "author": "Francesco Castronuovo",
+    "tags": [
+      "3D",
+      "cube",
+      "GSAP",
+      "scroll",
+      "Webflow"
+    ],
+    "price": 44.99
+  },
+  {
+    "id": "scroll-driven-polaroid-animation-with-gsap",
+    "title": "Scroll-Driven Polaroid Animation with GSAP",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/Scrollaroids.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/Scrollaroids-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/Scrollaroids/",
+    "author": "Tom Miller",
+    "tags": [
+      "GSAP",
+      "polaroid",
+      "scroll"
+    ],
+    "price": 44.99
+  },
+  {
+    "id": "scroll-driven-svg-graph-animation-with-gsap",
+    "title": "Scroll-Driven SVG Graph Animation with GSAP",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/GraphAnimation.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/GraphAnimation-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/ScrollGraph/",
+    "author": "Tom Miller",
+    "tags": [
+      "GSAP",
+      "scroll",
+      "svg"
+    ],
+    "price": 19.99
+  },
+  {
+    "id": "scroll-driven-svg-map-animation-with-gsap",
+    "title": "Scroll-Driven SVG Map Animation with GSAP",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/MapAnimation_demo.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/MapAnimation-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/ScrollMap/",
+    "author": "Tom Miller",
+    "tags": [
+      "GSAP",
+      "map",
+      "scroll",
+      "svg"
+    ],
+    "price": 49.99
+  },
+  {
+    "id": "gravity-based-mouse-trail-with-gsap",
+    "title": "Gravity-Based Mouse Trail with GSAP",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/Mousetrail_demo.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/madewithgsap_cover-400x300.webp?x13474",
+    "demoLink": "https://madewithgsap.com/codrops",
+    "author": "Made With Gsap",
+    "tags": [
+      "GSAP",
+      "Motion Trail",
+      "physics"
+    ],
+    "price": 44.99
+  },
+  {
+    "id": "john-amp-particia-8217-s-comfort-space",
+    "title": "John &amp; Particia&#8217;s Comfort Space",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/Coupletherapy.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/Coupletherapy-400x300.webp?x13474",
+    "demoLink": "https://john-and-patricias-comfort-site-about-attachment-styles.com/",
+    "author": "Andrew Woan",
+    "tags": [
+      "GSAP",
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 24.99
+  },
+  {
+    "id": "html-in-canvas-examples",
+    "title": "HTML-in-Canvas Examples",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/HTMLinCanvas.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/HTMLinCanvas_frame-400x300.webp?x13474",
+    "demoLink": "https://html-in-canvas.vercel.app/",
+    "author": "Vittorio Retrivi",
+    "tags": [
+      "canvas",
+      "distortion",
+      "fluid",
+      "form",
+      "particles",
+      "React Three Fiber",
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 34.99
+  },
+  {
+    "id": "canvas-grid-mouse-effect",
+    "title": "Canvas Grid Mouse Effect",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/Canvas-Grid-Mouse-Effect.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/Screenshot-2026-05-06-at-11.16.46-400x300.png?x13474",
+    "demoLink": "https://codepen.io/creativeocean/full/emBOove",
+    "author": "Tom Miller",
+    "tags": [
+      "canvas",
+      "cursor",
+      "grid"
+    ],
+    "price": 29.99
+  },
+  {
+    "id": "gsap-easereverse-clip-menu",
+    "title": "GSAP EaseReverse Clip Menu",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/04/ClipMenu.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/04/ClipMenu_featured-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Development/EaseReverseClipMenu",
+    "author": "Manoela Ilic",
+    "tags": [
+      "clip-path",
+      "GSAP",
+      "menu"
+    ],
+    "price": 44.99
+  },
+  {
+    "id": "false-earth",
+    "title": "False Earth",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/04/FalseEarth_demo.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/04/FalseEarth_featured-400x300.webp?x13474",
+    "demoLink": "https://false-earth.mingjyunhung.com/",
+    "author": "Ming Jyun Hung",
+    "tags": [
+      "procedural",
+      "Three.js",
+      "TSL",
+      "WebGL",
+      "webgpu"
+    ],
+    "price": 19.99
+  },
+  {
+    "id": "proximity-scale-grid",
+    "title": "Proximity Scale Grid",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/proximity.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/Screenshot-2026-05-01-at-15.28.34-400x300.png?x13474",
+    "demoLink": "https://codepen.io/GreenSock/full/zxKyeEm",
+    "author": "GSAP",
+    "tags": [
+      "GSAP",
+      "hover",
+      "proximity"
+    ],
+    "price": 44.99
+  },
+  {
+    "id": "rendering-html-into-a-canvas",
+    "title": "Rendering HTML into a canvas",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/04/RenderingHTMLintoacanvas.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/04/Screenshot-2026-04-12-at-07.39.41-400x300.png?x13474",
+    "demoLink": "https://cullenwebber.github.io/three-html-to-canvas/",
+    "author": "Cullen Webber",
+    "tags": [
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 29.99
+  },
+  {
+    "id": "page-transitions-in-astro-with-barba-js-amp-gsap",
+    "title": "Page Transitions in Astro with Barba.js &amp; GSAP",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/04/05.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/04/PageTransitions_AstroGSAPBarbajs-400x300.webp?x13474",
+    "demoLink": "https://page-transitions-astro-barba-gsap.crnacura.workers.dev/",
+    "author": "Iqbal Muthahhary",
+    "tags": [
+      "astro",
+      "barba.js",
+      "GSAP",
+      "page transition"
+    ],
+    "price": 49.99
+  },
+  {
+    "id": "music-player-interactive-experience",
+    "title": "Music Player – Interactive Experience",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/04/Untitled-design.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/04/Screenshot-2026-04-08-at-14.30.28-400x300.png?x13474",
+    "demoLink": "https://gobzzzmusicplayer2024.vercel.app/",
+    "author": "Ahmed Kabbej",
+    "tags": [
+      "3D",
+      "audio",
+      "css",
+      "GSAP",
+      "web audio api"
+    ],
+    "price": 29.99
+  },
+  {
+    "id": "overwrite-dynamic-tweens",
+    "title": "Overwrite / Dynamic Tweens",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/magnetic.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/05/Screenshot-2026-05-01-at-15.31.46-400x300.png?x13474",
+    "demoLink": "https://codepen.io/GreenSock/full/azmKBBJ",
+    "author": "GSAP",
+    "tags": [
+      "button",
+      "GSAP",
+      "hover",
+      "magnetic"
+    ],
+    "price": 29.99
+  },
+  {
+    "id": "dithering-process-visualization-with-three-js",
+    "title": "Dithering Process Visualization with Three.js",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/04/dithering_demo_opt.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/04/dithering-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/VisualizingDitheringThreejs/",
+    "author": "Damar Aji Pramudita",
+    "tags": [
+      "Dithering",
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 44.99
+  },
+  {
+    "id": "skeleton-fluid-reveal",
+    "title": "Skeleton Fluid Reveal",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/03/SkeletonXRay_demo-1.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/03/ThreeJS-Fluid-Reveal-1-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/SkeletonFluidReveal/",
+    "author": "Cullen Webber",
+    "tags": [
+      "hover",
+      "Three.js",
+      "WebGL",
+      "webgpu",
+      "x-ray"
+    ],
+    "price": 24.99
+  },
+  {
+    "id": "on-scroll-svg-mask-transitions",
+    "title": "On-Scroll SVG Mask Transitions",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/03/SVGMaskDemo-1.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/03/kv-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/SVGMaskScrollTransition/",
+    "author": "Hiroki Watanabe",
+    "tags": [
+      "GSAP",
+      "mask",
+      "scroll",
+      "svg"
+    ],
+    "price": 19.99
+  },
+  {
+    "id": "atmospheric-depth-gallery",
+    "title": "Atmospheric Depth Gallery",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/03/depthscroll_demo.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/03/depthscroll_featured-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/DepthGallery/",
+    "author": "Houmahani Kane",
+    "tags": [
+      "3D",
+      "scroll",
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 34.99
+  },
+  {
+    "id": "sticky-grid-scroll",
+    "title": "Sticky Grid Scroll",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/03/StickyGridScroll.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/03/theo-plawinski-sticky-grid-scroll-featured-image-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/StickyGridScroll/",
+    "author": "Theo Plawinski",
+    "tags": [
+      "grid",
+      "GSAP",
+      "scroll",
+      "sticky"
+    ],
+    "price": 39.99
+  },
+  {
+    "id": "async-page-transitions",
+    "title": "Async Page Transitions",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/02/asyncpagetransition.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/02/Group-170-400x300.webp?x13474",
+    "demoLink": "https://async-page-transitions.crnacura.workers.dev/",
+    "author": "Valentin Mor",
+    "tags": [
+      "GSAP",
+      "page transition"
+    ],
+    "price": 24.99
+  },
+  {
+    "id": "3d-sneaker-grid-with-react-three-fiber",
+    "title": "3D Sneaker Grid with React Three Fiber",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/02/3dsneakergrid.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/02/SneakerGrid-400x300.webp?x13474",
+    "demoLink": "https://shoe-finder-wine.vercel.app/",
+    "author": "Matt Greenberg",
+    "tags": [
+      "3D",
+      "grid",
+      "React Three Fiber",
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 39.99
+  },
+  {
+    "id": "on-scroll-horizontal-parallax-gallery",
+    "title": "On-Scroll Horizontal Parallax Gallery",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/02/109457_Horizontal-Parallax-Gallery-1.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/02/Horizontal-Parallax-Gallery-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/HorizontalParallaxGallery/index2.html",
+    "author": "David Faure",
+    "tags": [
+      "parallax",
+      "scroll",
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 19.99
+  },
+  {
+    "id": "scroll-driven-3d-image-tube-with-r3f",
+    "title": "Scroll-Driven 3D Image Tube with R3F",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/02/109311_Scroll-Driven-3D-Image-Tube-with-R3F-1.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/02/3DTubeR3F-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/3DImageTubeR3F/",
+    "author": "Matis Dené",
+    "tags": [
+      "3D",
+      "infinite",
+      "React Three Fiber",
+      "scroll",
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 39.99
+  },
+  {
+    "id": "webgl-snake-animation",
+    "title": "WebGL Snake Animation",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/02/108491_snake.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/02/snake-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/WebGLSnakeAnimation/",
+    "author": "Sujen Phea",
+    "tags": [
+      "3D",
+      "procedural",
+      "snake",
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 34.99
+  },
+  {
+    "id": "ball-of-glass-with-attraction",
+    "title": "Ball of Glass with Attraction",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/108639_Ball%20of%20Glass%20with%20Attraction.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/02/Screenshot-2026-02-09-at-07.41.19-400x300.png?x13474",
+    "demoLink": "https://r3f-rapier-ball-of-glass.vercel.app/",
+    "author": "Anton Bobrov",
+    "tags": [
+      "physics",
+      "rapier",
+      "React Three Fiber",
+      "Three.js",
+      "WebGL",
+      "webgpu"
+    ],
+    "price": 24.99
+  },
+  {
+    "id": "pixel-image-effect-with-three-js",
+    "title": "Pixel Image Effect with Three.js",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/108334_Pixel%20Image%20Effect%20with%20Three%20js.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/01/pixel_featured-400x300.webp?x13474",
+    "demoLink": "https://pixelimageeffect.pages.dev/",
+    "author": "Chakib Mazouni",
+    "tags": [
+      "astro",
+      "barba.js",
+      "GSAP",
+      "scroll",
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 24.99
+  },
+  {
+    "id": "three-js-sphere",
+    "title": "Three.js Sphere",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/108294_Three%20js%20Sphere.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/01/Screenshot-2026-01-29-at-08.09.38-400x300.png?x13474",
+    "demoLink": "https://threejs-challenge-0.netlify.app/",
+    "author": "Marco Ludovico Perego",
+    "tags": [
+      "React Three Fiber",
+      "sphere",
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 34.99
+  },
+  {
+    "id": "clair-obscur-expedition-33-webgpu-gommage-effect",
+    "title": "Clair Obscur: Expedition 33 WebGPU Gommage Effect",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/108244_Clair%20Obscur-%20Expedition%2033%20WebGPU%20Gommage%20Effect.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/01/gommage-1-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/WebGPUGommage",
+    "author": "Thibault Introvigne",
+    "tags": [
+      "Three.js",
+      "TSL",
+      "typography",
+      "WebGL",
+      "webgpu"
+    ],
+    "price": 44.99
+  },
+  {
+    "id": "grid-layout-transitions-with-gsap-flip",
+    "title": "Grid Layout Transitions with GSAP Flip",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/108024_Grid%20Layout%20Transitions%20with%20GSAP%20Flip.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/01/GridLayoutTransition1-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/GridLayoutTransitions/",
+    "author": "Iqbal Muthahhary",
+    "tags": [
+      "grid",
+      "GSAP"
+    ],
+    "price": 39.99
+  },
+  {
+    "id": "webgpu-water",
+    "title": "WebGPU Water",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/107986_WebGPU%20Water.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/01/Screenshot-2026-01-20-at-08.20.56-400x300.png?x13474",
+    "demoLink": "https://jeantimex.github.io/webgpu-water/",
+    "author": "Yong Su",
+    "tags": [
+      "fluid",
+      "water",
+      "webgpu"
+    ],
+    "price": 24.99
+  },
+  {
+    "id": "dual-wave-text-animation-on-scroll",
+    "title": "Dual Wave Text Animation on Scroll",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/107813_Dual%20Wave%20Text%20Animation%20on%20Scroll.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/01/dual-wave-text-animation-image-1536x864-1-400x300.webp?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/DualWaveTextAnimation/",
+    "author": "Valentin Descombes",
+    "tags": [
+      "GSAP",
+      "scroll",
+      "typography"
+    ],
+    "price": 44.99
+  },
+  {
+    "id": "dither-ascii-effect-pro",
+    "title": "Dither / ASCII Effect Pro",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/107892_Dither%20-%20ASCII%20Effect%20Pro.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/01/Screenshot-2026-01-15-at-21.00.43-400x300.png?x13474",
+    "demoLink": "https://codepen.io/sabosugi/full/bNegbmy",
+    "author": "Sabo Sugi",
+    "tags": [
+      "ASCII",
+      "canvas",
+      "Dithering"
+    ],
+    "price": 49.99
+  },
+  {
+    "id": "infinite-3d-tunnel",
+    "title": "Infinite 3D tunnel",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/107833_Infinite%203D%20tunnel-.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/01/Screenshot-2026-01-13-at-14.37.44-400x300.png?x13474",
+    "demoLink": "https://delphi-three.vercel.app/",
+    "author": "The Bugged Dev",
+    "tags": [
+      "3D",
+      "grid",
+      "GSAP",
+      "infinite",
+      "scroll",
+      "Three.js",
+      "tunnel"
+    ],
+    "price": 24.99
+  },
+  {
+    "id": "old-cloth-with-wind",
+    "title": "Old Cloth with Wind",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/107730_Old%20Cloth%20with%20Wind.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/01/Screenshot-2026-01-12-at-14.31.54-400x300.png?x13474",
+    "demoLink": "https://codepen.io/sabosugi/full/ByzLYpb",
+    "author": "Sabo Sugi",
+    "tags": [
+      "cloth",
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 44.99
+  },
+  {
+    "id": "data-tunnel",
+    "title": "Data Tunnel",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/107726_Data%20Tunnel.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/01/Screenshot-2026-01-12-at-14.22.18-400x300.png?x13474",
+    "demoLink": "https://codepen.io/sabosugi/full/azZmLoB",
+    "author": "Sabo Sugi",
+    "tags": [
+      "Three.js",
+      "tunnel",
+      "WebGL"
+    ],
+    "price": 19.99
+  },
+  {
+    "id": "book-gallery",
+    "title": "Book Gallery",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/01/107963_Book-Gallery.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/01/Screenshot-2026-01-17-at-11.14.59-400x300.png?x13474",
+    "demoLink": "https://codepen.io/daniel-mu-oz/full/RNRaXwZ",
+    "author": "Daniel Muñoz",
+    "tags": [
+      "3D",
+      "flip"
+    ],
+    "price": 49.99
+  },
+  {
+    "id": "infinite-canvas",
+    "title": "Infinite Canvas",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/107531_Infinite%20Canvas.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2025/12/edoardo-lunardi-infinite-canvas-featured-image-400x300.jpg?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/InfiniteCanvas/",
+    "author": "Edoardo Lunardi",
+    "tags": [
+      "draggable",
+      "infinite",
+      "React Three Fiber",
+      "scroll",
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 24.99
+  },
+  {
+    "id": "pixel-voxel-drop",
+    "title": "Pixel Voxel Drop",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/107477_Pixel%20Voxel%20Drop-.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2025/12/voxel_cover-400x300.jpg?x13474",
+    "demoLink": "https://tympanus.net/Tutorials/PixelVoxelDrop",
+    "author": "Junichi Kasahara",
+    "tags": [
+      "3D",
+      "physics",
+      "rapier",
+      "Three.js",
+      "video",
+      "WebGL"
+    ],
+    "price": 34.99
+  },
+  {
+    "id": "hand-drawn-papercraft-portfolio",
+    "title": "Hand-drawn Papercraft Portfolio",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/demovideos/107252_Hand-drawn%20Papercraft%20Portfolio.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2025/12/handpaper-400x300.jpg?x13474",
+    "demoLink": "https://www.mr-pandas-psychologically-safe-portfolio.com/",
+    "author": "Andrew Woan",
+    "tags": [
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 29.99
+  },
+  {
+    "id": "mascot-3d",
+    "title": "Mascot 3D",
+    "videoUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2025/12/107732_Mascot-3D.mp4?x13474",
+    "posterUrl": "https://codrops-1f606.kxcdn.com/codrops/wp-content/uploads/2026/01/Screenshot-2026-01-12-at-14.37.23-400x300.png?x13474",
+    "demoLink": "https://codepen.io/sabosugi/full/YPWPoRJ",
+    "author": "Sabo Sugi",
+    "tags": [
+      "3D",
+      "glass",
+      "refraction",
+      "Three.js",
+      "WebGL"
+    ],
+    "price": 34.99
+  }
+]

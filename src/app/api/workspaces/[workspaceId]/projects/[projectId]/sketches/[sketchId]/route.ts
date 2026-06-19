@@ -84,13 +84,14 @@ async function readAuthenticatedSketch(input: {
 		repo: input.workspace.repoName,
 		ref: input.workspace.defaultBranch,
 	};
-	const [latestCommitSha, workspaceFile, projectsMetadataFile, projectFile, sketchFile, notesFile] = await Promise.all([
+	const [latestCommitSha, workspaceFile, projectsMetadataFile, projectFile, sketchFile, notesFile, stateFile] = await Promise.all([
 		getBranchHeadSha(accessToken, input.workspace.repoOwner, input.workspace.repoName, input.workspace.defaultBranch),
 		readOptionalJson({ ...base, path: ".sketchflow/workspace.json" }),
 		readOptionalJson({ ...base, path: PROJECTS_METADATA_PATH }),
 		readOptionalJson({ ...base, path: `projects/${input.projectSlug}/project.json` }),
 		readOptionalJson({ ...base, path: `projects/${input.projectSlug}/sketches/${input.sketchSlug}.excalidraw.json` }),
 		readOptionalText({ ...base, path: `projects/${input.projectSlug}/docs/notes.md` }),
+		readOptionalJson({ ...base, path: `projects/${input.projectSlug}/state.json` }),
 	]);
 
 	return {
@@ -100,6 +101,7 @@ async function readAuthenticatedSketch(input: {
 		projectFile,
 		sketchFile,
 		notesFile,
+		stateFile,
 	};
 }
 
@@ -119,7 +121,7 @@ export async function GET(
 		}
 
 		if (workspace.visibility === "public" && !hasLocalGithubToken(request)) {
-			const [workspaceFile, projectsMetadataFile, projectFile, sketchFile, notesFile] = await Promise.all([
+			const [workspaceFile, projectsMetadataFile, projectFile, sketchFile, notesFile, stateFile] = await Promise.all([
 				readPublicJson<unknown>({
 					owner: workspace.repoOwner,
 					repo: workspace.repoName,
@@ -150,6 +152,12 @@ export async function GET(
 					branch: workspace.defaultBranch,
 					path: `projects/${projectSlug}/docs/notes.md`,
 				}),
+				readPublicJson<unknown>({
+					owner: workspace.repoOwner,
+					repo: workspace.repoName,
+					branch: workspace.defaultBranch,
+					path: `projects/${projectSlug}/state.json`,
+				}),
 			]).catch(async () => {
 				const authenticated = await readAuthenticatedSketch({
 					request,
@@ -164,11 +172,12 @@ export async function GET(
 					authenticated.projectFile?.json ?? null,
 					authenticated.sketchFile?.json ?? null,
 					authenticated.notesFile?.content ?? null,
+					authenticated.stateFile?.json ?? null,
 				] as const;
 			});
 
 			if (!workspaceFile && !projectsMetadataFile && !projectFile && !sketchFile && !notesFile) {
-				const { latestCommitSha, workspaceFile, projectsMetadataFile, projectFile, sketchFile, notesFile } =
+				const { latestCommitSha, workspaceFile, projectsMetadataFile, projectFile, sketchFile, notesFile, stateFile } =
 					await readAuthenticatedSketch({
 						request,
 						workspace,
@@ -188,10 +197,12 @@ export async function GET(
 					projectsMetadata: normalizeProjectsMetadata(projectsMetadataFile?.json),
 					sketch: sketchFile?.json ?? emptySketch(),
 					notes: notesFile?.content ?? "",
+					state: stateFile?.json ?? null,
 					files: {
 						project: projectFile?.file ?? null,
 						sketch: sketchFile?.file ?? null,
 						notes: notesFile ?? null,
+						state: stateFile?.file ?? null,
 					},
 				});
 			}
@@ -205,15 +216,17 @@ export async function GET(
 				projectsMetadata: normalizeProjectsMetadata(projectsMetadataFile),
 				sketch: sketchFile ?? emptySketch(),
 				notes: notesFile ?? "",
+				state: stateFile ?? null,
 				files: {
 					project: null,
 					sketch: null,
 					notes: null,
+					state: null,
 				},
 			});
 		}
 
-		const { latestCommitSha, workspaceFile, projectsMetadataFile, projectFile, sketchFile, notesFile } =
+		const { latestCommitSha, workspaceFile, projectsMetadataFile, projectFile, sketchFile, notesFile, stateFile } =
 			await readAuthenticatedSketch({
 				request,
 				workspace,
@@ -233,10 +246,12 @@ export async function GET(
 			projectsMetadata: normalizeProjectsMetadata(projectsMetadataFile?.json),
 			sketch: sketchFile?.json ?? emptySketch(),
 			notes: notesFile?.content ?? "",
+			state: stateFile?.json ?? null,
 			files: {
 				project: projectFile?.file ?? null,
 				sketch: sketchFile?.file ?? null,
 				notes: notesFile ?? null,
+				state: stateFile?.file ?? null,
 			},
 		});
 	} catch (error) {

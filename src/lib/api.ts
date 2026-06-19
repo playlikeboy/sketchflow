@@ -78,10 +78,16 @@ export type SketchLoadResponse = {
 	projectsMetadata: ProjectsMetadata | null;
 	sketch: SketchScene;
 	notes: string;
+	state: {
+		viewMode?: string;
+		lastActiveSketchId?: string;
+		updatedAt?: string;
+	} | null;
 	files: {
 		project: unknown | null;
 		sketch: unknown | null;
 		notes: unknown | null;
+		state: unknown | null;
 	};
 };
 

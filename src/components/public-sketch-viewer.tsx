@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import type { ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
 import { Loader2 } from "lucide-react";
 
+import { useTheme } from "next-themes";
 import type { SketchScene } from "@/lib/api";
 import { normalizeScene } from "@/lib/sketchflow";
 
@@ -29,10 +30,15 @@ function toInitialData(scene: SketchScene): ExcalidrawInitialDataState {
 
 export function PublicSketchViewer({ scene }: { scene: Partial<SketchScene> | null }) {
   const initialData = toInitialData(normalizeScene(scene));
+  const { resolvedTheme } = useTheme();
 
   return (
     <div className="h-full min-h-[420px] overflow-hidden rounded-[16px] border-2 border-border bg-card shadow-[0_2px_0_var(--border)]">
-      <Excalidraw initialData={initialData} viewModeEnabled />
+      <Excalidraw 
+        initialData={initialData} 
+        viewModeEnabled 
+        theme={resolvedTheme === "dark" ? "dark" : "light"}
+      />
     </div>
   );
 }

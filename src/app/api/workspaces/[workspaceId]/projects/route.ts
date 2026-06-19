@@ -473,6 +473,18 @@ export async function POST(
 					path: `projects/${project.id}/assets/.gitkeep`,
 					content: "Images and project assets can live here.\n",
 				},
+				{
+					path: `projects/${project.id}/state.json`,
+					content: `${JSON.stringify(
+						{
+							viewMode: "split",
+							lastActiveSketchId: sketchId,
+							updatedAt: now,
+						},
+						null,
+						2,
+					)}\n`,
+				},
 			);
 			eventType = "project_created";
 			message = `Create ${project.title}`;

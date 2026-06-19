@@ -24,6 +24,7 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTheme } from "next-themes";
 
 import { ExcalidrawLibraryPanel } from "@/components/excalidraw-library-panel";
 import { GithubAccessCard } from "@/components/github-access-card";
@@ -38,6 +39,7 @@ import { deleteDraft, getDraft, setDraft } from "@/lib/indexeddb";
 import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
 import { draftKey, humanizeSlug, normalizeScene, notesFilePath, projectFilePath, sketchFilePath } from "@/lib/sketchflow";
 import { useAuthMe, useGithubStatus, useSketch, useProjectHistorySnapshot } from "@/lib/swr-hooks";
+import { cn } from "@/lib/utils";
 
 const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
 	ssr: false,
@@ -64,6 +66,14 @@ type NotesDraftValue = {
 type LibraryDraftValue = {
 	libraryItems: LibraryItems;
 	installedSources: string[];
+	updatedAt: string;
+};
+
+type StateDraftValue = {
+	state: {
+		viewMode: EditorMode;
+		lastActiveSketchId: string;
+	};
 	updatedAt: string;
 };
 
@@ -182,6 +192,7 @@ export function EditorClient({
 	sketchId: string;
 }) {
 	const app = useStackApp();
+	const { resolvedTheme } = useTheme();
 	const appRef = useRef(app);
 	const [initialData, setInitialData] = useState<ExcalidrawInitialDataState | null>(null);
 	const [notes, setNotes] = useState("");
@@ -220,6 +231,10 @@ export function EditorClient({
 		() => `${currentDraftKey}:library`,
 		[currentDraftKey],
 	);
+	const currentStateDraftKey = useMemo(
+		() => `${currentDraftKey}:state`,
+		[currentDraftKey],
+	);
 	const sketchInput = auth?.authenticated ? { workspaceId, projectId, sketchId } : null;
 	const {
 		data,
@@ -246,8 +261,19 @@ export function EditorClient({
 			excalidrawApiRef.current?.refresh();
 		});
 	}, []);
+	const queueStateDraftSave = useCallback((nextMode: EditorMode) => {
+		void setDraft<StateDraftValue>(currentStateDraftKey, {
+			state: {
+				viewMode: nextMode,
+				lastActiveSketchId: sketchId,
+			},
+			updatedAt: new Date().toISOString(),
+		});
+	}, [currentStateDraftKey, sketchId]);
+
 	const setEditorMode = useCallback((nextMode: EditorMode) => {
 		setMode(nextMode);
+		queueStateDraftSave(nextMode);
 
 		if (typeof window === "undefined") {
 			return;
@@ -257,7 +283,7 @@ export function EditorClient({
 		url.searchParams.set("view", nextMode);
 		window.history.pushState({ sketchflowView: nextMode }, "", url);
 		refreshEditorFrame();
-	}, [refreshEditorFrame]);
+	}, [refreshEditorFrame, queueStateDraftSave]);
 
 	useEffect(() => {
 		appRef.current = app;
@@ -271,7 +297,9 @@ export function EditorClient({
 		const readModeFromUrl = () => {
 			const params = new URLSearchParams(window.location.search);
 			const nextMode = params.get("view");
-			setMode(isEditorMode(nextMode) ? nextMode : "split");
+			if (isEditorMode(nextMode)) {
+				setMode(nextMode);
+			}
 		};
 
 		readModeFromUrl();
@@ -309,16 +337,19 @@ export function EditorClient({
 
 			try {
 				const githubScene = normalizeScene(nextData.sketch);
-				const [localSceneDraft, localNotesDraft, localLibraryDraft] = await Promise.all([
+				const [localSceneDraft, localNotesDraft, localLibraryDraft, localStateDraft] = await Promise.all([
 					getDraft<DraftValue>(currentDraftKey),
 					getDraft<NotesDraftValue>(currentNotesDraftKey),
 					getDraft<LibraryDraftValue>(currentLibraryDraftKey),
+					getDraft<StateDraftValue>(currentStateDraftKey),
 				]);
+				const githubState = nextData.state;
+				const initialMode = localStateDraft?.value?.state?.viewMode ?? (isEditorMode(githubState?.viewMode ?? null) ? githubState!.viewMode : "split");
 				const nextScene = localSceneDraft?.value?.scene
 					? normalizeScene(localSceneDraft.value.scene)
 					: githubScene;
 				const nextNotes = localNotesDraft?.value?.notes ?? nextData.notes ?? fallbackNotes(projectId, sketchId);
-				const restoredLocal = Boolean(localSceneDraft?.value?.scene || localNotesDraft?.value?.notes);
+				const restoredLocal = Boolean(localSceneDraft?.value?.scene || localNotesDraft?.value?.notes || localStateDraft?.value?.state);
 				const nextLibraryItems = localLibraryDraft?.value?.libraryItems;
 				const nextInstalledSources = localLibraryDraft?.value?.installedSources ?? [];
 
@@ -330,6 +361,7 @@ export function EditorClient({
 				sourceRef.current = restoredLocal ? "local" : "github";
 				setInitialData(toInitialData(nextScene, nextLibraryItems));
 				setNotes(nextNotes);
+				setMode(initialMode as EditorMode);
 				setInstalledLibrarySources(nextInstalledSources);
 				setHasScene(true);
 				setSource(restoredLocal ? "local" : "github");
@@ -517,6 +549,11 @@ export function EditorClient({
 				},
 			});
 			const nextNotes = notesRef.current || fallbackNotes(projectId, sketchId);
+			const nextState = {
+				viewMode: mode,
+				lastActiveSketchId: sketchId,
+				updatedAt: new Date().toISOString(),
+			};
 			const response = await commitWorkspaceFiles({
 				workspaceId,
 				message: `Update ${humanizeSlug(projectId)} visual doc`,
@@ -537,12 +574,17 @@ export function EditorClient({
 						path: PROJECTS_METADATA_PATH,
 						content: `${JSON.stringify(projectMetadata, null, 2)}\n`,
 					},
+					{
+						path: `projects/${projectId}/state.json`,
+						content: `${JSON.stringify(nextState, null, 2)}\n`,
+					},
 				],
 			});
 
 			await Promise.all([
 				deleteDraft(currentDraftKey),
 				deleteDraft(currentNotesDraftKey),
+				deleteDraft(currentStateDraftKey),
 			]);
 			sceneDirtyRef.current = false;
 			notesDirtyRef.current = false;
@@ -651,6 +693,7 @@ export function EditorClient({
 					key={selectedPreviewSha}
 					initialData={previewInitialData}
 					viewModeEnabled={true}
+					theme={resolvedTheme === "dark" ? "dark" : "light"}
 					UIOptions={{
 						tools: {
 							image: false,
@@ -676,6 +719,7 @@ export function EditorClient({
 				excalidrawAPI={(api) => {
 					excalidrawApiRef.current = api;
 				}}
+				theme={resolvedTheme === "dark" ? "dark" : "light"}
 				UIOptions={{
 					tools: {
 						image: true,
@@ -741,70 +785,113 @@ export function EditorClient({
 		<main className="flex h-screen min-h-screen flex-col bg-background">
 			<div className="h-1 w-full bg-gradient-to-r from-[#58CC02] via-[#1CB0F6] to-[#CE82FF]" />
 
-			<header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b-2 border-border bg-background px-3 sm:px-4">
-				<div className="flex min-w-0 items-center gap-3">
-					<Button variant="ghost" size="icon-sm" asChild className="text-muted-foreground hover:text-[#58CC02]">
+			<header className="flex h-13 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-3 py-1.5 sm:px-4">
+				<div className="flex min-w-0 items-center gap-2">
+					<Button variant="ghost" size="icon-xs" asChild className="text-muted-foreground hover:text-[#58CC02] shrink-0">
 						<Link href="/app" aria-label="Back to projects">
 							<ArrowLeft className="size-4" />
 						</Link>
 					</Button>
-					<div className="min-w-0">
-						<h1 className="truncate text-base font-extrabold text-foreground">{title}</h1>
-						<p className="hidden truncate text-sm font-semibold text-muted-foreground sm:block">{subtitle}</p>
+					<div className="flex items-center gap-1.5 text-xs font-bold min-w-0">
+						<span className="hidden text-muted-foreground/60 truncate sm:inline max-w-[120px]">
+							{data?.workspace.repoName}
+						</span>
+						<span className="hidden text-muted-foreground/30 sm:inline">/</span>
+						<span className="hidden text-muted-foreground/60 truncate md:inline">
+							projects
+						</span>
+						<span className="hidden text-muted-foreground/30 md:inline">/</span>
+						<span className="text-muted-foreground/80 truncate font-semibold max-w-[100px]">
+							{projectId}
+						</span>
+						<span className="text-muted-foreground/30">/</span>
+						<h1 className="text-foreground font-extrabold truncate text-sm">
+							{title}
+						</h1>
 					</div>
 				</div>
 
 				<div className="flex min-w-0 items-center gap-2">
-					<div className="hidden items-center gap-1 rounded-[16px] border bg-muted p-1 md:flex">
+					<div className="hidden items-center gap-0.5 rounded-[12px] border border-border/80 bg-muted/50 p-0.5 md:flex">
 						<Button
-							variant={mode === "canvas" ? "secondary" : "ghost"}
+							variant="ghost"
 							size="xs"
 							onClick={() => setEditorMode("canvas")}
+							className={cn(
+								"h-7 rounded-[9px] px-2.5 text-xs font-extrabold transition-all",
+								mode === "canvas"
+									? "bg-card text-foreground shadow-sm border border-border/50"
+									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
+							)}
 						>
-							<Maximize2 className="size-3.5" />
+							<Maximize2 className="size-3.5 mr-1" />
 							Canvas
 						</Button>
 						<Button
-							variant={mode === "split" ? "secondary" : "ghost"}
+							variant="ghost"
 							size="xs"
 							onClick={() => setEditorMode("split")}
+							className={cn(
+								"h-7 rounded-[9px] px-2.5 text-xs font-extrabold transition-all",
+								mode === "split"
+									? "bg-card text-foreground shadow-sm border border-border/50"
+									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
+							)}
 						>
-							<PanelsTopLeft className="size-3.5" />
+							<PanelsTopLeft className="size-3.5 mr-1" />
 							Split
 						</Button>
 						<Button
-							variant={mode === "docs" ? "secondary" : "ghost"}
+							variant="ghost"
 							size="xs"
 							onClick={() => setEditorMode("docs")}
+							className={cn(
+								"h-7 rounded-[9px] px-2.5 text-xs font-extrabold transition-all",
+								mode === "docs"
+									? "bg-card text-foreground shadow-sm border border-border/50"
+									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
+							)}
 						>
-							<FileText className="size-3.5" />
+							<FileText className="size-3.5 mr-1" />
 							Docs
 						</Button>
 						<Button
-							variant={mode === "libraries" ? "secondary" : "ghost"}
+							variant="ghost"
 							size="xs"
 							onClick={() => setEditorMode("libraries")}
+							className={cn(
+								"h-7 rounded-[9px] px-2.5 text-xs font-extrabold transition-all",
+								mode === "libraries"
+									? "bg-card text-foreground shadow-sm border border-border/50"
+									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
+							)}
 						>
-							<BookOpen className="size-3.5" />
+							<BookOpen className="size-3.5 mr-1" />
 							Libraries
 						</Button>
 						<Button
-							variant={mode === "history" ? "secondary" : "ghost"}
+							variant="ghost"
 							size="xs"
 							onClick={() => setEditorMode("history")}
+							className={cn(
+								"h-7 rounded-[9px] px-2.5 text-xs font-extrabold transition-all",
+								mode === "history"
+									? "bg-card text-foreground shadow-sm border border-border/50"
+									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
+							)}
 						>
-							<Clock className="size-3.5" />
+							<Clock className="size-3.5 mr-1" />
 							History
 						</Button>
 					</div>
-					<Badge variant="secondary" className="hidden gap-1.5 font-extrabold md:inline-flex">
+					<Badge variant="secondary" className="hidden gap-1.5 font-extrabold md:inline-flex py-0.5 px-2 text-[11px] rounded-full">
 						<GitBranch className="size-3" />
 						{dirty ? "Local draft" : `Synced ${shortSha(data?.workspace.latestCommitSha)}`}
 					</Badge>
-					<Badge variant="outline" className="hidden font-extrabold lg:inline-flex">
+					<Badge variant="outline" className="hidden font-extrabold lg:inline-flex py-0.5 px-2 text-[11px] rounded-full border-border">
 						{source === "local" ? "Autosaved locally" : status}
 					</Badge>
-					<Button disabled={!hasScene || saving} onClick={handleManualSave}>
+					<Button disabled={!hasScene || saving} onClick={handleManualSave} size="sm" className="h-8 py-0 px-3.5 rounded-xl font-bold">
 						{saving ? (
 							<Loader2 className="size-4 animate-spin" />
 						) : (

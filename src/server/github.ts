@@ -579,6 +579,18 @@ export function buildInitialWorkspaceFiles(input: {
 			path: `projects/${projectSlug}/assets/.gitkeep`,
 			content: "Images and project assets can live here.\n",
 		},
+		{
+			path: `projects/${projectSlug}/state.json`,
+			content: `${JSON.stringify(
+				{
+					viewMode: "split",
+					lastActiveSketchId: sketchSlug,
+					updatedAt: now,
+				},
+				null,
+				2,
+			)}\n`,
+		},
 	] satisfies GithubFileChange[];
 }
 

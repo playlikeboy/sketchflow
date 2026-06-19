@@ -42,6 +42,7 @@ import {
 	useWorkspaceProjects,
 	useWorkspaces,
 } from "@/lib/swr-hooks";
+import templatesData from "@/lib/templates-data.json";
 
 type AppSection = "recent" | "docs" | "public" | "templates";
 
@@ -136,6 +137,15 @@ export function AppSectionClient({ section }: { section: AppSection }) {
 	} = useWorkspaceProjects(selectedWorkspace?.id, auth?.user?.id);
 	const projects = projectsData?.projects ?? [];
 	const query = search.trim().toLowerCase();
+	const visibleTemplates = useMemo(() => {
+		if (!query) return templatesData;
+		return templatesData.filter((item) =>
+			[item.title, item.author, ...item.tags]
+				.join(" ")
+				.toLowerCase()
+				.includes(query)
+		);
+	}, [query]);
 	const visibleProjects = useMemo(() => {
 		const base = section === "public"
 			? projects.filter((project) => project.visibility === "public" && selectedWorkspace?.visibility === "public")
@@ -217,29 +227,10 @@ export function AppSectionClient({ section }: { section: AppSection }) {
 				) : null}
 
 				{section === "templates" ? (
-					<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-						{templates.map((template) => {
-							const Icon = template.icon;
-							return (
-								<Card key={template.title}>
-									<CardHeader>
-										<div className="grid size-10 place-items-center rounded-xl bg-muted text-primary">
-											<Icon className="size-5" />
-										</div>
-										<CardTitle>{template.title}</CardTitle>
-										<CardDescription>{template.description}</CardDescription>
-									</CardHeader>
-									<CardContent>
-										<Button variant="outline" size="sm" className="w-full justify-between" asChild>
-											<Link href={`/app?template=${template.id}`}>
-												Use template
-												<ArrowRight className="size-4" />
-											</Link>
-										</Button>
-									</CardContent>
-								</Card>
-							);
-						})}
+					<div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+						{visibleTemplates.map((template) => (
+							<TemplateVideoCard key={template.id} template={template} />
+						))}
 					</div>
 				) : null}
 
@@ -345,6 +336,83 @@ function ProjectSectionCard({
 						</Button>
 					</>
 				) : null}
+			</CardContent>
+		</Card>
+	);
+}
+
+type TemplateItem = (typeof templatesData)[0];
+
+function TemplateVideoCard({ template }: { template: TemplateItem }) {
+	const videoRef = useRef<HTMLVideoElement>(null);
+	const [hovered, setHovered] = useState(false);
+
+	useEffect(() => {
+		if (!videoRef.current) return;
+		if (hovered) {
+			videoRef.current.play().catch(() => {});
+		} else {
+			videoRef.current.pause();
+			videoRef.current.currentTime = 0;
+		}
+	}, [hovered]);
+
+	return (
+		<Card
+			className="group/card flex h-full flex-col overflow-hidden border-2 border-border/80 bg-card shadow-[0_2px_0_var(--border)] transition-all duration-300 hover:border-primary/45"
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
+		>
+			<div className="relative aspect-[4/3] w-full overflow-hidden border-b border-border/80 bg-muted/20">
+				<video
+					ref={videoRef}
+					src={template.videoUrl}
+					poster={template.posterUrl}
+					muted
+					loop
+					playsInline
+					className="h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-[1.03]"
+				/>
+				<div className="absolute right-2 top-2 select-none rounded-full bg-[#1A1A1A]/85 px-2 py-0.5 text-xs font-extrabold text-white shadow-sm border border-white/10 select-none backdrop-blur-md">
+					${template.price.toFixed(2)}
+				</div>
+			</div>
+			<CardHeader className="flex-1 p-4">
+				<div className="mb-2 flex flex-wrap gap-1">
+					{template.tags.slice(0, 3).map((tag) => (
+						<Badge
+							key={tag}
+							variant="secondary"
+							className="rounded-md px-1.5 py-0 text-[9px] font-extrabold uppercase tracking-wide"
+						>
+							{tag}
+						</Badge>
+					))}
+				</div>
+				<CardTitle className="line-clamp-1 text-sm font-extrabold text-foreground transition-colors group-hover/card:text-primary">
+					{template.title}
+				</CardTitle>
+				<CardDescription className="mt-1 line-clamp-2 text-xs font-semibold text-muted-foreground">
+					By {template.author} · An interactive design template featuring premium layouts.
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="p-4 pt-0">
+				<div className="flex gap-2">
+					<Button variant="outline" size="xs" className="flex-1 justify-center rounded-xl font-bold" asChild>
+						<a href={template.demoLink} target="_blank" rel="noopener noreferrer">
+							Preview
+						</a>
+					</Button>
+					<Button
+						size="xs"
+						className="flex-1 justify-center rounded-xl bg-[#58CC02] text-white shadow-[0_3px_0_#46A302] hover:brightness-105 active:translate-y-[3px] active:shadow-none transition-all font-bold"
+						asChild
+					>
+						<Link href={`/app?template=${template.id}`}>
+							Use
+						</Link>
+					</Button>
+				</div>
 			</CardContent>
 		</Card>
 	);
