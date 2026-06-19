@@ -256,3 +256,13 @@ export function getProjectHistorySnapshot(workspaceId: string, projectId: string
 		)}`,
 	);
 }
+
+export function restoreProjectVersion(workspaceId: string, projectId: string, sourceCommitSha: string) {
+	return apiJson<CommitResponse>(
+		`/api/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(projectId)}/restore`,
+		{
+			method: "POST",
+			json: { sourceCommitSha },
+		},
+	);
+}

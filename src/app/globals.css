@@ -336,3 +336,75 @@
 .sketchflow-doc-editor .bn-menu-dropdown {
   z-index: 60;
 }
+
+/* tactile 3d buttons inspired by Duolingo */
+.btn-3d {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 16px;
+  font-family: "Nunito", sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
+  border: none;
+}
+
+.btn-3d:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: none !important;
+}
+
+.btn-3d--primary {
+  background-color: var(--duo-feather);
+  color: #ffffff;
+  box-shadow: 0 4px 0 var(--duo-feather-shadow);
+}
+
+.btn-3d--primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.btn-3d--info {
+  background-color: var(--duo-macaw);
+  color: #ffffff;
+  box-shadow: 0 4px 0 var(--duo-macaw-shadow);
+}
+
+.btn-3d--info:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.btn-3d--danger {
+  background-color: var(--duo-cardinal);
+  color: #ffffff;
+  box-shadow: 0 4px 0 var(--duo-cardinal-shadow);
+}
+
+.btn-3d--danger:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.btn-3d--secondary {
+  background-color: var(--duo-snow);
+  color: var(--duo-eel);
+  border: 2px solid var(--duo-swan);
+  box-shadow: 0 4px 0 var(--duo-swan);
+}
+
+.btn-3d--secondary:hover:not(:disabled) {
+  background-color: var(--duo-polar);
+}
+
+.btn-3d:disabled {
+  background-color: var(--duo-swan);
+  color: var(--duo-hare);
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}

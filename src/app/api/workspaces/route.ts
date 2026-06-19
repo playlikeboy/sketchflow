@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { requireUser, normalizeStackUser } from "@/server/auth";
 import { upsertUser } from "@/server/db/repositories";
 import { listWorkspaces, upsertWorkspace, type WorkspaceVisibility } from "@/server/db/repositories";

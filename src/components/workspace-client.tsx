@@ -197,10 +197,14 @@ export function WorkspaceClient() {
 								isPrivate={isPrivate}
 								onPrivateChange={setIsPrivate}
 							/>
-							<Button disabled={!githubConnected || bootstrapping} onClick={handleCreateWorkspace}>
+							<button
+								className="btn-3d btn-3d--primary h-10 px-4 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
+								disabled={!githubConnected || bootstrapping}
+								onClick={handleCreateWorkspace}
+							>
 								{bootstrapping ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
 								Create workspace
-							</Button>
+							</button>
 						</CardContent>
 					</Card>
 
@@ -235,12 +239,13 @@ export function WorkspaceClient() {
 														Files
 													</Link>
 												</Button>
-												<Button size="sm" asChild>
-													<Link href={sketchHref(workspace.id)}>
-														Open canvas
-														<ArrowRight className="size-4" />
-													</Link>
-												</Button>
+												<Link
+													href={sketchHref(workspace.id)}
+													className="btn-3d btn-3d--primary h-9 px-3.5 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
+												>
+													Open canvas
+													<ArrowRight className="size-4" />
+												</Link>
 											</div>
 										</div>
 									</div>

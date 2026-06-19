@@ -148,18 +148,27 @@ export function HomeClient() {
 						>
 							{mounted && theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
 						</Button>
-						<Button variant="ghost" size="sm" onClick={() => void app.redirectToSignIn()}>
+						<button
+							className="btn-3d btn-3d--secondary h-9 px-4 text-xs font-extrabold cursor-pointer"
+							onClick={() => void app.redirectToSignIn()}
+						>
 							Sign in
-						</Button>
-						<Button variant="outline" size="icon-sm" asChild>
-							<Link href="https://github.com/SH20RAJ/sketch-flow" target="_blank" aria-label="Sketchflow on GitHub">
-								<GitBranch className="size-4" />
-							</Link>
-						</Button>
-						<Button size="sm" onClick={() => void app.redirectToSignUp()}>
+						</button>
+						<Link
+							href="https://github.com/SH20RAJ/sketch-flow"
+							target="_blank"
+							className="btn-3d btn-3d--secondary size-9 p-0 cursor-pointer flex items-center justify-center"
+							aria-label="Sketchflow on GitHub"
+						>
+							<GitBranch className="size-4" />
+						</Link>
+						<button
+							className="btn-3d btn-3d--primary h-9 px-4 text-xs font-extrabold cursor-pointer"
+							onClick={() => void app.redirectToSignUp()}
+						>
 							Start free
 							<ArrowRight className="size-4" />
-						</Button>
+						</button>
 					</div>
 				</div>
 			</header>
@@ -178,16 +187,20 @@ export function HomeClient() {
 						and keep all durable files in a repo they control.
 					</p>
 					<div className="mt-8 flex flex-wrap gap-3">
-						<Button size="lg" onClick={() => void app.redirectToSignUp()}>
+						<button
+							className="btn-3d btn-3d--primary h-12 px-6 text-sm font-extrabold cursor-pointer"
+							onClick={() => void app.redirectToSignUp()}
+						>
 							Create workspace
 							<ArrowRight className="size-4" />
-						</Button>
-						<Button variant="outline" size="lg" asChild>
-							<Link href="/app">
-								Open app
-								<GitBranch className="size-4" />
-							</Link>
-						</Button>
+						</button>
+						<Link
+							href="/app"
+							className="btn-3d btn-3d--secondary h-12 px-6 text-sm font-extrabold cursor-pointer flex items-center justify-center"
+						>
+							Open app
+							<GitBranch className="size-4 ml-1.5" />
+						</Link>
 					</div>
 					<div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
 						{[
@@ -332,10 +345,13 @@ export function HomeClient() {
 						<p className="mt-3 text-sm font-bold leading-6 opacity-80">
 							Add projects, docs, canvases, libraries, exports, and public embeds from the same workspace.
 						</p>
-						<Button className="mt-6 w-full" variant="secondary" onClick={() => void app.redirectToSignUp()}>
+						<button
+							className="btn-3d btn-3d--secondary mt-6 w-full h-11 text-xs font-extrabold cursor-pointer"
+							onClick={() => void app.redirectToSignUp()}
+						>
 							Create workspace
 							<ArrowRight className="size-4" />
-						</Button>
+						</button>
 					</div>
 				</div>
 			</section>

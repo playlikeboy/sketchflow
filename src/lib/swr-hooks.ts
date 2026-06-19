@@ -107,6 +107,15 @@ export function useAuthMe() {
 		revalidateOnFocus: true,
 		revalidateOnReconnect: true,
 		dedupingInterval: 2000,
+		onSuccess: (data) => {
+			if (typeof window !== "undefined" && window.localStorage) {
+				if (data.authenticated && data.user?.id) {
+					window.localStorage.setItem("sketchflow:active-user-id", data.user.id);
+				} else {
+					window.localStorage.removeItem("sketchflow:active-user-id");
+				}
+			}
+		},
 	});
 }
 

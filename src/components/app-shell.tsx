@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useStackApp } from "@stackframe/stack";
+import { useSWRConfig } from "swr";
 import {
   Boxes,
   Clock3,
@@ -199,6 +200,7 @@ export function AppShell({
   searchPlaceholder?: string;
 }) {
   const app = useStackApp();
+  const { mutate } = useSWRConfig();
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -249,8 +251,13 @@ export function AppShell({
                 variant="ghost"
                 size="icon"
                 onClick={() => {
+                  if (typeof window !== "undefined" && window.localStorage) {
+                    window.localStorage.removeItem("sketchflow:active-user-id");
+                  }
                   clearStoredGithubToken();
-                  void app.signOut({ redirectUrl: "/" });
+                  void mutate(() => true, undefined, { revalidate: false }).then(() => {
+                    void app.signOut({ redirectUrl: "/" });
+                  });
                 }}
                 aria-label="Sign out"
                 className="text-muted-foreground hover:text-[#FF4B4B] hover:bg-[#FFF0F0] dark:hover:bg-[#3A2020]"

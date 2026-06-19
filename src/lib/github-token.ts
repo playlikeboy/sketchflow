@@ -1,4 +1,3 @@
-const STORAGE_KEY = "sketchflow:github-token";
 export const GITHUB_TOKEN_CHANGED_EVENT = "sketchflow:github-token-changed";
 
 export const GITHUB_TOKEN_SETUP_URL =
@@ -8,12 +7,24 @@ function canUseStorage() {
 	return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
+export function getActiveUserId() {
+	if (!canUseStorage()) {
+		return null;
+	}
+	return window.localStorage.getItem("sketchflow:active-user-id") || null;
+}
+
+function getStorageKey() {
+	const userId = getActiveUserId();
+	return userId ? `sketchflow:${userId}:github-token` : "sketchflow:github-token";
+}
+
 export function getStoredGithubToken() {
 	if (!canUseStorage()) {
 		return null;
 	}
 
-	const token = window.localStorage.getItem(STORAGE_KEY)?.trim();
+	const token = window.localStorage.getItem(getStorageKey())?.trim();
 	return token || null;
 }
 
@@ -40,9 +51,9 @@ export function setStoredGithubToken(token: string) {
 
 	const nextToken = token.trim();
 	if (nextToken) {
-		window.localStorage.setItem(STORAGE_KEY, nextToken);
+		window.localStorage.setItem(getStorageKey(), nextToken);
 	} else {
-		window.localStorage.removeItem(STORAGE_KEY);
+		window.localStorage.removeItem(getStorageKey());
 	}
 
 	emitGithubTokenChange();
@@ -50,7 +61,7 @@ export function setStoredGithubToken(token: string) {
 
 export function clearStoredGithubToken() {
 	if (canUseStorage()) {
-		window.localStorage.removeItem(STORAGE_KEY);
+		window.localStorage.removeItem(getStorageKey());
 		emitGithubTokenChange();
 	}
 }
@@ -58,3 +69,4 @@ export function clearStoredGithubToken() {
 export function hasStoredGithubToken() {
 	return Boolean(getStoredGithubToken());
 }
+

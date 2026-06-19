@@ -10,11 +10,15 @@ import { getPublicRepoDefaultBranch, readPublicProject, readPublicSketch } from 
 
 export default async function ShareProjectPage({
 	params,
+	searchParams,
 }: {
 	params: Promise<{ owner: string; repo: string; projectId: string }>;
+	searchParams: Promise<{ ref?: string }>;
 }) {
 	const { owner, repo, projectId } = await params;
-	const branch = await getPublicRepoDefaultBranch(owner, repo);
+	const { ref } = await searchParams;
+	const defaultBranch = await getPublicRepoDefaultBranch(owner, repo);
+	const branch = ref || defaultBranch;
 	const project = await readPublicProject({ owner, repo, branch, projectId }).catch(() => null);
 	const scene = await readPublicSketch({ owner, repo, branch, projectId, project }).catch(() => null);
 	const title = project?.title || projectId;

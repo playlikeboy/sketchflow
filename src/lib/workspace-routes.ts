@@ -39,13 +39,17 @@ export function commitsHref(
 export function shareHref(
 	workspace: Pick<Workspace, "repoOwner" | "repoName">,
 	projectId = DEFAULT_PROJECT_ID,
+	ref?: string | null,
 ) {
-	return `/share/${workspace.repoOwner}/${workspace.repoName}/${projectId}`;
+	const base = `/share/${workspace.repoOwner}/${workspace.repoName}/${projectId}`;
+	return ref ? `${base}?ref=${encodeURIComponent(ref)}` : base;
 }
 
 export function embedHref(
 	workspace: Pick<Workspace, "repoOwner" | "repoName">,
 	projectId = DEFAULT_PROJECT_ID,
+	ref?: string | null,
 ) {
-	return `/embed/${workspace.repoOwner}/${workspace.repoName}/${projectId}`;
+	const base = `/embed/${workspace.repoOwner}/${workspace.repoName}/${projectId}`;
+	return ref ? `${base}?ref=${encodeURIComponent(ref)}` : base;
 }

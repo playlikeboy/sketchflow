@@ -32,7 +32,7 @@ import { ProjectDocEditor } from "@/components/project-doc-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { ApiError, commitWorkspaceFiles, type SketchLoadResponse, type SketchScene } from "@/lib/api";
+import { ApiError, commitWorkspaceFiles, restoreProjectVersion, type SketchLoadResponse, type SketchScene } from "@/lib/api";
 import type { ExcalidrawLibrary } from "@/lib/excalidraw-libraries";
 import { deleteDraft, getDraft, setDraft } from "@/lib/indexeddb";
 import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
@@ -193,6 +193,7 @@ export function EditorClient({
 	const [status, setStatus] = useState("Loading sketch");
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [saveError, setSaveError] = useState<string | null>(null);
+	const [restoringSha, setRestoringSha] = useState<string | null>(null);
 	const [mode, setMode] = useState<EditorMode>("split");
 	const [installedLibrarySources, setInstalledLibrarySources] = useState<string[]>([]);
 	const [installingLibrarySource, setInstallingLibrarySource] = useState<string | null>(null);
@@ -573,6 +574,39 @@ export function EditorClient({
 		}
 	}
 
+	async function handleRestoreProject(sha: string) {
+		if (restoringSha || !data) return;
+
+		setRestoringSha(sha);
+		setStatus("Restoring project version");
+
+		try {
+			await restoreProjectVersion(workspaceId, projectId, sha);
+			
+			// Clear local drafts to reload from the new remote head
+			await Promise.all([
+				deleteDraft(currentDraftKey),
+				deleteDraft(currentNotesDraftKey),
+			]);
+			
+			// Mutate and refresh SWR sketch state
+			await mutateSketch();
+			
+			// Close the preview overlay
+			setSelectedPreviewSha(null);
+			setStatus("Project restored successfully");
+		} catch (error) {
+			setSaveError(
+				error instanceof Error
+					? error.message
+					: "Could not restore project version",
+			);
+			setStatus("Restore failed");
+		} finally {
+			setRestoringSha(null);
+		}
+	}
+
 	const title = humanizeSlug(sketchId);
 	const subtitle = data
 		? `${data.workspace.repoOwner}/${data.workspace.repoName} · projects/${projectId}`
@@ -697,6 +731,9 @@ export function EditorClient({
 			userId={auth?.user?.id}
 			selectedPreviewSha={selectedPreviewSha}
 			onPreviewShaChange={setSelectedPreviewSha}
+			onRestore={handleRestoreProject}
+			restoringSha={restoringSha}
+			workspace={data?.workspace}
 		/>
 	);
 

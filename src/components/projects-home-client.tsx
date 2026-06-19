@@ -343,12 +343,13 @@ export function ProjectsHomeClient() {
 							<RefreshCw className="size-4" />
 						)}
 					</Button>
-					<Button variant="outline" size="sm" asChild>
-						<Link href="/app/workspace">
-							<SlidersHorizontal className="size-4" />
-							Workspace
-						</Link>
-					</Button>
+					<Link
+						href="/app/workspace"
+						className="btn-3d btn-3d--secondary h-9 px-3.5 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
+					>
+						<SlidersHorizontal className="size-4" />
+						Workspace
+					</Link>
 				</div>
 			}
 		>
@@ -388,9 +389,8 @@ export function ProjectsHomeClient() {
 										Repo
 									</Link>
 								</Button>
-								<Button
-									variant="outline"
-									size="sm"
+								<button
+									className="btn-3d btn-3d--secondary h-9 px-3.5 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
 									disabled={projectBusy}
 									onClick={handleSyncProjectIndex}
 								>
@@ -400,7 +400,7 @@ export function ProjectsHomeClient() {
 										<GitCommit className="size-4" />
 									)}
 									Sync
-								</Button>
+								</button>
 							</div>
 						</div>
 
@@ -454,14 +454,18 @@ export function ProjectsHomeClient() {
 										<span className="truncate text-xs font-semibold text-muted-foreground">
 											projects/{newProjectSlug}
 										</span>
-										<Button disabled={creatingProject} onClick={handleCreateProject}>
-											{creatingProject ? (
-												<Loader2 className="size-4 animate-spin" />
-											) : (
-												<Plus className="size-4" />
-											)}
-											Create
-										</Button>
+									<button
+										className="btn-3d btn-3d--primary h-10 px-4 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
+										disabled={creatingProject}
+										onClick={handleCreateProject}
+									>
+										{creatingProject ? (
+											<Loader2 className="size-4 animate-spin" />
+										) : (
+											<Plus className="size-4" />
+										)}
+										Create
+									</button>
 									</div>
 								</CardContent>
 							</Card>
@@ -501,12 +505,13 @@ export function ProjectsHomeClient() {
 													</div>
 												</div>
 												<div className="mt-auto flex flex-wrap items-center gap-2">
-													<Button size="sm" asChild>
-														<Link href={sketchHref(selectedWorkspace.id, project.id, firstSketchId(project))}>
-															<ArrowRight className="size-4" />
-															Open
-														</Link>
-													</Button>
+													<Link
+														href={sketchHref(selectedWorkspace.id, project.id, firstSketchId(project))}
+														className="btn-3d btn-3d--primary h-9 px-3.5 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
+													>
+														<ArrowRight className="size-4" />
+														Open
+													</Link>
 													<Button variant="outline" size="icon-sm" asChild>
 														<Link
 															href={repoFolderHref(selectedWorkspace, `projects/${project.id}`)}

@@ -2,7 +2,8 @@
 
 import { useProjectHistory } from "@/lib/swr-hooks";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, GitBranch, Loader2, Clock } from "lucide-react";
+import { ExternalLink, GitBranch, Loader2, Clock, Share2 } from "lucide-react";
+import { toast } from "sonner";
 
 function formatDate(value: string) {
 	const date = new Date(value);
@@ -15,12 +16,18 @@ export function HistoryPanel({
 	userId,
 	selectedPreviewSha,
 	onPreviewShaChange,
+	onRestore,
+	restoringSha,
+	workspace,
 }: {
 	workspaceId: string;
 	projectId: string;
 	userId: string | undefined;
 	selectedPreviewSha: string | null;
 	onPreviewShaChange: (sha: string | null) => void;
+	onRestore: (sha: string) => void;
+	restoringSha: string | null;
+	workspace?: { repoOwner: string; repoName: string; visibility: string } | null;
 }) {
 	const { data, isLoading, error } = useProjectHistory(workspaceId, projectId, userId);
 
@@ -80,8 +87,21 @@ export function HistoryPanel({
 											size="xs"
 											className={isSelected ? "bg-[#CE82FF] hover:bg-[#CE82FF]/90 text-white shadow-[0_4px_0_#9E4FFF]" : ""}
 											onClick={() => onPreviewShaChange(isSelected ? null : commit.sha)}
+											disabled={restoringSha !== null}
 										>
 											{isSelected ? "Close Preview" : "Preview"}
+										</Button>
+										<Button
+											variant="outline"
+											size="xs"
+											onClick={() => onRestore(commit.sha)}
+											disabled={restoringSha !== null}
+										>
+											{restoringSha === commit.sha ? (
+												<Loader2 className="size-3 animate-spin text-primary" />
+											) : (
+												"Restore"
+											)}
 										</Button>
 										{commit.htmlUrl ? (
 											<Button variant="ghost" size="icon-xs" asChild>
@@ -93,6 +113,21 @@ export function HistoryPanel({
 												>
 													<ExternalLink className="size-3" />
 												</a>
+											</Button>
+										) : null}
+										{workspace?.visibility === "public" ? (
+											<Button
+												variant="ghost"
+												size="icon-xs"
+												title="Copy public share link"
+												onClick={() => {
+													const shareUrl = `${window.location.origin}/share/${workspace.repoOwner}/${workspace.repoName}/${projectId}?ref=${commit.sha}`;
+													void navigator.clipboard.writeText(shareUrl).then(() => {
+														toast.success("Share link copied!");
+													});
+												}}
+											>
+												<Share2 className="size-3" />
 											</Button>
 										) : null}
 									</div>
