@@ -147,7 +147,7 @@ export function ProjectsHomeClient() {
 		error: projectsError,
 		isLoading: projectsLoading,
 		mutate: mutateProjects,
-	} = useWorkspaceProjects(selectedWorkspace?.id);
+	} = useWorkspaceProjects(selectedWorkspace?.id, auth?.user?.id);
 	const projects = projectsResponse?.projects ?? [];
 	const metadataPresent = projectsResponse?.metadataPresent ?? false;
 	const filteredProjects = useMemo(() => {

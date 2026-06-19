@@ -43,13 +43,27 @@ export const swrKeys = {
 	githubStatus: (stackUserId: string | null | undefined, githubTokenKey = "none") =>
 		stackUserId ? ["/api/github/status", stackUserId, githubTokenKey] : null,
 	workspaces: (stackUserId: string | null | undefined) => (stackUserId ? ["/api/workspaces", stackUserId] : null),
-	workspaceProjects: (workspaceId: string | null | undefined, githubTokenKey = "none") =>
-		workspaceId ? [`/api/workspaces/${encodeURIComponent(workspaceId)}/projects`, githubTokenKey] : null,
-	sketch: (input: { workspaceId: string; projectId: string; sketchId: string } | null, githubTokenKey = "none") =>
-		input
-			? [`/api/workspaces/${encodeURIComponent(input.workspaceId)}/projects/${encodeURIComponent(
-					input.projectId,
-				)}/sketches/${encodeURIComponent(input.sketchId)}`, githubTokenKey]
+	workspaceProjects: (
+		workspaceId: string | null | undefined,
+		stackUserId: string | null | undefined,
+		githubTokenKey = "none",
+	) =>
+		workspaceId && stackUserId
+			? [`/api/workspaces/${encodeURIComponent(workspaceId)}/projects`, stackUserId, githubTokenKey]
+			: null,
+	sketch: (
+		input: { workspaceId: string; projectId: string; sketchId: string } | null,
+		stackUserId: string | null | undefined,
+		githubTokenKey = "none",
+	) =>
+		input && stackUserId
+			? [
+					`/api/workspaces/${encodeURIComponent(input.workspaceId)}/projects/${encodeURIComponent(
+						input.projectId,
+					)}/sketches/${encodeURIComponent(input.sketchId)}`,
+					stackUserId,
+					githubTokenKey,
+				]
 			: null,
 };
 
@@ -65,10 +79,9 @@ export function useGithubStatus(stackUserId: string | null | undefined) {
 	const githubTokenKey = useGithubTokenFingerprint();
 
 	return useSWR<GithubStatus>(swrKeys.githubStatus(stackUserId, githubTokenKey), getGithubStatus, {
-		revalidateOnFocus: true,
+		revalidateOnFocus: false,
 		revalidateOnReconnect: true,
-		refreshInterval: 30_000,
-		dedupingInterval: 3000,
+		dedupingInterval: 5000,
 	});
 }
 
@@ -80,37 +93,45 @@ export function useExcalidrawLibraries() {
 
 export function useWorkspaces(stackUserId: string | null | undefined) {
 	return useSWR(swrKeys.workspaces(stackUserId), getWorkspaces, {
-		revalidateOnFocus: true,
+		revalidateOnFocus: false,
 		revalidateOnReconnect: true,
-		refreshInterval: 20_000,
-		dedupingInterval: 2000,
+		dedupingInterval: 5000,
 	});
 }
 
-export function useWorkspaceProjects(workspaceId: string | null | undefined) {
+export function useWorkspaceProjects(workspaceId: string | null | undefined, stackUserId: string | null | undefined) {
 	const githubTokenKey = useGithubTokenFingerprint();
 
 	return useSWR<WorkspaceProjectsResponse>(
-		swrKeys.workspaceProjects(workspaceId, githubTokenKey),
+		swrKeys.workspaceProjects(workspaceId, stackUserId, githubTokenKey),
 		() => getWorkspaceProjects(workspaceId as string),
 		{
-			revalidateOnFocus: true,
+			revalidateOnFocus: false,
 			revalidateOnReconnect: true,
-			refreshInterval: 10_000,
-			dedupingInterval: 1000,
-			keepPreviousData: true,
+			dedupingInterval: 5000,
+			keepPreviousData: false,
 		},
 	);
 }
 
-export function useSketch(input: { workspaceId: string; projectId: string; sketchId: string } | null) {
+export function useSketch(
+	input: { workspaceId: string; projectId: string; sketchId: string } | null,
+	stackUserId: string | null | undefined,
+) {
 	const githubTokenKey = useGithubTokenFingerprint();
 
-	return useSWR<SketchLoadResponse>(swrKeys.sketch(input, githubTokenKey), () => getSketch(input as {
-		workspaceId: string;
-		projectId: string;
-		sketchId: string;
-	}), {
-		revalidateOnFocus: false,
-	});
+	return useSWR<SketchLoadResponse>(
+		swrKeys.sketch(input, stackUserId, githubTokenKey),
+		() =>
+			getSketch(
+				input as {
+					workspaceId: string;
+					projectId: string;
+					sketchId: string;
+				},
+			),
+		{
+			revalidateOnFocus: false,
+		},
+	);
 }

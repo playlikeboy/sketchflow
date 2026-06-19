@@ -20,6 +20,7 @@ import {
 	PanelsTopLeft,
 	Save,
 	SquarePen,
+	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -202,9 +203,11 @@ export function EditorClient({
 	const notesDirtyRef = useRef(false);
 	const installedLibrarySourcesRef = useRef<string[]>([]);
 	const sourceRef = useRef<"github" | "local">("github");
+	const { data: auth, isLoading: authLoading } = useAuthMe();
+	const { data: githubStatus, mutate: mutateGithubStatus } = useGithubStatus(auth?.user?.id);
 	const currentDraftKey = useMemo(
-		() => draftKey(workspaceId, projectId, sketchId),
-		[workspaceId, projectId, sketchId],
+		() => draftKey(workspaceId, projectId, sketchId, auth?.user?.id),
+		[workspaceId, projectId, sketchId, auth?.user?.id],
 	);
 	const currentNotesDraftKey = useMemo(
 		() => `${currentDraftKey}:notes`,
@@ -214,15 +217,13 @@ export function EditorClient({
 		() => `${currentDraftKey}:library`,
 		[currentDraftKey],
 	);
-	const { data: auth, isLoading: authLoading } = useAuthMe();
-	const { data: githubStatus, mutate: mutateGithubStatus } = useGithubStatus(auth?.user?.id);
 	const sketchInput = auth?.authenticated ? { workspaceId, projectId, sketchId } : null;
 	const {
 		data,
 		error: sketchError,
 		isLoading: sketchLoading,
 		mutate: mutateSketch,
-	} = useSketch(sketchInput);
+	} = useSketch(sketchInput, auth?.user?.id);
 	const refreshEditorFrame = useCallback(() => {
 		if (typeof window === "undefined") {
 			return;
@@ -719,8 +720,21 @@ export function EditorClient({
 					<div className="relative h-full min-h-0 overflow-hidden">
 						{saveError ? (
 							<div className="absolute left-1/2 top-4 z-20 w-[min(520px,calc(100%-2rem))] -translate-x-1/2 rounded-xl border bg-card px-4 py-3 text-sm shadow-lg">
-								<div className="font-extrabold text-foreground">Cloud sync paused</div>
-								<div className="mt-1 font-semibold text-muted-foreground">{saveError}</div>
+								<div className="flex items-start justify-between gap-3">
+									<div>
+										<div className="font-extrabold text-foreground">Cloud sync paused</div>
+										<div className="mt-1 font-semibold text-muted-foreground">{saveError}</div>
+									</div>
+									<Button
+										variant="ghost"
+										size="icon-xs"
+										onClick={() => setSaveError(null)}
+										aria-label="Dismiss error"
+										className="shrink-0 text-muted-foreground hover:text-foreground"
+									>
+										<X className="size-3.5" />
+									</Button>
+								</div>
 								{saveError.toLowerCase().includes("github") ? (
 									<div className="mt-3">
 										<GithubAccessCard

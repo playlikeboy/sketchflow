@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { clearStoredGithubToken } from "@/lib/github-token";
 import {
   Select,
   SelectContent,
@@ -247,7 +248,10 @@ export function AppShell({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => void app.signOut({ redirectUrl: "/" })}
+                onClick={() => {
+                  clearStoredGithubToken();
+                  void app.signOut({ redirectUrl: "/" });
+                }}
                 aria-label="Sign out"
                 className="text-muted-foreground hover:text-[#FF4B4B] hover:bg-[#FFF0F0] dark:hover:bg-[#3A2020]"
               >

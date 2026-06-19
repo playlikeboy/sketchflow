@@ -133,7 +133,7 @@ export function DashboardClient() {
 		error: workspaceProjectsError,
 		isLoading: workspaceProjectsLoading,
 		mutate: mutateProjects,
-	} = useWorkspaceProjects(selectedWorkspaceId);
+	} = useWorkspaceProjects(selectedWorkspaceId, auth?.user?.id);
 
 	const selectedWorkspace = useMemo(
 		() => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0] ?? null,

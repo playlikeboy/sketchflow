@@ -133,7 +133,7 @@ export function AppSectionClient({ section }: { section: AppSection }) {
 		data: projectsData,
 		isLoading: projectsLoading,
 		mutate: mutateProjects,
-	} = useWorkspaceProjects(selectedWorkspace?.id);
+	} = useWorkspaceProjects(selectedWorkspace?.id, auth?.user?.id);
 	const projects = projectsData?.projects ?? [];
 	const query = search.trim().toLowerCase();
 	const visibleProjects = useMemo(() => {
