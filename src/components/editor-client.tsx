@@ -26,6 +26,15 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+
 import { ExcalidrawLibraryPanel } from "@/components/excalidraw-library-panel";
 import { GithubAccessCard } from "@/components/github-access-card";
 import { HistoryPanel } from "@/components/history-panel";
@@ -73,6 +82,8 @@ type StateDraftValue = {
 	state: {
 		viewMode: EditorMode;
 		lastActiveSketchId: string;
+		panelSizes?: number[];
+		history?: any[];
 	};
 	updatedAt: string;
 };
@@ -105,10 +116,26 @@ function cleanAppState(appState: AppState): Record<string, unknown> {
 	return rest as unknown as Record<string, unknown>;
 }
 
-function toInitialData(scene: SketchScene, libraryItems?: LibraryItems): ExcalidrawInitialDataState {
+function appendProjectHistoryLog(existingHistory: any[] | undefined | null, action: string, userName: string | null | undefined) {
+	const logEntry = {
+		action,
+		user: userName ?? "Unknown User",
+		timestamp: new Date().toISOString(),
+	};
+	const history = Array.isArray(existingHistory) ? [...existingHistory] : [];
+	history.unshift(logEntry); // Add newest at start
+	return history.slice(0, 15); // keep last 15 actions
+}
+
+function toInitialData(scene: SketchScene, resolvedTheme?: string, libraryItems?: LibraryItems): ExcalidrawInitialDataState {
 	const initialData: ExcalidrawInitialDataState = {
 		elements: scene.elements as ExcalidrawInitialDataState["elements"],
-		appState: scene.appState as ExcalidrawInitialDataState["appState"],
+		appState: {
+			...scene.appState,
+			viewBackgroundColor: resolvedTheme === "dark" && (scene.appState?.viewBackgroundColor === "#ffffff" || !scene.appState?.viewBackgroundColor)
+				? "#121212"
+				: scene.appState?.viewBackgroundColor ?? "#ffffff",
+		} as ExcalidrawInitialDataState["appState"],
 		files: scene.files as ExcalidrawInitialDataState["files"],
 	};
 
@@ -195,6 +222,8 @@ export function EditorClient({
 	const { resolvedTheme } = useTheme();
 	const appRef = useRef(app);
 	const [initialData, setInitialData] = useState<ExcalidrawInitialDataState | null>(null);
+	const [mounted, setMounted] = useState(false);
+	const [panelSizes, setPanelSizes] = useState<number[]>([50, 50]);
 	const [notes, setNotes] = useState("");
 	const [source, setSource] = useState<"github" | "local">("github");
 	const [saving, setSaving] = useState(false);
@@ -249,8 +278,8 @@ export function EditorClient({
 	} = useProjectHistorySnapshot(workspaceId, projectId, selectedPreviewSha, auth?.user?.id);
 	const previewInitialData = useMemo(() => {
 		if (!snapshotData?.sketch) return null;
-		return toInitialData(normalizeScene(snapshotData.sketch));
-	}, [snapshotData]);
+		return toInitialData(normalizeScene(snapshotData.sketch), resolvedTheme);
+	}, [snapshotData, resolvedTheme]);
 	const refreshEditorFrame = useCallback(() => {
 		if (typeof window === "undefined") {
 			return;
@@ -261,11 +290,12 @@ export function EditorClient({
 			excalidrawApiRef.current?.refresh();
 		});
 	}, []);
-	const queueStateDraftSave = useCallback((nextMode: EditorMode) => {
+	const queueStateDraftSave = useCallback((nextMode: EditorMode, nextSizes: number[]) => {
 		void setDraft<StateDraftValue>(currentStateDraftKey, {
 			state: {
 				viewMode: nextMode,
 				lastActiveSketchId: sketchId,
+				panelSizes: nextSizes,
 			},
 			updatedAt: new Date().toISOString(),
 		});
@@ -273,7 +303,7 @@ export function EditorClient({
 
 	const setEditorMode = useCallback((nextMode: EditorMode) => {
 		setMode(nextMode);
-		queueStateDraftSave(nextMode);
+		queueStateDraftSave(nextMode, panelSizes);
 
 		if (typeof window === "undefined") {
 			return;
@@ -283,11 +313,22 @@ export function EditorClient({
 		url.searchParams.set("view", nextMode);
 		window.history.pushState({ sketchflowView: nextMode }, "", url);
 		refreshEditorFrame();
-	}, [refreshEditorFrame, queueStateDraftSave]);
+	}, [refreshEditorFrame, queueStateDraftSave, panelSizes]);
+
+	const handleLayoutChange = useCallback((sizes: any) => {
+		const nextSizes = Array.isArray(sizes) ? (sizes as number[]) : [50, 50];
+		setPanelSizes(nextSizes);
+		queueStateDraftSave(mode, nextSizes);
+		refreshEditorFrame();
+	}, [mode, queueStateDraftSave, refreshEditorFrame]);
 
 	useEffect(() => {
 		appRef.current = app;
 	}, [app]);
+
+	useEffect(() => {
+		setMounted(true);
+	}, []);
 
 	useEffect(() => {
 		if (typeof window === "undefined") {
@@ -321,6 +362,22 @@ export function EditorClient({
 	}, [auth]);
 
 	useEffect(() => {
+		if (excalidrawApiRef.current && resolvedTheme) {
+			const appState = excalidrawApiRef.current.getAppState();
+			const currentBg = appState.viewBackgroundColor;
+			if (resolvedTheme === "dark" && (currentBg === "#ffffff" || !currentBg)) {
+				excalidrawApiRef.current.updateScene({
+					appState: { viewBackgroundColor: "#121212" }
+				});
+			} else if (resolvedTheme === "light" && currentBg === "#121212") {
+				excalidrawApiRef.current.updateScene({
+					appState: { viewBackgroundColor: "#ffffff" }
+				});
+			}
+		}
+	}, [resolvedTheme]);
+
+	useEffect(() => {
 		let mounted = true;
 
 		async function hydrateFromData(nextData: SketchLoadResponse) {
@@ -345,6 +402,7 @@ export function EditorClient({
 				]);
 				const githubState = nextData.state;
 				const initialMode = localStateDraft?.value?.state?.viewMode ?? (isEditorMode(githubState?.viewMode ?? null) ? githubState!.viewMode : "split");
+				const initialPanelSizes = localStateDraft?.value?.state?.panelSizes ?? githubState?.panelSizes ?? [50, 50];
 				const nextScene = localSceneDraft?.value?.scene
 					? normalizeScene(localSceneDraft.value.scene)
 					: githubScene;
@@ -359,7 +417,8 @@ export function EditorClient({
 				notesRef.current = nextNotes;
 				installedLibrarySourcesRef.current = nextInstalledSources;
 				sourceRef.current = restoredLocal ? "local" : "github";
-				setInitialData(toInitialData(nextScene, nextLibraryItems));
+				setInitialData(toInitialData(nextScene, resolvedTheme, nextLibraryItems));
+				setPanelSizes(initialPanelSizes);
 				setNotes(nextNotes);
 				setMode(initialMode as EditorMode);
 				setInstalledLibrarySources(nextInstalledSources);
@@ -549,10 +608,17 @@ export function EditorClient({
 				},
 			});
 			const nextNotes = notesRef.current || fallbackNotes(projectId, sketchId);
+			const nextHistory = appendProjectHistoryLog(
+				data.state?.history,
+				`Saved changes (mode: ${mode})`,
+				auth?.user?.displayName || auth?.user?.primaryEmail
+			);
 			const nextState = {
 				viewMode: mode,
 				lastActiveSketchId: sketchId,
+				panelSizes,
 				updatedAt: new Date().toISOString(),
+				history: nextHistory,
 			};
 			const response = await commitWorkspaceFiles({
 				workspaceId,
@@ -653,7 +719,7 @@ export function EditorClient({
 	const subtitle = data
 		? `${data.workspace.repoOwner}/${data.workspace.repoName} · projects/${projectId}`
 		: "GitHub-backed visual doc";
-	const loading = authLoading || sketchLoading;
+	const loading = authLoading || sketchLoading || !mounted;
 	const error = loadError || (sketchError instanceof Error ? sketchError.message : null);
 	const dirty = sceneDirty || notesDirty;
 	const panelLayout = mode === "libraries" || mode === "history"
@@ -792,106 +858,133 @@ export function EditorClient({
 							<ArrowLeft className="size-4" />
 						</Link>
 					</Button>
-					<div className="flex items-center gap-1.5 text-xs font-bold min-w-0">
-						<span className="hidden text-muted-foreground/60 truncate sm:inline max-w-[120px]">
-							{data?.workspace.repoName}
-						</span>
-						<span className="hidden text-muted-foreground/30 sm:inline">/</span>
-						<span className="hidden text-muted-foreground/60 truncate md:inline">
-							projects
-						</span>
-						<span className="hidden text-muted-foreground/30 md:inline">/</span>
-						<span className="text-muted-foreground/80 truncate font-semibold max-w-[100px]">
-							{projectId}
-						</span>
-						<span className="text-muted-foreground/30">/</span>
-						<h1 className="text-foreground font-extrabold truncate text-sm">
-							{title}
-						</h1>
-					</div>
+					<Breadcrumb className="text-xs font-semibold select-none">
+						<BreadcrumbList className="flex-nowrap gap-1">
+							<BreadcrumbItem className="hidden sm:inline-flex max-w-[100px] truncate">
+								<BreadcrumbLink asChild>
+									<Link href="/app" className="text-muted-foreground/75 hover:text-primary">
+										{data?.workspace.repoName}
+									</Link>
+								</BreadcrumbLink>
+							</BreadcrumbItem>
+							<BreadcrumbSeparator className="hidden sm:inline-flex text-muted-foreground/30" />
+							<BreadcrumbItem className="max-w-[100px] truncate">
+								<BreadcrumbLink asChild>
+									<Link href={`/app?workspace=${workspaceId}`} className="text-muted-foreground/75 hover:text-primary">
+										{projectId}
+									</Link>
+								</BreadcrumbLink>
+							</BreadcrumbItem>
+							<BreadcrumbSeparator className="text-muted-foreground/30" />
+							<BreadcrumbItem className="font-extrabold text-foreground truncate max-w-[140px]">
+								<BreadcrumbPage>{title}</BreadcrumbPage>
+							</BreadcrumbItem>
+						</BreadcrumbList>
+					</Breadcrumb>
 				</div>
 
 				<div className="flex min-w-0 items-center gap-2">
-					<div className="hidden items-center gap-0.5 rounded-[12px] border border-border/80 bg-muted/50 p-0.5 md:flex">
+					<div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/20 p-0.5 shadow-inner">
 						<Button
 							variant="ghost"
 							size="xs"
 							onClick={() => setEditorMode("canvas")}
 							className={cn(
-								"h-7 rounded-[9px] px-2.5 text-xs font-extrabold transition-all",
+								"h-7 rounded-md px-2 md:px-2.5 text-xs font-bold transition-all",
 								mode === "canvas"
 									? "bg-card text-foreground shadow-sm border border-border/50"
 									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
 							)}
+							title="Canvas Mode"
 						>
-							<Maximize2 className="size-3.5 mr-1" />
-							Canvas
+							<Maximize2 className="size-3.5" />
+							<span className="hidden md:inline ml-1">Canvas</span>
 						</Button>
 						<Button
 							variant="ghost"
 							size="xs"
 							onClick={() => setEditorMode("split")}
 							className={cn(
-								"h-7 rounded-[9px] px-2.5 text-xs font-extrabold transition-all",
+								"h-7 rounded-md px-2 md:px-2.5 text-xs font-bold transition-all",
 								mode === "split"
 									? "bg-card text-foreground shadow-sm border border-border/50"
 									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
 							)}
+							title="Split Mode"
 						>
-							<PanelsTopLeft className="size-3.5 mr-1" />
-							Split
+							<PanelsTopLeft className="size-3.5" />
+							<span className="hidden md:inline ml-1">Split</span>
 						</Button>
 						<Button
 							variant="ghost"
 							size="xs"
 							onClick={() => setEditorMode("docs")}
 							className={cn(
-								"h-7 rounded-[9px] px-2.5 text-xs font-extrabold transition-all",
+								"h-7 rounded-md px-2 md:px-2.5 text-xs font-bold transition-all",
 								mode === "docs"
 									? "bg-card text-foreground shadow-sm border border-border/50"
 									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
 							)}
+							title="Docs Mode"
 						>
-							<FileText className="size-3.5 mr-1" />
-							Docs
+							<FileText className="size-3.5" />
+							<span className="hidden md:inline ml-1">Docs</span>
 						</Button>
 						<Button
 							variant="ghost"
 							size="xs"
 							onClick={() => setEditorMode("libraries")}
 							className={cn(
-								"h-7 rounded-[9px] px-2.5 text-xs font-extrabold transition-all",
+								"h-7 rounded-md px-2 md:px-2.5 text-xs font-bold transition-all",
 								mode === "libraries"
 									? "bg-card text-foreground shadow-sm border border-border/50"
 									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
 							)}
+							title="Libraries Mode"
 						>
-							<BookOpen className="size-3.5 mr-1" />
-							Libraries
+							<BookOpen className="size-3.5" />
+							<span className="hidden md:inline ml-1">Libraries</span>
 						</Button>
 						<Button
 							variant="ghost"
 							size="xs"
 							onClick={() => setEditorMode("history")}
 							className={cn(
-								"h-7 rounded-[9px] px-2.5 text-xs font-extrabold transition-all",
+								"h-7 rounded-md px-2 md:px-2.5 text-xs font-bold transition-all",
 								mode === "history"
 									? "bg-card text-foreground shadow-sm border border-border/50"
 									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
 							)}
+							title="History Mode"
 						>
-							<Clock className="size-3.5 mr-1" />
-							History
+							<Clock className="size-3.5" />
+							<span className="hidden md:inline ml-1">History</span>
 						</Button>
 					</div>
-					<Badge variant="secondary" className="hidden gap-1.5 font-extrabold md:inline-flex py-0.5 px-2 text-[11px] rounded-full">
-						<GitBranch className="size-3" />
-						{dirty ? "Local draft" : `Synced ${shortSha(data?.workspace.latestCommitSha)}`}
-					</Badge>
-					<Badge variant="outline" className="hidden font-extrabold lg:inline-flex py-0.5 px-2 text-[11px] rounded-full border-border">
-						{source === "local" ? "Autosaved locally" : status}
-					</Badge>
-					<Button disabled={!hasScene || saving} onClick={handleManualSave} size="sm" className="h-8 py-0 px-3.5 rounded-xl font-bold">
+
+					<div className="hidden items-center gap-1.5 text-xs font-semibold text-muted-foreground sm:flex">
+						{saving ? (
+							<span className="flex items-center gap-1">
+								<Loader2 className="size-3 animate-spin text-[#58CC02]" />
+								Saving...
+							</span>
+						) : dirty ? (
+							<span className="flex items-center gap-1 text-amber-500 font-bold">
+								<span className="relative flex h-2 w-2">
+									<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+									<span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+								</span>
+								Unsaved
+							</span>
+						) : (
+							<span className="flex items-center gap-1 text-emerald-500/80">
+								<span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+								Synced ({shortSha(data?.workspace.latestCommitSha)})
+							</span>
+						)}
+					</div>
+
+					<Button disabled={!hasScene || saving || !dirty} onClick={handleManualSave} size="sm" className="h-8 py-0 px-3.5 rounded-xl font-bold transition-all shadow-sm">
 						{saving ? (
 							<Loader2 className="size-4 animate-spin" />
 						) : (
@@ -959,21 +1052,21 @@ export function EditorClient({
 								id={`editor-${mode}-layout`}
 								orientation="horizontal"
 								className="h-full min-h-0"
-								onLayoutChanged={refreshEditorFrame}
+								onLayoutChanged={handleLayoutChange}
 							>
 								<ResizablePanel
 									id={`editor-${mode}-canvas`}
-									defaultSize={panelLayout.canvas}
-									minSize={panelLayout.canvasMin}
+									defaultSize={panelSizes[0] ?? (mode === "libraries" || mode === "history" ? 64 : 50)}
+									minSize={mode === "libraries" || mode === "history" ? 44 : 34}
 								>
 									{canvasEditor}
 								</ResizablePanel>
 								<ResizableHandle withHandle />
 								<ResizablePanel
 									id={`editor-${mode}-side`}
-									defaultSize={panelLayout.side}
-									minSize={panelLayout.sideMin}
-									maxSize={panelLayout.sideMax}
+									defaultSize={panelSizes[1] ?? (mode === "libraries" || mode === "history" ? 36 : 50)}
+									minSize={mode === "libraries" || mode === "history" ? 28 : 34}
+									maxSize={mode === "libraries" || mode === "history" ? 52 : 66}
 								>
 									{mode === "libraries" ? libraryPanel : mode === "history" ? historyPanel : docsPanel}
 								</ResizablePanel>

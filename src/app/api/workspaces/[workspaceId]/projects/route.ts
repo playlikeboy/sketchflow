@@ -479,7 +479,15 @@ export async function POST(
 						{
 							viewMode: "split",
 							lastActiveSketchId: sketchId,
+							panelSizes: [50, 50],
 							updatedAt: now,
+							history: [
+								{
+									action: "Project created",
+									user: user.displayName || user.primaryEmail || "System",
+									timestamp: now,
+								},
+							],
 						},
 						null,
 						2,

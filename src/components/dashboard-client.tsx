@@ -177,6 +177,16 @@ export function DashboardClient() {
 	}, [auth]);
 
 	useEffect(() => {
+		setWorkspaces([]);
+		setSelectedWorkspaceId(null);
+		setProjects([]);
+		setSelectedProjectId(null);
+		setError(null);
+		setProjectsError(null);
+	}, [auth?.user?.id]);
+
+
+	useEffect(() => {
 		if (!workspaceData?.workspaces) {
 			setWorkspaces([]);
 			setSelectedWorkspaceId(null);

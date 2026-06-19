@@ -81,6 +81,8 @@ export type SketchLoadResponse = {
 	state: {
 		viewMode?: string;
 		lastActiveSketchId?: string;
+		panelSizes?: number[];
+		history?: any[];
 		updatedAt?: string;
 	} | null;
 	files: {
