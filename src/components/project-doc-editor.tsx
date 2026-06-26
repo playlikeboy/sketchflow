@@ -104,7 +104,7 @@ export function ProjectDocEditor({
 	}, editor);
 
 	return (
-		<div className="relative h-full min-h-0 bg-card">
+		<div className="relative flex-1 min-h-0 bg-card overflow-y-auto">
 			{!ready ? (
 				<div className="absolute inset-0 z-10 grid place-items-center bg-card text-sm font-medium text-muted-foreground">
 					<div className="flex items-center gap-2">
