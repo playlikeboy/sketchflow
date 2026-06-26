@@ -223,7 +223,8 @@ export function EditorClient({
 	const appRef = useRef(app);
 	const [initialData, setInitialData] = useState<ExcalidrawInitialDataState | null>(null);
 	const [mounted, setMounted] = useState(false);
-	const [panelSizes, setPanelSizes] = useState<number[]>([50, 50]);
+	const [splitPanelSizes, setSplitPanelSizes] = useState<number[]>([50, 50]);
+	const [sidePanelSizes, setSidePanelSizes] = useState<number[]>([64, 36]);
 	const [notes, setNotes] = useState("");
 	const [source, setSource] = useState<"github" | "local">("github");
 	const [saving, setSaving] = useState(false);
@@ -307,7 +308,7 @@ export function EditorClient({
 
 	const setEditorMode = useCallback((nextMode: EditorMode) => {
 		setMode(nextMode);
-		queueStateDraftSave(nextMode, panelSizes);
+		queueStateDraftSave(nextMode, splitPanelSizes);
 
 		if (typeof window === "undefined") {
 			return;
@@ -317,12 +318,16 @@ export function EditorClient({
 		url.searchParams.set("view", nextMode);
 		window.history.pushState({ sketchflowView: nextMode }, "", url);
 		refreshEditorFrame();
-	}, [refreshEditorFrame, queueStateDraftSave, panelSizes]);
+	}, [refreshEditorFrame, queueStateDraftSave, splitPanelSizes]);
 
 	const handleLayoutChange = useCallback((sizes: any) => {
 		const nextSizes = Array.isArray(sizes) ? (sizes as number[]) : [50, 50];
-		setPanelSizes(nextSizes);
-		queueStateDraftSave(mode, nextSizes);
+		if (mode === "split") {
+			setSplitPanelSizes(nextSizes);
+			queueStateDraftSave(mode, nextSizes);
+		} else {
+			setSidePanelSizes(nextSizes);
+		}
 		refreshEditorFrame();
 	}, [mode, queueStateDraftSave, refreshEditorFrame]);
 
@@ -437,7 +442,7 @@ export function EditorClient({
 				installedLibrarySourcesRef.current = nextInstalledSources;
 				sourceRef.current = restoredLocal || isLocalFallback ? "local" : "github";
 				setInitialData(toInitialData(nextScene, resolvedTheme, nextLibraryItems));
-				setPanelSizes(initialPanelSizes);
+				setSplitPanelSizes(initialPanelSizes);
 				setNotes(nextNotes);
 				setMode(initialMode as EditorMode);
 				setInstalledLibrarySources(nextInstalledSources);
@@ -639,7 +644,7 @@ export function EditorClient({
 			const nextState = {
 				viewMode: mode,
 				lastActiveSketchId: sketchId,
-				panelSizes,
+				panelSizes: splitPanelSizes,
 				updatedAt: new Date().toISOString(),
 				history: nextHistory,
 			};
@@ -1107,7 +1112,7 @@ export function EditorClient({
 							>
 								<ResizablePanel
 									id={`editor-${mode}-canvas`}
-									defaultSize={panelSizes[0] ?? (mode === "libraries" || mode === "history" ? 64 : 50)}
+									defaultSize={mode === "split" ? splitPanelSizes[0] : sidePanelSizes[0]}
 									minSize={mode === "libraries" || mode === "history" ? 44 : 34}
 								>
 									{canvasEditor}
@@ -1115,7 +1120,7 @@ export function EditorClient({
 								<ResizableHandle withHandle />
 								<ResizablePanel
 									id={`editor-${mode}-side`}
-									defaultSize={panelSizes[1] ?? (mode === "libraries" || mode === "history" ? 36 : 50)}
+									defaultSize={mode === "split" ? splitPanelSizes[1] : sidePanelSizes[1]}
 									minSize={mode === "libraries" || mode === "history" ? 28 : 34}
 									maxSize={mode === "libraries" || mode === "history" ? 52 : 66}
 								>
