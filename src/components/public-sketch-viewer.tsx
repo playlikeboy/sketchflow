@@ -22,13 +22,35 @@ const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).
   ),
 });
 
+function ensureVisibleStrokeColors(elements: any[], isDark: boolean): any[] {
+  if (!elements || !Array.isArray(elements)) return [];
+  return elements.map((el) => {
+    if (!el) return el;
+    if (el.type === "text" || el.type === "line" || el.type === "arrow" || el.type === "freedraw" || el.type === "rectangle" || el.type === "ellipse" || el.type === "diamond") {
+      const stroke = el.strokeColor?.toLowerCase();
+      if (isDark) {
+        if (stroke === "#000000" || stroke === "#1e1e1e" || !stroke) {
+          return { ...el, strokeColor: "#ffffff" };
+        }
+      } else {
+        if (stroke === "#ffffff" || stroke === "#f0f0f0") {
+          return { ...el, strokeColor: "#000000" };
+        }
+      }
+    }
+    return el;
+  });
+}
+
 function toInitialData(scene: SketchScene, resolvedTheme?: string): ExcalidrawInitialDataState {
+  const isDark = resolvedTheme === "dark";
+  const elements = ensureVisibleStrokeColors(scene.elements || [], isDark);
   return {
-    elements: scene.elements as ExcalidrawInitialDataState["elements"],
+    elements: elements as ExcalidrawInitialDataState["elements"],
     appState: {
       ...scene.appState,
-      viewBackgroundColor: resolvedTheme === "dark" && (scene.appState?.viewBackgroundColor === "#ffffff" || !scene.appState?.viewBackgroundColor)
-        ? "#121212"
+      viewBackgroundColor: isDark && (scene.appState?.viewBackgroundColor === "#ffffff" || !scene.appState?.viewBackgroundColor)
+        ? "#1a1a1a"
         : scene.appState?.viewBackgroundColor ?? "#ffffff",
     } as ExcalidrawInitialDataState["appState"],
     files: scene.files as ExcalidrawInitialDataState["files"],

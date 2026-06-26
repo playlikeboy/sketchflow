@@ -435,20 +435,18 @@ export function EditorClient({
 	}, [auth]);
 
 	useEffect(() => {
-		if (excalidrawApiRef.current && resolvedTheme && hasScene) {
-			const appState = excalidrawApiRef.current.getAppState();
+		const api = excalidrawApi || excalidrawApiRef.current;
+		if (api && resolvedTheme && hasScene) {
+			const appState = api.getAppState();
 			const currentBg = appState.viewBackgroundColor;
-			if (resolvedTheme === "dark" && (currentBg === "#ffffff" || !currentBg)) {
-				excalidrawApiRef.current.updateScene({
-					appState: { viewBackgroundColor: "#121212" }
-				});
-			} else if (resolvedTheme === "light" && currentBg === "#121212") {
-				excalidrawApiRef.current.updateScene({
-					appState: { viewBackgroundColor: "#ffffff" }
+			const targetBg = resolvedTheme === "dark" ? "#1a1a1a" : "#ffffff";
+			if (currentBg !== targetBg && (currentBg === "#ffffff" || currentBg === "#121212" || currentBg === "#1a1a1a" || !currentBg)) {
+				api.updateScene({
+					appState: { viewBackgroundColor: targetBg }
 				});
 			}
 		}
-	}, [resolvedTheme, hasScene]);
+	}, [excalidrawApi, resolvedTheme, hasScene]);
 
 	useEffect(() => {
 		let mounted = true;
@@ -899,12 +897,14 @@ export function EditorClient({
 				onLibraryChange={handleLibraryChange}
 				excalidrawAPI={(api) => {
 					excalidrawApiRef.current = api;
+					setExcalidrawApi(api);
 					if (api && resolvedTheme) {
 						const appState = api.getAppState();
 						const currentBg = appState.viewBackgroundColor;
-						if (resolvedTheme === "dark" && (currentBg === "#ffffff" || !currentBg)) {
+						const targetBg = resolvedTheme === "dark" ? "#1a1a1a" : "#ffffff";
+						if (currentBg !== targetBg && (currentBg === "#ffffff" || currentBg === "#121212" || currentBg === "#1a1a1a" || !currentBg)) {
 							api.updateScene({
-								appState: { viewBackgroundColor: "#121212" }
+								appState: { viewBackgroundColor: targetBg }
 							});
 						}
 					}
@@ -972,7 +972,13 @@ export function EditorClient({
 	);
 
 	return (
-		<main className="flex h-screen min-h-screen flex-col bg-background">
+		<main className="flex h-screen min-h-screen flex-col bg-background relative">
+			{isResizing && (
+				<div 
+					className="fixed inset-0 z-50 cursor-col-resize select-none bg-transparent" 
+					style={{ pointerEvents: "auto" }}
+				/>
+			)}
 			<div className="h-1 w-full bg-gradient-to-r from-[#58CC02] via-[#1CB0F6] to-[#CE82FF]" />
 
 			<header className="flex h-13 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-3 py-1.5 sm:px-4">
