@@ -41,7 +41,7 @@ import { HistoryPanel } from "@/components/history-panel";
 import { ProjectDocEditor } from "@/components/project-doc-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+
 import { ApiError, commitWorkspaceFiles, restoreProjectVersion, type SketchLoadResponse, type SketchScene } from "@/lib/api";
 import type { ExcalidrawLibrary } from "@/lib/excalidraw-libraries";
 import { deleteDraft, getDraft, setDraft, deleteLocalProject } from "@/lib/indexeddb";
@@ -127,13 +127,36 @@ function appendProjectHistoryLog(existingHistory: any[] | undefined | null, acti
 	return history.slice(0, 15); // keep last 15 actions
 }
 
+function ensureVisibleStrokeColors(elements: any[], isDark: boolean): any[] {
+	if (!elements || !Array.isArray(elements)) return [];
+	return elements.map((el) => {
+		if (!el) return el;
+		if (el.type === "text" || el.type === "line" || el.type === "arrow" || el.type === "freedraw" || el.type === "rectangle" || el.type === "ellipse" || el.type === "diamond") {
+			const stroke = el.strokeColor?.toLowerCase();
+			if (isDark) {
+				if (stroke === "#000000" || stroke === "#1e1e1e" || !stroke) {
+					return { ...el, strokeColor: "#ffffff" };
+				}
+			} else {
+				if (stroke === "#ffffff" || stroke === "#f0f0f0") {
+					return { ...el, strokeColor: "#000000" };
+				}
+			}
+		}
+		return el;
+	});
+}
+
 function toInitialData(scene: SketchScene, resolvedTheme?: string, libraryItems?: LibraryItems): ExcalidrawInitialDataState {
+	const isDark = resolvedTheme === "dark";
+	const elements = ensureVisibleStrokeColors(scene.elements || [], isDark);
+
 	const initialData: ExcalidrawInitialDataState = {
-		elements: scene.elements as ExcalidrawInitialDataState["elements"],
+		elements: elements as ExcalidrawInitialDataState["elements"],
 		appState: {
 			...scene.appState,
-			viewBackgroundColor: resolvedTheme === "dark" && (scene.appState?.viewBackgroundColor === "#ffffff" || !scene.appState?.viewBackgroundColor)
-				? "#121212"
+			viewBackgroundColor: isDark && (scene.appState?.viewBackgroundColor === "#ffffff" || !scene.appState?.viewBackgroundColor)
+				? "#1a1a1a"
 				: scene.appState?.viewBackgroundColor ?? "#ffffff",
 		} as ExcalidrawInitialDataState["appState"],
 		files: scene.files as ExcalidrawInitialDataState["files"],
@@ -225,6 +248,10 @@ export function EditorClient({
 	const [mounted, setMounted] = useState(false);
 	const [splitPanelSizes, setSplitPanelSizes] = useState<number[]>([50, 50]);
 	const [sidePanelSizes, setSidePanelSizes] = useState<number[]>([64, 36]);
+	const containerRef = useRef<HTMLDivElement | null>(null);
+	const isDraggingRef = useRef(false);
+	const [isResizing, setIsResizing] = useState(false);
+	const [excalidrawApi, setExcalidrawApi] = useState<ExcalidrawImperativeAPI | null>(null);
 	const [notes, setNotes] = useState("");
 	const [source, setSource] = useState<"github" | "local">("github");
 	const [saving, setSaving] = useState(false);
@@ -320,15 +347,52 @@ export function EditorClient({
 		refreshEditorFrame();
 	}, [refreshEditorFrame, queueStateDraftSave, splitPanelSizes]);
 
-	const handleLayoutChange = useCallback((sizes: any) => {
-		const nextSizes = Array.isArray(sizes) ? (sizes as number[]) : [50, 50];
-		if (mode === "split") {
-			setSplitPanelSizes(nextSizes);
-			queueStateDraftSave(mode, nextSizes);
-		} else {
-			setSidePanelSizes(nextSizes);
-		}
-		refreshEditorFrame();
+	const handleMouseDown = useCallback((e: React.MouseEvent) => {
+		e.preventDefault();
+		isDraggingRef.current = true;
+		setIsResizing(true);
+		document.body.style.cursor = "col-resize";
+		document.body.style.userSelect = "none";
+	}, []);
+
+	useEffect(() => {
+		const handleMouseMove = (e: MouseEvent) => {
+			if (!isDraggingRef.current || !containerRef.current) return;
+			const rect = containerRef.current.getBoundingClientRect();
+			const posX = e.clientX - rect.left;
+			let percentage = (posX / rect.width) * 100;
+
+			// Constraints
+			const min = mode === "libraries" || mode === "history" ? 44 : 34;
+			const max = mode === "libraries" || mode === "history" ? 72 : 66;
+			if (percentage < min) percentage = min;
+			if (percentage > max) percentage = max;
+
+			const nextSizes = [percentage, 100 - percentage];
+			if (mode === "split") {
+				setSplitPanelSizes(nextSizes);
+				queueStateDraftSave(mode, nextSizes);
+			} else {
+				setSidePanelSizes(nextSizes);
+			}
+			refreshEditorFrame();
+		};
+
+		const handleMouseUp = () => {
+			if (isDraggingRef.current) {
+				isDraggingRef.current = false;
+				setIsResizing(false);
+				document.body.style.cursor = "";
+				document.body.style.userSelect = "";
+			}
+		};
+
+		window.addEventListener("mousemove", handleMouseMove);
+		window.addEventListener("mouseup", handleMouseUp);
+		return () => {
+			window.removeEventListener("mousemove", handleMouseMove);
+			window.removeEventListener("mouseup", handleMouseUp);
+		};
 	}, [mode, queueStateDraftSave, refreshEditorFrame]);
 
 	useEffect(() => {
@@ -371,7 +435,7 @@ export function EditorClient({
 	}, [auth]);
 
 	useEffect(() => {
-		if (excalidrawApiRef.current && resolvedTheme) {
+		if (excalidrawApiRef.current && resolvedTheme && hasScene) {
 			const appState = excalidrawApiRef.current.getAppState();
 			const currentBg = appState.viewBackgroundColor;
 			if (resolvedTheme === "dark" && (currentBg === "#ffffff" || !currentBg)) {
@@ -384,7 +448,7 @@ export function EditorClient({
 				});
 			}
 		}
-	}, [resolvedTheme]);
+	}, [resolvedTheme, hasScene]);
 
 	useEffect(() => {
 		let mounted = true;
@@ -835,6 +899,15 @@ export function EditorClient({
 				onLibraryChange={handleLibraryChange}
 				excalidrawAPI={(api) => {
 					excalidrawApiRef.current = api;
+					if (api && resolvedTheme) {
+						const appState = api.getAppState();
+						const currentBg = appState.viewBackgroundColor;
+						if (resolvedTheme === "dark" && (currentBg === "#ffffff" || !currentBg)) {
+							api.updateScene({
+								appState: { viewBackgroundColor: "#121212" }
+							});
+						}
+					}
 				}}
 				theme={resolvedTheme === "dark" ? "dark" : "light"}
 				UIOptions={{
@@ -1103,30 +1176,30 @@ export function EditorClient({
 						) : mode === "docs" ? (
 							<div className="h-full min-h-0">{docsPanel}</div>
 						) : (
-							<ResizablePanelGroup
-								key={mode}
-								id={`editor-${mode}-layout`}
-								orientation="horizontal"
-								className="h-full min-h-0"
-								onLayoutChanged={handleLayoutChange}
-							>
-								<ResizablePanel
-									id={`editor-${mode}-canvas`}
-									defaultSize={mode === "split" ? splitPanelSizes[0] : sidePanelSizes[0]}
-									minSize={mode === "libraries" || mode === "history" ? 44 : 34}
+							<div ref={containerRef} className="flex h-full w-full min-h-0 relative select-none">
+								<div 
+									style={{ width: `${mode === "split" ? splitPanelSizes[0] : sidePanelSizes[0]}%` }}
+									className="h-full min-h-0 overflow-hidden"
 								>
 									{canvasEditor}
-								</ResizablePanel>
-								<ResizableHandle withHandle />
-								<ResizablePanel
-									id={`editor-${mode}-side`}
-									defaultSize={mode === "split" ? splitPanelSizes[1] : sidePanelSizes[1]}
-									minSize={mode === "libraries" || mode === "history" ? 28 : 34}
-									maxSize={mode === "libraries" || mode === "history" ? 52 : 66}
+								</div>
+								
+								{/* Raw Resizable Handle */}
+								<div
+									onMouseDown={handleMouseDown}
+									className="group relative w-1 hover:w-1.5 transition-all bg-border hover:bg-primary/50 cursor-col-resize flex items-center justify-center select-none"
+									style={{ zIndex: 10 }}
+								>
+									<div className="z-10 flex h-6 w-1 shrink-0 rounded-lg bg-muted-foreground/30 group-hover:bg-primary" />
+								</div>
+
+								<div 
+									style={{ width: `${mode === "split" ? splitPanelSizes[1] : sidePanelSizes[1]}%` }}
+									className="h-full min-h-0 overflow-hidden"
 								>
 									{mode === "libraries" ? libraryPanel : mode === "history" ? historyPanel : docsPanel}
-								</ResizablePanel>
-							</ResizablePanelGroup>
+								</div>
+							</div>
 						)}
 					</div>
 				) : null}
