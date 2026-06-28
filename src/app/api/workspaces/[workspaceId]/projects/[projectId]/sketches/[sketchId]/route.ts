@@ -1,7 +1,7 @@
 import { PROJECTS_METADATA_PATH, normalizeProjectsMetadata } from "@/lib/project-metadata";
 import { SKETCHFLOW_APP_URL } from "@/lib/config";
 import { hasLocalGithubToken, normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
-import { getWorkspace } from "@/server/db/repositories";
+import { getWorkspace, getWorkspacePublic } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
 import {
 	GithubApiError,
@@ -113,11 +113,17 @@ export async function GET(
 		const { workspaceId, projectId, sketchId } = await params;
 		const projectSlug = validateGithubPathSegment(projectId);
 		const sketchSlug = validateGithubPathSegment(sketchId);
-		const user = normalizeStackUser(await requireUser());
-		const workspace = await getWorkspace(user.id, workspaceId);
-
+		
+		const workspace = await getWorkspacePublic(workspaceId);
 		if (!workspace) {
 			throw new NotFoundError("Workspace not found");
+		}
+
+		if (workspace.visibility === "private") {
+			const user = normalizeStackUser(await requireUser());
+			if (workspace.stackUserId !== user.id) {
+				return jsonError(new NotFoundError("Workspace not found or unauthorized"));
+			}
 		}
 
 		if (workspace.visibility === "public" && !hasLocalGithubToken(request)) {

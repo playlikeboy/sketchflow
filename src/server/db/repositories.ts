@@ -129,6 +129,17 @@ export async function getWorkspace(stackUserId: string, workspaceId: string) {
 	return row ? mapWorkspace(row) : null;
 }
 
+export async function getWorkspacePublic(workspaceId: string) {
+	const db = getDb();
+	const [row] = await db
+		.select()
+		.from(sketchflowWorkspaces)
+		.where(eq(sketchflowWorkspaces.id, workspaceId))
+		.limit(1);
+
+	return row ? mapWorkspace(row) : null;
+}
+
 export async function upsertWorkspace(stackUserId: string, input: WorkspaceInput) {
 	const db = getDb();
 	const workspaceId = crypto.randomUUID();

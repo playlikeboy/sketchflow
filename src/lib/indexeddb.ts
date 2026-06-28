@@ -126,3 +126,29 @@ export async function hasAnyLocalProjects(): Promise<boolean> {
 		return false;
 	}
 }
+
+export type OfflineCommit = {
+	id: string;
+	message: string;
+	timestamp: string;
+	author: string;
+	files: {
+		path: string;
+		content: string;
+	}[];
+};
+
+export async function getOfflineCommits(workspaceId: string, projectId: string): Promise<OfflineCommit[]> {
+	const result = await getDraft<OfflineCommit[]>(`offline-commits:${workspaceId}:${projectId}`);
+	return result?.value ?? [];
+}
+
+export async function saveOfflineCommit(workspaceId: string, projectId: string, commit: OfflineCommit) {
+	const existing = await getOfflineCommits(workspaceId, projectId);
+	const updated = [...existing, commit];
+	await setDraft(`offline-commits:${workspaceId}:${projectId}`, updated);
+}
+
+export async function clearOfflineCommits(workspaceId: string, projectId: string) {
+	await deleteDraft(`offline-commits:${workspaceId}:${projectId}`);
+}

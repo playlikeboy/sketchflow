@@ -26,10 +26,12 @@ export function ProjectDocEditor({
 	documentKey,
 	markdown,
 	onMarkdownChange,
+	readOnly = false,
 }: {
 	documentKey: string;
 	markdown: string;
 	onMarkdownChange: (markdown: string) => void;
+	readOnly?: boolean;
 }) {
 	const [ready, setReady] = useState(false);
 	const [uploadError, setUploadError] = useState<string | null>(null);
@@ -113,7 +115,7 @@ export function ProjectDocEditor({
 					</div>
 				</div>
 			) : null}
-			<BlockNoteView editor={editor} className="sketchflow-doc-editor h-full" />
+			<BlockNoteView editor={editor} className="sketchflow-doc-editor h-full" editable={!readOnly} />
 			{uploadError ? (
 				<div className="absolute bottom-3 left-3 right-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
 					{uploadError}

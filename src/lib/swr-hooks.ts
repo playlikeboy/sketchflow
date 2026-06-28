@@ -60,12 +60,12 @@ export const swrKeys = {
 		stackUserId: string | null | undefined,
 		githubTokenKey = "none",
 	) =>
-		input && stackUserId
+		input
 			? [
 					`/api/workspaces/${encodeURIComponent(input.workspaceId)}/projects/${encodeURIComponent(
 						input.projectId,
 					)}/sketches/${encodeURIComponent(input.sketchId)}`,
-					stackUserId,
+					stackUserId || "guest",
 					githubTokenKey,
 				]
 			: null,
@@ -75,12 +75,12 @@ export const swrKeys = {
 		stackUserId: string | null | undefined,
 		githubTokenKey = "none",
 	) =>
-		workspaceId && projectId && stackUserId
+		workspaceId && projectId
 			? [
 					`/api/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(
 						projectId,
 					)}/history`,
-					stackUserId,
+					stackUserId || "guest",
 					githubTokenKey,
 				]
 			: null,
@@ -91,12 +91,12 @@ export const swrKeys = {
 		stackUserId: string | null | undefined,
 		githubTokenKey = "none",
 	) =>
-		workspaceId && projectId && commitSha && stackUserId
+		workspaceId && projectId && commitSha
 			? [
 					`/api/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(
 						projectId,
 					)}/history/${encodeURIComponent(commitSha)}`,
-					stackUserId,
+					stackUserId || "guest",
 					githubTokenKey,
 				]
 			: null,

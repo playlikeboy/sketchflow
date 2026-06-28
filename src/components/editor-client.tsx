@@ -44,9 +44,9 @@ import { Button } from "@/components/ui/button";
 
 import { ApiError, commitWorkspaceFiles, restoreProjectVersion, type SketchLoadResponse, type SketchScene } from "@/lib/api";
 import type { ExcalidrawLibrary } from "@/lib/excalidraw-libraries";
-import { deleteDraft, getDraft, setDraft, deleteLocalProject } from "@/lib/indexeddb";
+import { deleteDraft, getDraft, setDraft, deleteLocalProject, type OfflineCommit, getOfflineCommits, saveOfflineCommit, clearOfflineCommits } from "@/lib/indexeddb";
 import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
-import { draftKey, humanizeSlug, normalizeScene, notesFilePath, projectFilePath, sketchFilePath } from "@/lib/sketchflow";
+import { draftKey, humanizeSlug, normalizeScene, notesFilePath, projectFilePath, sketchFilePath, slugify } from "@/lib/sketchflow";
 import { useAuthMe, useGithubStatus, useSketch, useProjectHistorySnapshot, useWorkspaces } from "@/lib/swr-hooks";
 import { cn } from "@/lib/utils";
 
@@ -88,9 +88,9 @@ type StateDraftValue = {
 	updatedAt: string;
 };
 
-type EditorMode = "split" | "canvas" | "docs" | "libraries" | "history";
+type EditorMode = "split" | "canvas" | "docs" | "libraries" | "history" | "source-control";
 
-const editorModes = new Set<EditorMode>(["split", "canvas", "docs", "libraries", "history"]);
+const editorModes = new Set<EditorMode>(["split", "canvas", "docs", "libraries", "history", "source-control"]);
 
 function isEditorMode(value: string | null): value is EditorMode {
 	return Boolean(value && editorModes.has(value as EditorMode));
@@ -156,7 +156,7 @@ function toInitialData(scene: SketchScene, resolvedTheme?: string, libraryItems?
 		appState: {
 			...scene.appState,
 			viewBackgroundColor: isDark && (scene.appState?.viewBackgroundColor === "#ffffff" || !scene.appState?.viewBackgroundColor)
-				? "#1a1a1a"
+				? "#121212"
 				: scene.appState?.viewBackgroundColor ?? "#ffffff",
 		} as ExcalidrawInitialDataState["appState"],
 		files: scene.files as ExcalidrawInitialDataState["files"],
@@ -252,6 +252,19 @@ export function EditorClient({
 	const isDraggingRef = useRef(false);
 	const [isResizing, setIsResizing] = useState(false);
 	const [excalidrawApi, setExcalidrawApi] = useState<ExcalidrawImperativeAPI | null>(null);
+
+	// Source Control states
+	const [offlineCommits, setOfflineCommits] = useState<OfflineCommit[]>([]);
+	const [commitMessage, setCommitMessage] = useState("");
+	const [syncingOffline, setSyncingOffline] = useState(false);
+	const [isOnline, setIsOnline] = useState(typeof window !== "undefined" ? navigator.onLine : true);
+
+	// Fork Modal states
+	const [showForkModal, setShowForkModal] = useState(false);
+	const [targetWorkspaceId, setTargetWorkspaceId] = useState("");
+	const [targetProjectSlug, setTargetProjectSlug] = useState(projectId);
+	const [forking, setForking] = useState(false);
+	const [forkError, setForkError] = useState<string | null>(null);
 	const [notes, setNotes] = useState("");
 	const [source, setSource] = useState<"github" | "local">("github");
 	const [saving, setSaving] = useState(false);
@@ -296,13 +309,18 @@ export function EditorClient({
 		() => `${currentDraftKey}:state`,
 		[currentDraftKey],
 	);
-	const sketchInput = auth?.authenticated ? { workspaceId, projectId, sketchId } : null;
+	const sketchInput = { workspaceId, projectId, sketchId };
 	const {
 		data,
 		error: sketchError,
 		isLoading: sketchLoading,
 		mutate: mutateSketch,
 	} = useSketch(sketchInput, auth?.user?.id);
+	const activeWorkspace = data?.workspace ?? workspace;
+	const isOwner = useMemo(() => {
+		if (!activeWorkspace) return false;
+		return Boolean(auth?.authenticated && auth?.user?.id === activeWorkspace.stackUserId);
+	}, [auth, activeWorkspace]);
 	const [selectedPreviewSha, setSelectedPreviewSha] = useState<string | null>(null);
 	const {
 		data: snapshotData,
@@ -363,8 +381,8 @@ export function EditorClient({
 			let percentage = (posX / rect.width) * 100;
 
 			// Constraints
-			const min = mode === "libraries" || mode === "history" ? 44 : 34;
-			const max = mode === "libraries" || mode === "history" ? 72 : 66;
+			const min = mode === "libraries" || mode === "history" || mode === "source-control" ? 44 : 34;
+			const max = mode === "libraries" || mode === "history" || mode === "source-control" ? 72 : 66;
 			if (percentage < min) percentage = min;
 			if (percentage > max) percentage = max;
 
@@ -429,17 +447,17 @@ export function EditorClient({
 	}, [installedLibrarySources]);
 
 	useEffect(() => {
-		if (auth && !auth.authenticated) {
+		if (auth && !auth.authenticated && data && data.workspace?.visibility === "private") {
 			void appRef.current.redirectToSignIn();
 		}
-	}, [auth]);
+	}, [auth, data]);
 
 	useEffect(() => {
 		const api = excalidrawApi || excalidrawApiRef.current;
 		if (api && resolvedTheme && hasScene) {
 			const appState = api.getAppState();
 			const currentBg = appState.viewBackgroundColor;
-			const targetBg = resolvedTheme === "dark" ? "#1a1a1a" : "#ffffff";
+			const targetBg = resolvedTheme === "dark" ? "#121212" : "#ffffff";
 			if (currentBg !== targetBg && (currentBg === "#ffffff" || currentBg === "#121212" || currentBg === "#1a1a1a" || !currentBg)) {
 				api.updateScene({
 					appState: { viewBackgroundColor: targetBg }
@@ -575,6 +593,7 @@ export function EditorClient({
 	}, [currentNotesDraftKey]);
 
 	const handleSceneChange = useCallback((elements: readonly unknown[], appState: AppState, files: BinaryFiles) => {
+		if (!isOwner) return;
 		const nextScene = normalizeScene({
 			...(sceneRef.current ?? {}),
 			elements: [...elements],
@@ -595,9 +614,10 @@ export function EditorClient({
 		}
 
 		queueSceneDraftSave(nextScene);
-	}, [queueSceneDraftSave]);
+	}, [queueSceneDraftSave, isOwner]);
 
 	const handleNotesChange = useCallback((value: string) => {
+		if (!isOwner) return;
 		notesRef.current = value;
 		setNotes(value);
 
@@ -612,15 +632,16 @@ export function EditorClient({
 		}
 
 		queueNotesDraftSave(value);
-	}, [queueNotesDraftSave]);
+	}, [queueNotesDraftSave, isOwner]);
 
 	const handleLibraryChange = useCallback((libraryItems: LibraryItems) => {
+		if (!isOwner) return;
 		void setDraft<LibraryDraftValue>(currentLibraryDraftKey, {
 			libraryItems,
 			installedSources: installedLibrarySourcesRef.current,
 			updatedAt: new Date().toISOString(),
 		});
-	}, [currentLibraryDraftKey]);
+	}, [currentLibraryDraftKey, isOwner]);
 
 	const handleInstallLibrary = useCallback(async (library: ExcalidrawLibrary) => {
 		if (!excalidrawApiRef.current) {
@@ -826,6 +847,195 @@ export function EditorClient({
 		}
 	}
 
+	const loadOfflineCommits = useCallback(async () => {
+		const list = await getOfflineCommits(workspaceId, projectId);
+		setOfflineCommits(list);
+	}, [workspaceId, projectId]);
+
+	useEffect(() => {
+		void loadOfflineCommits();
+	}, [loadOfflineCommits]);
+
+	const handleOfflineCommit = useCallback(async () => {
+		const scene = sceneRef.current;
+		if (!scene || (!data && !workspace)) return;
+		if (!commitMessage.trim()) return;
+
+		const commitId = crypto.randomUUID();
+		const timestamp = new Date().toISOString();
+		const authorName = auth?.user?.displayName || auth?.user?.primaryEmail || "Local User";
+
+		const project = buildProjectFile(projectId, sketchId, data?.project);
+		const projectMetadata = mergeProjectsMetadata({
+			existing: data?.projectsMetadata,
+			project: projectFromProjectJson({
+				projectId,
+				projectJson: project,
+				fallbackVisibility: data?.workspace?.visibility ?? workspace?.visibility ?? "public",
+				fallbackSketchId: sketchId,
+			}),
+			workspace: {
+				owner: data?.workspace?.repoOwner ?? workspace?.repoOwner ?? "",
+				repo: data?.workspace?.repoName ?? workspace?.repoName ?? "",
+				defaultBranch: data?.workspace?.defaultBranch ?? workspace?.defaultBranch ?? "main",
+			},
+		});
+		const nextNotes = notesRef.current || fallbackNotes(projectId, sketchId);
+		const nextHistory = appendProjectHistoryLog(
+			data?.state?.history,
+			`Commit: ${commitMessage.trim()}`,
+			authorName
+		);
+		const nextState = {
+			viewMode: mode,
+			lastActiveSketchId: sketchId,
+			panelSizes: splitPanelSizes,
+			updatedAt: timestamp,
+			history: nextHistory,
+		};
+
+		const commit: OfflineCommit = {
+			id: commitId,
+			message: commitMessage.trim(),
+			timestamp,
+			author: authorName,
+			files: [
+				{
+					path: projectFilePath(projectId),
+					content: `${JSON.stringify(project, null, 2)}\n`,
+				},
+				{
+					path: sketchFilePath(projectId, sketchId),
+					content: `${JSON.stringify(scene, null, 2)}\n`,
+				},
+				{
+					path: notesFilePath(projectId),
+					content: nextNotes.endsWith("\n") ? nextNotes : `${nextNotes}\n`,
+				},
+				{
+					path: PROJECTS_METADATA_PATH,
+					content: `${JSON.stringify(projectMetadata, null, 2)}\n`,
+				},
+				{
+					path: `projects/${projectId}/state.json`,
+					content: `${JSON.stringify(nextState, null, 2)}\n`,
+				},
+			],
+		};
+
+		try {
+			await saveOfflineCommit(workspaceId, projectId, commit);
+			setCommitMessage("");
+			setSceneDirty(false);
+			setNotesDirty(false);
+			sceneDirtyRef.current = false;
+			notesDirtyRef.current = false;
+			setStatus("Staged local offline commit");
+			await loadOfflineCommits();
+		} catch (err) {
+			console.error("Failed to stash offline commit:", err);
+			setSaveError("Failed to save local commit draft.");
+		}
+	}, [workspaceId, projectId, sketchId, commitMessage, data, workspace, auth, mode, splitPanelSizes, loadOfflineCommits]);
+
+	const handleSyncOfflineCommits = useCallback(async () => {
+		if (offlineCommits.length === 0 || syncingOffline) return;
+
+		setSyncingOffline(true);
+		setStatus(`Syncing ${offlineCommits.length} local commits`);
+		setSaveError(null);
+
+		try {
+			for (const commit of offlineCommits) {
+				await commitWorkspaceFiles({
+					workspaceId,
+					message: commit.message,
+					files: commit.files,
+				});
+			}
+
+			try {
+				await deleteLocalProject(workspaceId, projectId);
+			} catch (err) {
+				console.warn("Could not delete local staged project from registry:", err);
+			}
+
+			await Promise.all([
+				deleteDraft(currentDraftKey),
+				deleteDraft(currentNotesDraftKey),
+				deleteDraft(currentStateDraftKey),
+			]);
+
+			await clearOfflineCommits(workspaceId, projectId);
+			setOfflineCommits([]);
+			setStatus("Offline commits synced to GitHub");
+			await mutateSketch();
+		} catch (err) {
+			const nextMessage =
+				err instanceof ApiError && err.code?.startsWith("github_")
+					? "GitHub sync needs a fresh connection. Your local commits are safe."
+					: err instanceof Error
+						? err.message
+						: "Sync failed";
+			setSaveError(nextMessage);
+			setStatus("Offline sync paused");
+		} finally {
+			setSyncingOffline(false);
+		}
+	}, [workspaceId, projectId, offlineCommits, syncingOffline, currentDraftKey, currentNotesDraftKey, currentStateDraftKey, mutateSketch]);
+
+	const handleForkClick = useCallback(() => {
+		if (!auth?.authenticated) {
+			void appRef.current.redirectToSignIn();
+			return;
+		}
+		setShowForkModal(true);
+	}, [auth]);
+
+	const handleForkSubmit = useCallback(async () => {
+		if (!targetWorkspaceId || !targetProjectSlug || forking) return;
+
+		setForking(true);
+		setForkError(null);
+
+		try {
+			const response = await fetch(`/api/workspaces/${encodeURIComponent(targetWorkspaceId)}/projects`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					mode: "fork",
+					sourceWorkspaceId: workspaceId,
+					sourceProjectId: projectId,
+					targetProjectId: targetProjectSlug,
+				}),
+			});
+
+			if (!response.ok) {
+				const errBody = (await response.json().catch(() => ({}))) as any;
+				throw new Error(errBody.error?.message || "Failed to fork project");
+			}
+
+			const resJson = await response.json();
+			setShowForkModal(false);
+			
+			// Redirect to target forked project editor page
+			window.location.href = `/app/workspaces/${encodeURIComponent(targetWorkspaceId)}/projects/${encodeURIComponent(targetProjectSlug)}/sketches/${encodeURIComponent(sketchId)}`;
+		} catch (err) {
+			console.error("Fork failed:", err);
+			setForkError(err instanceof Error ? err.message : "Cloning project failed.");
+		} finally {
+			setForking(false);
+		}
+	}, [targetWorkspaceId, targetProjectSlug, forking, workspaceId, projectId, sketchId]);
+
+	useEffect(() => {
+		if (workspacesData?.workspaces && workspacesData.workspaces.length > 0 && !targetWorkspaceId) {
+			setTargetWorkspaceId(workspacesData.workspaces[0].id);
+		}
+	}, [workspacesData, targetWorkspaceId]);
+
 	const title = humanizeSlug(sketchId);
 	const subtitle = data
 		? `${data.workspace.repoOwner}/${data.workspace.repoName} · projects/${projectId}`
@@ -835,7 +1045,7 @@ export function EditorClient({
 	const loading = authLoading || sketchLoading || !mounted;
 	const error = loadError || (sketchError instanceof Error ? sketchError.message : null);
 	const dirty = sceneDirty || notesDirty;
-	const panelLayout = mode === "libraries" || mode === "history"
+	const panelLayout = mode === "libraries" || mode === "history" || mode === "source-control"
 		? {
 				canvas: "64%",
 				side: "36%",
@@ -901,7 +1111,7 @@ export function EditorClient({
 					if (api && resolvedTheme) {
 						const appState = api.getAppState();
 						const currentBg = appState.viewBackgroundColor;
-						const targetBg = resolvedTheme === "dark" ? "#1a1a1a" : "#ffffff";
+						const targetBg = resolvedTheme === "dark" ? "#121212" : "#ffffff";
 						if (currentBg !== targetBg && (currentBg === "#ffffff" || currentBg === "#121212" || currentBg === "#1a1a1a" || !currentBg)) {
 							api.updateScene({
 								appState: { viewBackgroundColor: targetBg }
@@ -910,9 +1120,10 @@ export function EditorClient({
 					}
 				}}
 				theme={resolvedTheme === "dark" ? "dark" : "light"}
+				viewModeEnabled={!isOwner}
 				UIOptions={{
 					tools: {
-						image: true,
+						image: isOwner,
 					},
 				}}
 			/>
@@ -948,7 +1159,123 @@ export function EditorClient({
 				documentKey={currentNotesDraftKey}
 				markdown={notes}
 				onMarkdownChange={handleNotesChange}
+				readOnly={!isOwner}
 			/>
+		</div>
+	);
+
+	const sourceControlPanel = (
+		<div className="flex h-full min-h-0 flex-col border-l bg-card">
+			<div className="flex h-12 shrink-0 items-center justify-between border-b px-4">
+				<div className="flex min-w-0 items-center gap-2">
+					<GitBranch className="size-4 text-[#58CC02]" />
+					<div className="min-w-0">
+						<div className="truncate text-sm font-extrabold text-foreground">Source Control</div>
+						<div className="truncate text-xs font-semibold text-muted-foreground">
+							{activeWorkspace?.repoOwner}/{activeWorkspace?.repoName}
+						</div>
+					</div>
+				</div>
+				<div className="flex items-center gap-2">
+					<Badge variant={isOnline ? "default" : "secondary"}>
+						{isOnline ? "Online" : "Offline"}
+					</Badge>
+					{offlineCommits.length > 0 && isOnline && (
+						<Button 
+							size="xs" 
+							className="h-6 bg-[#58CC02] hover:bg-[#46a302] text-white rounded-md font-bold px-2 flex items-center gap-1 shadow-sm"
+							onClick={handleSyncOfflineCommits}
+							disabled={syncingOffline}
+						>
+							{syncingOffline ? (
+								<Loader2 className="size-3 animate-spin" />
+							) : (
+								<GitBranch className="size-3" />
+							)}
+							Sync ({offlineCommits.length})
+						</Button>
+					)}
+				</div>
+			</div>
+
+			<div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+				{/* Commit Box */}
+				<div className="rounded-xl border border-border/80 bg-muted/10 p-3 space-y-3">
+					<div className="text-xs font-bold text-foreground">Commit Changes</div>
+					<textarea
+						className="w-full h-16 rounded-lg border border-input bg-background px-3 py-2 text-xs font-semibold shadow-inner focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+						placeholder="Message (staged changes will be committed)"
+						value={commitMessage}
+						onChange={(e) => setCommitMessage(e.target.value)}
+					/>
+					<Button 
+						disabled={(!sceneDirty && !notesDirty) || !commitMessage.trim()}
+						onClick={handleOfflineCommit}
+						size="sm"
+						className="w-full rounded-lg font-bold"
+					>
+						Commit {isOnline ? "(Local)" : "(Offline)"}
+					</Button>
+				</div>
+
+				{/* Staged Changes List */}
+				<div className="space-y-2">
+					<div className="text-xs font-bold text-muted-foreground flex justify-between">
+						<span>CHANGES</span>
+						<span>{((sceneDirty ? 1 : 0) + (notesDirty ? 1 : 0))}</span>
+					</div>
+					<div className="space-y-1">
+						{sceneDirty && (
+							<div className="flex items-center justify-between text-xs font-semibold px-2 py-1.5 rounded-lg hover:bg-muted/30">
+								<span className="truncate text-foreground max-w-[80%] font-mono">
+									projects/{projectId}/sketches/{sketchId}.excalidraw.json
+								</span>
+								<Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] font-bold">M</Badge>
+							</div>
+						)}
+						{notesDirty && (
+							<div className="flex items-center justify-between text-xs font-semibold px-2 py-1.5 rounded-lg hover:bg-muted/30">
+								<span className="truncate text-foreground max-w-[80%] font-mono">
+									projects/{projectId}/docs/notes.md
+								</span>
+								<Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] font-bold">M</Badge>
+							</div>
+						)}
+						{!sceneDirty && !notesDirty && (
+							<div className="text-xs font-semibold text-muted-foreground text-center py-2 italic">
+								No unstaged modifications
+							</div>
+						)}
+					</div>
+				</div>
+
+				{/* Sync Queue (Commits pending push) */}
+				<div className="space-y-2 pt-2 border-t">
+					<div className="text-xs font-bold text-muted-foreground flex justify-between">
+						<span>PENDING SYNC QUEUE</span>
+						<span>{offlineCommits.length}</span>
+					</div>
+					<div className="space-y-2">
+						{offlineCommits.map((commit, i) => (
+							<div key={commit.id} className="rounded-lg border bg-muted/20 p-2.5 space-y-1.5 text-xs font-semibold">
+								<div className="flex items-start justify-between gap-2">
+									<div className="text-foreground font-bold truncate">{commit.message}</div>
+									<div className="text-[10px] text-muted-foreground shrink-0 select-none">#{i + 1}</div>
+								</div>
+								<div className="flex justify-between items-center text-[10px] text-muted-foreground">
+									<span>{commit.author}</span>
+									<span>{new Date(commit.timestamp).toLocaleTimeString()}</span>
+								</div>
+							</div>
+						))}
+						{offlineCommits.length === 0 && (
+							<div className="text-xs font-semibold text-muted-foreground text-center py-2 italic">
+								Sync queue is empty
+							</div>
+						)}
+					</div>
+				</div>
+			</div>
 		</div>
 	);
 	const libraryPanel = (
@@ -1090,6 +1417,23 @@ export function EditorClient({
 							<Clock className="size-3.5" />
 							<span className="hidden md:inline ml-1">History</span>
 						</Button>
+						{isOwner && (
+							<Button
+								variant="ghost"
+								size="xs"
+								onClick={() => setEditorMode("source-control")}
+								className={cn(
+									"h-7 rounded-md px-2 md:px-2.5 text-xs font-bold transition-all",
+									mode === "source-control"
+										? "bg-card text-foreground shadow-sm border border-border/50"
+										: "text-muted-foreground hover:text-foreground hover:bg-transparent"
+								)}
+								title="Source Control"
+							>
+								<GitBranch className="size-3.5" />
+								<span className="hidden md:inline ml-1">Source Control</span>
+							</Button>
+						)}
 					</div>
 
 					<div className="hidden items-center gap-1.5 text-xs font-semibold text-muted-foreground sm:flex">
@@ -1119,14 +1463,21 @@ export function EditorClient({
 						)}
 					</div>
 
-					<Button disabled={!hasScene || saving || (!dirty && !!data)} onClick={handleManualSave} size="sm" className="h-8 py-0 px-3.5 rounded-xl font-bold transition-all shadow-sm">
-						{saving ? (
-							<Loader2 className="size-4 animate-spin" />
-						) : (
-							<Save className="size-4" />
-						)}
-						Save
-					</Button>
+					{isOwner ? (
+						<Button disabled={!hasScene || saving || (!dirty && !!data)} onClick={handleManualSave} size="sm" className="h-8 py-0 px-3.5 rounded-xl font-bold transition-all shadow-sm">
+							{saving ? (
+								<Loader2 className="size-4 animate-spin" />
+							) : (
+								<Save className="size-4" />
+							)}
+							Save
+						</Button>
+					) : (
+						<Button onClick={handleForkClick} size="sm" className="h-8 py-0 px-3.5 rounded-xl font-bold transition-all bg-[#CE82FF] hover:bg-[#b86ce6] text-white shadow-sm flex items-center gap-1.5 border-none">
+							<GitBranch className="size-4 rotate-180" />
+							Fork
+						</Button>
+					)}
 				</div>
 			</header>
 
@@ -1203,13 +1554,82 @@ export function EditorClient({
 									style={{ width: `${mode === "split" ? splitPanelSizes[1] : sidePanelSizes[1]}%` }}
 									className="h-full min-h-0 overflow-hidden"
 								>
-									{mode === "libraries" ? libraryPanel : mode === "history" ? historyPanel : docsPanel}
+									{mode === "libraries" ? libraryPanel : mode === "history" ? historyPanel : mode === "source-control" ? sourceControlPanel : docsPanel}
 								</div>
 							</div>
 						)}
 					</div>
 				) : null}
 			</section>
+
+			{/* Fork Modal */}
+			{showForkModal && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200" onClick={() => setShowForkModal(false)}>
+					<div className="relative w-full max-w-md rounded-2xl border-2 border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<Button 
+							variant="ghost" 
+							size="icon-xs" 
+							className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"
+							onClick={() => setShowForkModal(false)}
+						>
+							<X className="size-4" />
+						</Button>
+						<div className="flex items-center gap-2 mb-4">
+							<GitBranch className="size-5 text-[#CE82FF]" />
+							<h2 className="text-lg font-extrabold text-foreground">Fork Project</h2>
+						</div>
+						<p className="text-xs font-semibold text-muted-foreground mb-4">
+							Copy this public project docs and drawing board into one of your workspaces.
+						</p>
+						<div className="space-y-4">
+							<div>
+								<label className="block text-xs font-bold text-foreground mb-1.5">Destination Workspace</label>
+								<select 
+									className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
+									value={targetWorkspaceId}
+									onChange={(e) => setTargetWorkspaceId(e.target.value)}
+								>
+									<option value="">Select a workspace...</option>
+									{workspacesData?.workspaces?.map((ws) => (
+										<option key={ws.id} value={ws.id}>
+											{ws.repoOwner}/{ws.repoName} ({ws.visibility})
+										</option>
+									))}
+								</select>
+							</div>
+							<div>
+								<label className="block text-xs font-bold text-foreground mb-1.5">Project Name / Slug</label>
+								<input 
+									type="text"
+									className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
+									value={targetProjectSlug}
+									onChange={(e) => setTargetProjectSlug(slugify(e.target.value))}
+									placeholder="e.g. system-map"
+								/>
+							</div>
+							{forkError && (
+								<div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
+									{forkError}
+								</div>
+							)}
+							<div className="flex justify-end gap-2 pt-2">
+								<Button variant="ghost" size="sm" onClick={() => setShowForkModal(false)}>
+									Cancel
+								</Button>
+								<Button 
+									disabled={forking || !targetWorkspaceId || !targetProjectSlug}
+									onClick={handleForkSubmit} 
+									size="sm" 
+									className="bg-[#CE82FF] hover:bg-[#b86ce6] text-white font-bold"
+								>
+									{forking ? <Loader2 className="size-4 animate-spin mr-1.5" /> : null}
+									Fork Project
+								</Button>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
 		</main>
 	);
 }

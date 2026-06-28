@@ -10,7 +10,7 @@ import {
 } from "@/lib/project-metadata";
 import { GITHUB_REST_API_VERSION, SKETCHFLOW_APP_URL } from "@/lib/config";
 import { hasLocalGithubToken, normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
-import { getWorkspace, recordSyncEvent, updateWorkspaceCommit, upsertWorkspace } from "@/server/db/repositories";
+import { getWorkspace, getWorkspacePublic, recordSyncEvent, updateWorkspaceCommit, upsertWorkspace } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
 import {
 	GithubApiError,
@@ -496,6 +496,158 @@ export async function POST(
 			);
 			eventType = "project_created";
 			message = `Create ${project.title}`;
+		} else if (optionalString(body, "mode") === "fork") {
+			const sourceWorkspaceId = optionalString(body, "sourceWorkspaceId");
+			const sourceProjectId = optionalString(body, "sourceProjectId");
+
+			if (!sourceWorkspaceId || !sourceProjectId) {
+				throw new BadRequestError("Expected sourceWorkspaceId and sourceProjectId");
+			}
+
+			const targetProjectId = validateGithubPathSegment(optionalString(body, "targetProjectId") || sourceProjectId);
+
+			const existing = result.projects.find((project) => project.id === targetProjectId);
+			if (existing) {
+				throw new BadRequestError(`Project "${targetProjectId}" already exists in this workspace`);
+			}
+
+			// 1. Fetch source workspace
+			const sourceWorkspace = await getWorkspacePublic(sourceWorkspaceId);
+			if (!sourceWorkspace) {
+				throw new NotFoundError("Source workspace not found");
+			}
+
+			// 2. Validate source visibility
+			if (sourceWorkspace.visibility !== "public") {
+				throw new BadRequestError("Cannot fork a private workspace");
+			}
+
+			// 3. Load source project files from public GitHub API
+			const base = {
+				owner: sourceWorkspace.repoOwner,
+				repo: sourceWorkspace.repoName,
+				ref: sourceWorkspace.defaultBranch,
+			};
+
+			const sourceProjectFile = await readPublicOptionalJson({ ...base, path: `projects/${sourceProjectId}/project.json` });
+			if (!sourceProjectFile) {
+				throw new NotFoundError("Source project file not found in repository");
+			}
+
+			const sourceProjectJson = sourceProjectFile.json as any;
+			const sourceSketches = Array.isArray(sourceProjectJson.sketches) ? sourceProjectJson.sketches : [];
+
+			// Read sketches contents
+			const sketchFiles = await Promise.all(
+				sourceSketches.map(async (sketch: any) => {
+					const sketchContent = await readPublicOptionalJson({
+						...base,
+						path: `projects/${sourceProjectId}/sketches/${sketch.id}.excalidraw.json`,
+					});
+					return {
+						id: sketch.id,
+						title: sketch.title,
+						path: sketchFilePath(targetProjectId, sketch.id),
+						content: JSON.stringify(sketchContent?.json || {
+							type: "excalidraw",
+							version: 2,
+							source: SKETCHFLOW_APP_URL,
+							elements: [],
+							appState: { viewBackgroundColor: "#ffffff" },
+							files: {},
+						}, null, 2) + "\n",
+					};
+				})
+			);
+
+			// Read notes
+			const notesUrl = `https://raw.githubusercontent.com/${encodeURIComponent(sourceWorkspace.repoOwner)}/${encodeURIComponent(
+				sourceWorkspace.repoName,
+			)}/${encodeURIComponent(sourceWorkspace.defaultBranch)}/projects/${sourceProjectId}/docs/notes.md`;
+			const notesResponse = await publicGithubFetch(notesUrl);
+			const sourceNotes = notesResponse.ok ? await notesResponse.text() : `# ${sourceProjectJson.title}\n`;
+
+			// Read state
+			const sourceStateFile = await readPublicOptionalJson({ ...base, path: `projects/${sourceProjectId}/state.json` });
+			const sourceStateJson = sourceStateFile?.json as any;
+
+			// 4. Create files for target workspace commit
+			const now = new Date().toISOString();
+			const targetVisibility = workspace.visibility; // Target project inherits target workspace visibility
+
+			const projectFileContent = {
+				schemaVersion: 1,
+				id: targetProjectId,
+				title: sourceProjectJson.title,
+				description: sourceProjectJson.description || `Forked from ${sourceWorkspace.repoOwner}/${sourceWorkspace.repoName}/${sourceProjectId}`,
+				visibility: targetVisibility,
+				createdAt: now,
+				updatedAt: now,
+				projectFile: projectFilePath(targetProjectId),
+				defaultSketch: sourceProjectJson.defaultSketch ? sketchFilePath(targetProjectId, sourceProjectJson.defaultSketch.split("/").pop().replace(".excalidraw.json", "")) : sketchFilePath(targetProjectId, "system-map"),
+				sketches: sourceSketches.map((sk: any) => ({
+					id: sk.id,
+					title: sk.title,
+					file: sketchFilePath(targetProjectId, sk.id),
+				})),
+				docs: {
+					notes: notesFilePath(targetProjectId),
+				},
+				sharing: {
+					enabled: targetVisibility === "public",
+					embed: targetVisibility === "public",
+				},
+			};
+
+			const targetState = {
+				viewMode: sourceStateJson?.viewMode || "split",
+				lastActiveSketchId: sourceStateJson?.lastActiveSketchId || "system-map",
+				panelSizes: sourceStateJson?.panelSizes || [50, 50],
+				updatedAt: now,
+				history: [
+					{
+						action: `Forked from ${sourceWorkspace.repoOwner}/${sourceWorkspace.repoName}`,
+						user: user.displayName || user.primaryEmail || "System",
+						timestamp: now,
+					},
+				],
+			};
+
+			files.push(
+				{
+					path: projectFilePath(targetProjectId),
+					content: JSON.stringify(projectFileContent, null, 2) + "\n",
+				},
+				{
+					path: notesFilePath(targetProjectId),
+					content: sourceNotes,
+				},
+				{
+					path: `projects/${targetProjectId}/state.json`,
+					content: JSON.stringify(targetState, null, 2) + "\n",
+				},
+				...sketchFiles.map((sf) => ({
+					path: sf.path,
+					content: sf.content,
+				}))
+			);
+
+			// Read target workspace metadata to merge
+			metadata = buildProjectsMetadata({
+				projects: [
+					projectFromProjectJson({
+						projectId: targetProjectId,
+						projectJson: projectFileContent,
+						fallbackVisibility: targetVisibility,
+					}),
+					...result.projects.filter((p) => p.id !== targetProjectId),
+				],
+				workspace: workspaceMetadata,
+				now,
+			});
+
+			eventType = "project_forked";
+			message = `Fork project ${sourceProjectId} into ${targetProjectId}`;
 		} else {
 			metadata = buildProjectsMetadata({
 				projects: result.projects,

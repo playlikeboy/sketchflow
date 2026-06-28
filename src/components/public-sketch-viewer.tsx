@@ -50,7 +50,7 @@ function toInitialData(scene: SketchScene, resolvedTheme?: string): ExcalidrawIn
     appState: {
       ...scene.appState,
       viewBackgroundColor: isDark && (scene.appState?.viewBackgroundColor === "#ffffff" || !scene.appState?.viewBackgroundColor)
-        ? "#1a1a1a"
+        ? "#121212"
         : scene.appState?.viewBackgroundColor ?? "#ffffff",
     } as ExcalidrawInitialDataState["appState"],
     files: scene.files as ExcalidrawInitialDataState["files"],
