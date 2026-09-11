@@ -1,103 +1,149 @@
 # Contributing to Sketchflow
 
-Thanks for helping build Sketchflow. The project is early, so contributions should keep the product simple, fast, and user-owned.
+Thank you for your interest in contributing to **Sketchflow**! We welcome contributions from builders of all skill levels, especially during **Hacktoberfest** and open-source sprints.
 
-## Setup
+Sketchflow is an open-source, GitHub-native visual workspace combining an Excalidraw canvas, BlockNote markdown documentation, public sharing, and repo-backed versioning.
 
+---
+
+## 🎃 Hacktoberfest Participation
+
+Sketchflow proudly participates in **Hacktoberfest**!
+
+- Look for issues tagged [`hacktoberfest`](https://github.com/SH20RAJ/sketch-flow/labels/hacktoberfest), [`good first issue`](https://github.com/SH20RAJ/sketch-flow/labels/good%20first%20issue), and [`help wanted`](https://github.com/SH20RAJ/sketch-flow/labels/help%20wanted).
+- Quality contributions are valued over quantity. Please avoid spam PRs (e.g. whitespace edits, trivial typos).
+- All approved and merged pull requests that adhere to our standards will be tagged with `hacktoberfest-accepted`.
+- Feel free to open an issue or propose improvements in discussions before starting large changes.
+
+---
+
+## 🚀 Quickstart & Setup
+
+### Prerequisites
+- [Bun](https://bun.sh/) (v1.1+ recommended)
+- [Git](https://git-scm.com/)
+- [Node.js](https://nodejs.org/) (v20+ recommended for tooling compatibility)
+
+### 1. Fork and Clone
+```bash
+git clone https://github.com/<your-username>/sketch-flow.git
+cd sketch-flow
+git remote add upstream https://github.com/SH20RAJ/sketch-flow.git
+```
+
+### 2. Install Dependencies
 ```bash
 bun install
+```
+
+### 3. Setup Environment
+```bash
 cp .env.example .env.local
 cp .dev.vars.example .dev.vars
+```
+
+Edit `.env.local` with your development keys. Required development variables:
+```env
+NEXT_PUBLIC_STACK_PROJECT_ID=...
+NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY=...
+STACK_SECRET_SERVER_KEY=...
+DATABASE_URL=postgresql://...
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+GITHUB_API_VERSION=2022-11-28
+GITHUB_OAUTH_SCOPES=repo,read:user,user:email
+SKETCHFLOW_REPO_NAME=sketchflow-workspace
+SKETCHFLOW_DEFAULT_BRANCH=main
+```
+
+### 4. Run Development Server
+```bash
 bun run dev
 ```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Open <http://localhost:3000>.
+---
 
-## Environment
+## 🏗️ Architecture & Philosophy
 
-Do not commit secrets. Local files such as `.env.local` and `.dev.vars` are ignored and should stay local.
+Sketchflow adheres to one central design principle:
+> **GitHub owns the durable files. Sketchflow owns the fast, offline-first editing experience.**
 
-Required local values:
+1. **User-Owned Data**: Sketch scene files (`.excalidraw.json`), documentation (`notes.md`), project metadata, and assets live exclusively in the user's GitHub repository.
+2. **Minimal Database**: Postgres (via Drizzle ORM and Neon) stores only essential metadata: users, GitHub OAuth connections, workspace pointers, billing metadata, and sync logs. Never store private canvas payloads or PATs in Postgres.
+3. **Offline-First**: Changes write instantly to IndexedDB with 0ms latency. Sync to GitHub happens asynchronously in batched, atomic multi-file commits.
+4. **Contrast & Theme Engine**: Always ensure Excalidraw stroke colors and canvas backgrounds maintain strong contrast in both dark (`#121212`) and light (`#ffffff`) modes.
 
-```txt
-NEXT_PUBLIC_STACK_PROJECT_ID
-NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY
-STACK_SECRET_SERVER_KEY
-DATABASE_URL
-NEXT_PUBLIC_APP_URL
-GITHUB_API_VERSION
-GITHUB_OAUTH_SCOPES
-SKETCHFLOW_REPO_NAME
-SKETCHFLOW_DEFAULT_BRANCH
-```
+---
 
-## Architecture Rules
+## 🌿 Git & Branch Workflow
 
-- GitHub repos are the durable source of truth for sketches, docs, exports, assets, metadata, and public project pages.
-- Postgres stores only users, GitHub connection metadata, workspace pointers, billing metadata, and sync events.
-- Use Drizzle for schema and database queries.
-- Use IndexedDB for instant local drafts.
-- Use batched GitHub commits for snapshots.
-- Do not commit every canvas stroke.
-- Do not serve private or mutable live data through jsDelivr.
+1. Create a descriptive feature branch from `main`:
+   ```bash
+   git checkout -b feat/canvas-minimap
+   # or
+   git checkout -b fix/theme-contrast
+   ```
+2. Commit your changes using [Conventional Commits](https://www.conventionalcommits.org/):
+   - `feat: add export to PNG option`
+   - `fix: resolve stroke contrast on dark canvas`
+   - `docs: update deployment instructions in README`
+   - `refactor: optimize IndexedDB cache queries`
+   - `perf: streamline git tree payload transfer`
 
-## Frontend Rules
+---
 
-- Keep the app minimal, dense, and work-focused.
-- Use Tailwind CSS, shadcn UI primitives, and lucide-react icons.
-- Use Excalidraw only in client-rendered components.
-- Use BlockNote for project docs editing.
-- Use SWR for client API data and active revalidation.
-- Keep workspace/project views scoped to the signed-in user id.
+## 💅 Code Guidelines
 
-## Database Workflow
+- **TypeScript**: Strict typing is enabled. Avoid `any` where possible; use well-defined types or discriminated unions.
+- **Styling**: Use Tailwind CSS v4 and vanilla CSS. Do not introduce foreign component libraries without discussion.
+- **Icons**: Use `lucide-react`.
+- **Canvas Components**: Use `@excalidraw/excalidraw` only in client components (`"use client"` and dynamic imports).
+- **UI Mood**: Keep the user interface calm, dense, and work-focused (Linear, Notion, GitHub, and Excalidraw mood). Avoid loud, cluttering explanatory banners on active workspace pages.
 
-```bash
-bun run db:push      # development schema push
-bun run db:generate  # generate migrations when needed
-bun run db:migrate   # apply generated migrations
-```
+---
 
-Run `bun run db:push` only when schema changes are intentional.
+## 🧪 Verification & Testing
 
-## Checks
-
-Before handoff or PR:
+Before submitting a Pull Request, run the automated verification checks:
 
 ```bash
+# 1. Typecheck the entire codebase
 bunx tsc --noEmit
+
+# 2. Verify production bundle build
 bun run build
-```
 
-If schema changed:
-
-```bash
+# 3. If you modified database schemas in src/server/db/schema.ts:
 bun run db:push
 ```
 
-## Pull Requests
+All commands must exit with code `0` before PR review.
 
-Include:
+---
 
-- What changed.
-- How it was tested.
-- Any API, schema, or repo-file format changes.
-- Any follow-up work.
+## 📥 Submitting a Pull Request
 
-## Security
+1. Push your branch to your fork:
+   ```bash
+   git push origin feat/your-feature-name
+   ```
+2. Open a Pull Request against the `main` branch of `SH20RAJ/sketch-flow`.
+3. Fill out the PR template completely:
+   - What problem does this solve?
+   - What changes were made?
+   - How was it tested?
+   - Screenshots/GIFs for UI changes.
+4. Maintain a clean commit history. Rebase against `upstream/main` if conflicts arise.
 
-- Never commit tokens, PATs, OAuth secrets, Stack Auth secrets, database URLs, or Cloudflare tokens.
-- Rotate leaked secrets immediately.
-- Prefer Stack Auth GitHub OAuth.
-- Browser-stored GitHub tokens are allowed only as a user-controlled local fallback.
-- Do not log access tokens or include them in sync events.
+---
 
-## Issues
+## 🛡️ Security & Responsible Disclosure
 
-When reporting a bug, include:
+- **Never commit secrets**: Check that `.env*`, `.dev.vars`, tokens, database URLs, and PATs are never tracked by git.
+- If you discover a security vulnerability, please do NOT open a public issue. Email [shaswatraj2002@gmail.com](mailto:shaswatraj2002@gmail.com) directly.
 
-- Expected behavior.
-- Actual behavior.
-- Steps to reproduce.
-- Browser and OS.
-- Relevant workspace/project URL, if safe to share.
+---
+
+## 📜 Code of Conduct
+
+All contributors are expected to uphold our [Code of Conduct](./CODE_OF_CONDUCT.md). Please treat fellow community members with kindness and respect.

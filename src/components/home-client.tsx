@@ -430,7 +430,16 @@ export function HomeClient() {
 
 			<footer className="border-t">
 				<div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-xs font-bold text-muted-foreground sm:px-8">
-					<span>Sketchflow</span>
+					<div className="flex items-center gap-3">
+						<span>Sketchflow · Open Source</span>
+						<Link
+							href="https://github.com/SH20RAJ/sketch-flow"
+							target="_blank"
+							className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-extrabold text-amber-500 hover:bg-amber-500/20 transition-colors"
+						>
+							🎃 Hacktoberfest
+						</Link>
+					</div>
 					<div className="flex items-center gap-4">
 						<a href={SKETCHFLOW_APP_URL} className="hover:text-foreground">
 							sketchflow.space
