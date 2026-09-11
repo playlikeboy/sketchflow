@@ -44,7 +44,7 @@ export function normalizeScene(scene: Partial<SketchScene> | null | undefined): 
 		source: scene?.source ?? SKETCHFLOW_APP_URL,
 		elements: Array.isArray(scene?.elements) ? scene.elements : [],
 		appState: {
-			viewBackgroundColor: "#ffffff",
+			viewBackgroundColor: "#000000",
 			...(scene?.appState ?? {}),
 		},
 		files: scene?.files ?? {},

@@ -587,7 +587,7 @@ export function buildInitialWorkspaceFiles(input: {
 					source: input.appUrl,
 					elements: [],
 					appState: {
-						viewBackgroundColor: "#ffffff",
+						viewBackgroundColor: "#000000",
 					},
 					files: {},
 				},

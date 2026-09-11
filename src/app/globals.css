@@ -117,49 +117,49 @@
   --sidebar-ring: #58cc02;
 }
 
-/* ===== DARK MODE (Duolingo-inspired warm dark) ===== */
+/* ===== DARK MODE (True Black OLED Minimal) ===== */
 .dark {
   --radius: 1rem;
-  --background: #1a1a1a;
-  --foreground: #f0f0f0;
-  --card: #262626;
-  --card-foreground: #f0f0f0;
-  --popover: #262626;
-  --popover-foreground: #f0f0f0;
+  --background: #000000;
+  --foreground: #f5f5f5;
+  --card: #0a0a0a;
+  --card-foreground: #f5f5f5;
+  --popover: #0a0a0a;
+  --popover-foreground: #f5f5f5;
   --primary: #58cc02;
   --primary-foreground: #ffffff;
-  --secondary: #2e2e2e;
+  --secondary: #141414;
   --secondary-foreground: #e0e0e0;
-  --muted: #2e2e2e;
-  --muted-foreground: #afafaf;
-  --accent: #333333;
-  --accent-foreground: #e0e0e0;
+  --muted: #141414;
+  --muted-foreground: #a0a0a0;
+  --accent: #1e1e1e;
+  --accent-foreground: #ffffff;
   --destructive: #ff4b4b;
   --destructive-foreground: #ffffff;
-  --border: #3a3a3a;
-  --input: #3a3a3a;
+  --border: #222222;
+  --input: #222222;
   --ring: #58cc02;
   --chart-1: #58cc02;
   --chart-2: #1cb0f6;
   --chart-3: #ffc800;
   --chart-4: #ce82ff;
   --chart-5: #ff9600;
-  --sidebar: #1e1e1e;
-  --sidebar-foreground: #e0e0e0;
+  --sidebar: #000000;
+  --sidebar-foreground: #f0f0f0;
   --sidebar-primary: #58cc02;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #2e2e2e;
-  --sidebar-accent-foreground: #e0e0e0;
-  --sidebar-border: #333333;
+  --sidebar-accent: #141414;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #202020;
   --sidebar-ring: #58cc02;
 
   /* Dark-mode overrides for Duolingo neutral tokens */
-  --duo-eel: #e0e0e0;
-  --duo-wolf: #afafaf;
-  --duo-hare: #777777;
-  --duo-swan: #3a3a3a;
-  --duo-polar: #2e2e2e;
-  --duo-snow: #262626;
+  --duo-eel: #f0f0f0;
+  --duo-wolf: #a0a0a0;
+  --duo-hare: #666666;
+  --duo-swan: #2a2a2a;
+  --duo-polar: #141414;
+  --duo-snow: #0a0a0a;
 }
 
 @layer base {
@@ -295,6 +295,34 @@
   --color-primary: #58cc02;
   --color-primary-darker: #46a302;
   --color-primary-darkest: #3c8f00;
+}
+
+.dark .excalidraw,
+.excalidraw.theme--dark {
+  --theme-filter: none !important;
+  --default-bg-color: #000000 !important;
+  --island-bg-color: #121212 !important;
+  --color-surface-low: #121212 !important;
+  --color-surface-lowest: #080808 !important;
+  --color-surface-mid: #1c1c1c !important;
+  --color-surface-high: #242424 !important;
+  --button-gray-1: #1e1e1e !important;
+  --button-gray-2: #282828 !important;
+  --button-gray-3: #323232 !important;
+  --border-color: #222222 !important;
+}
+
+.dark .excalidraw canvas,
+.excalidraw.theme--dark canvas {
+  filter: none !important;
+  background-color: #000000 !important;
+}
+
+.dark .excalidraw .color-picker-label-swatch,
+.excalidraw.theme--dark .color-picker-label-swatch,
+.dark .excalidraw .excalidraw-eye-dropper-preview,
+.excalidraw.theme--dark .excalidraw-eye-dropper-preview {
+  filter: none !important;
 }
 
 .sketchflow-doc-editor {

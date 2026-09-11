@@ -291,7 +291,7 @@ export function ProjectsHomeClient() {
 						version: 2,
 						source: "https://sketchflow.space",
 						elements: [],
-						appState: { viewBackgroundColor: "#ffffff" },
+						appState: { viewBackgroundColor: "#000000" },
 						files: {},
 					},
 					updatedAt: now,

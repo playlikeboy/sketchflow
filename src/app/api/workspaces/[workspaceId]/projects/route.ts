@@ -476,7 +476,7 @@ export async function POST(
 							source: SKETCHFLOW_APP_URL,
 							elements: [],
 							appState: {
-								viewBackgroundColor: "#ffffff",
+								viewBackgroundColor: "#000000",
 							},
 							files: {},
 						},
@@ -576,7 +576,7 @@ export async function POST(
 							version: 2,
 							source: SKETCHFLOW_APP_URL,
 							elements: [],
-							appState: { viewBackgroundColor: "#ffffff" },
+							appState: { viewBackgroundColor: "#000000" },
 							files: {},
 						}, null, 2) + "\n",
 					};

@@ -59,7 +59,7 @@ function emptySketch() {
 		source: SKETCHFLOW_APP_URL,
 		elements: [],
 		appState: {
-			viewBackgroundColor: "#ffffff",
+			viewBackgroundColor: "#000000",
 		},
 		files: {},
 	};

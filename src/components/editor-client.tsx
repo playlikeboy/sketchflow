@@ -187,7 +187,7 @@ function ensureVisibleStrokeColors(elements: readonly any[], isDark: boolean): a
 
 function toInitialData(scene: SketchScene, resolvedTheme?: string, libraryItems?: LibraryItems): ExcalidrawInitialDataState {
 	const isDark = (resolvedTheme ?? "dark") === "dark";
-	const targetBg = isDark ? "#121212" : "#ffffff";
+	const targetBg = isDark ? "#000000" : "#ffffff";
 	const targetStroke = isDark ? "#ffffff" : "#1e1e1e";
 	const elements = ensureVisibleStrokeColors(scene.elements || [], isDark);
 
@@ -199,7 +199,9 @@ function toInitialData(scene: SketchScene, resolvedTheme?: string, libraryItems?
 		sceneBg === "#121212" ||
 		sceneBg === "#1a1a1a" ||
 		sceneBg === "#000000" ||
-		sceneBg === "#f8f9fa";
+		sceneBg === "#000" ||
+		sceneBg === "#f8f9fa" ||
+		sceneBg === "transparent";
 
 	const viewBackgroundColor = isDefaultOrNeutralBg ? targetBg : scene.appState?.viewBackgroundColor ?? targetBg;
 
@@ -521,7 +523,7 @@ export function EditorClient({
 		const api = excalidrawApi || excalidrawApiRef.current;
 		if (api && hasScene) {
 			const isDark = (resolvedTheme ?? "dark") === "dark";
-			const targetBg = isDark ? "#121212" : "#ffffff";
+			const targetBg = isDark ? "#000000" : "#ffffff";
 			const targetStroke = isDark ? "#ffffff" : "#1e1e1e";
 			const appState = api.getAppState();
 			const currentBg = (appState.viewBackgroundColor || "").trim().toLowerCase();
@@ -532,7 +534,9 @@ export function EditorClient({
 				currentBg === "#121212" ||
 				currentBg === "#1a1a1a" ||
 				currentBg === "#000000" ||
-				currentBg === "#f8f9fa";
+				currentBg === "#000" ||
+				currentBg === "#f8f9fa" ||
+				currentBg === "transparent";
 
 			const currentElements = api.getSceneElements();
 			const updatedElements = ensureVisibleStrokeColors(currentElements, isDark);
@@ -603,7 +607,7 @@ export function EditorClient({
 					version: 2,
 					source: "https://sketchflow.space",
 					elements: [],
-					appState: { viewBackgroundColor: isDarkDefault ? "#121212" : "#ffffff" },
+					appState: { viewBackgroundColor: isDarkDefault ? "#000000" : "#ffffff" },
 					files: {},
 				};
 				const githubState = nextData?.state;
@@ -1214,7 +1218,7 @@ export function EditorClient({
 					setExcalidrawApi(api);
 					if (api) {
 						const isDark = (resolvedTheme ?? "dark") === "dark";
-						const targetBg = isDark ? "#121212" : "#ffffff";
+						const targetBg = isDark ? "#000000" : "#ffffff";
 						const targetStroke = isDark ? "#ffffff" : "#1e1e1e";
 						const appState = api.getAppState();
 						const currentBg = (appState.viewBackgroundColor || "").trim().toLowerCase();
@@ -1225,8 +1229,10 @@ export function EditorClient({
 							currentBg === "#121212" ||
 							currentBg === "#1a1a1a" ||
 							currentBg === "#000000" ||
-							currentBg === "#f8f9fa";
-						if (isDefaultOrNeutralBg && currentBg !== targetBg) {
+							currentBg === "#000" ||
+							currentBg === "#f8f9fa" ||
+							currentBg === "transparent";
+						if (isDefaultOrNeutralBg && (currentBg !== targetBg || appState.currentItemStrokeColor !== targetStroke)) {
 							const currentElements = api.getSceneElements();
 							const updatedElements = ensureVisibleStrokeColors(currentElements, isDark);
 							api.updateScene({

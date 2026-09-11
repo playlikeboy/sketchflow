@@ -80,7 +80,7 @@ function ensureVisibleStrokeColors(elements: readonly any[], isDark: boolean): a
 
 function toInitialData(scene: SketchScene, resolvedTheme?: string): ExcalidrawInitialDataState {
   const isDark = (resolvedTheme ?? "dark") === "dark";
-  const targetBg = isDark ? "#121212" : "#ffffff";
+  const targetBg = isDark ? "#000000" : "#ffffff";
   const targetStroke = isDark ? "#ffffff" : "#1e1e1e";
   const elements = ensureVisibleStrokeColors(scene.elements || [], isDark);
   const sceneBg = String((scene.appState as any)?.viewBackgroundColor || "").trim().toLowerCase();
@@ -91,7 +91,9 @@ function toInitialData(scene: SketchScene, resolvedTheme?: string): ExcalidrawIn
     sceneBg === "#121212" ||
     sceneBg === "#1a1a1a" ||
     sceneBg === "#000000" ||
-    sceneBg === "#f8f9fa";
+    sceneBg === "#000" ||
+    sceneBg === "#f8f9fa" ||
+    sceneBg === "transparent";
   const viewBackgroundColor = isDefaultOrNeutralBg ? targetBg : scene.appState?.viewBackgroundColor ?? targetBg;
 
   return {

@@ -450,7 +450,7 @@ export function DashboardClient() {
 						source: "https://sketchflow.space",
 						elements: [],
 						appState: {
-							viewBackgroundColor: "#ffffff",
+							viewBackgroundColor: "#000000",
 						},
 						files: {},
 					},
