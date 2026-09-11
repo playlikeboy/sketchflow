@@ -287,6 +287,7 @@ export function EditorClient({
 	const notesDirtyRef = useRef(false);
 	const installedLibrarySourcesRef = useRef<string[]>([]);
 	const sourceRef = useRef<"github" | "local">("github");
+	const hydrateRef = useRef(false);
 	const { data: auth, isLoading: authLoading } = useAuthMe();
 	const { data: githubStatus, mutate: mutateGithubStatus } = useGithubStatus(auth?.user?.id);
 	const { data: workspacesData } = useWorkspaces(auth?.user?.id);
@@ -467,9 +468,16 @@ export function EditorClient({
 	}, [excalidrawApi, resolvedTheme, hasScene]);
 
 	useEffect(() => {
+		hydrateRef.current = false;
+	}, [currentDraftKey]);
+
+	useEffect(() => {
 		let mounted = true;
 
 		async function hydrateFromData(nextData: SketchLoadResponse | null) {
+			if (hydrateRef.current) return;
+			hydrateRef.current = true;
+
 			setLoadError(null);
 			setSaveError(null);
 			setInitialData(null);
@@ -542,8 +550,10 @@ export function EditorClient({
 		}
 
 		if (data) {
+			hydrateRef.current = false;
 			void hydrateFromData(data);
-		} else if (sketchError || (!sketchLoading && !data)) {
+		} else if (!hydrateRef.current) {
+			hydrateRef.current = false;
 			void hydrateFromData(null);
 		}
 
@@ -759,7 +769,7 @@ export function EditorClient({
 			});
 
 			try {
-				await deleteLocalProject(workspaceId, projectId);
+				await deleteLocalProject(workspaceId, projectId, auth?.user?.id);
 			} catch (err) {
 				console.warn("Could not delete local staged project from registry:", err);
 			}
@@ -955,7 +965,7 @@ export function EditorClient({
 			}
 
 			try {
-				await deleteLocalProject(workspaceId, projectId);
+				await deleteLocalProject(workspaceId, projectId, auth?.user?.id);
 			} catch (err) {
 				console.warn("Could not delete local staged project from registry:", err);
 			}
@@ -1042,7 +1052,7 @@ export function EditorClient({
 		: workspace
 			? `${workspace.repoOwner}/${workspace.repoName} · projects/${projectId} (Offline)`
 			: "GitHub-backed visual doc";
-	const loading = authLoading || sketchLoading || !mounted;
+	const loading = authLoading;
 	const error = loadError || (sketchError instanceof Error ? sketchError.message : null);
 	const dirty = sceneDirty || notesDirty;
 	const panelLayout = mode === "libraries" || mode === "history" || mode === "source-control"
@@ -1482,7 +1492,7 @@ export function EditorClient({
 			</header>
 
 			<section className="min-h-0 flex-1 bg-background">
-				{loading ? (
+				{authLoading ? (
 					<div className="grid h-full place-items-center text-sm font-bold text-muted-foreground">
 						<div className="flex items-center gap-2">
 							<Loader2 className="size-4 animate-spin text-[#58CC02]" />

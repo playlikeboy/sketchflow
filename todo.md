@@ -6,3 +6,5 @@ also create a plan for reverting to specific commit only for a project not for w
 improve ux component /;link place,emts landing page, metadata ..text/copy of the website and fix all git  
 
 also users can create online stores.
+
+can you make the app offline first alwAys keep the git sync in bg and optional, make the fast as much as possible because its offline and direct.... loading in bg you can use SWR for thr=e refresh and sync but ypu never has to wait or show loading for github or any api its offline first....

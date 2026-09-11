@@ -2,7 +2,7 @@ const DB_NAME = "sketchflow";
 const DB_VERSION = 1;
 const STORE_NAME = "drafts";
 
-type DraftRecord<T> = {
+export type DraftRecord<T> = {
 	key: string;
 	value: T;
 	updatedAt: string;
@@ -74,29 +74,70 @@ export async function deleteDraft(key: string) {
 	await withDraftStore<undefined>("readwrite", (store) => store.delete(key));
 }
 
-export async function getLocalProjects(workspaceId: string): Promise<any[]> {
-	const result = await getDraft<any[]>(`local-projects:${workspaceId}`);
+function localProjectsKey(workspaceId: string, userId?: string | null) {
+	return userId ? `local-projects:${userId}:${workspaceId}` : `local-projects:${workspaceId}`;
+}
+
+function workspacesKey(userId?: string | null) {
+	return userId ? `workspaces:${userId}` : "workspaces:default";
+}
+
+function projectsCacheKey(workspaceId: string, userId?: string | null) {
+	return userId ? `projects-cache:${userId}:${workspaceId}` : `projects-cache:${workspaceId}`;
+}
+
+export async function getLocalProjects(workspaceId: string, userId?: string | null): Promise<any[]> {
+	const key = localProjectsKey(workspaceId, userId);
+	const result = await getDraft<any[]>(key);
 	return result?.value ?? [];
 }
 
-export async function saveLocalProject(workspaceId: string, project: any) {
-	const existing = await getLocalProjects(workspaceId);
+export async function saveLocalProject(workspaceId: string, project: any, userId?: string | null) {
+	const existing = await getLocalProjects(workspaceId, userId);
 	const updated = [project, ...existing.filter((p: any) => p.id !== project.id)];
-	await setDraft(`local-projects:${workspaceId}`, updated);
+	await setDraft(localProjectsKey(workspaceId, userId), updated);
 }
 
-export async function deleteLocalProject(workspaceId: string, projectId: string) {
-	const existing = await getLocalProjects(workspaceId);
+export async function deleteLocalProject(workspaceId: string, projectId: string, userId?: string | null) {
+	const existing = await getLocalProjects(workspaceId, userId);
 	const updated = existing.filter((p: any) => p.id !== projectId);
-	await setDraft(`local-projects:${workspaceId}`, updated);
+	await setDraft(localProjectsKey(workspaceId, userId), updated);
 }
 
-export async function hasAnyLocalProjects(): Promise<boolean> {
+export async function getOfflineWorkspaces(userId?: string | null): Promise<any[]> {
+	const result = await getDraft<any[]>(workspacesKey(userId));
+	return result?.value ?? [];
+}
+
+export async function saveOfflineWorkspaces(workspaces: any[], userId?: string | null) {
+	await setDraft(workspacesKey(userId), workspaces);
+}
+
+export async function getOfflineProjectsCache(workspaceId: string, userId?: string | null): Promise<any[]> {
+	const result = await getDraft<any[]>(projectsCacheKey(workspaceId, userId));
+	return result?.value ?? [];
+}
+
+export async function saveOfflineProjectsCache(workspaceId: string, projects: any[], userId?: string | null) {
+	await setDraft(projectsCacheKey(workspaceId, userId), projects);
+}
+
+export async function getOfflineModeSetting(): Promise<boolean> {
+	const result = await getDraft<boolean>("settings:offline-mode");
+	return result?.value === true;
+}
+
+export async function setOfflineModeSetting(enabled: boolean) {
+	await setDraft("settings:offline-mode", enabled);
+}
+
+export async function hasAnyLocalProjects(userId?: string | null): Promise<boolean> {
 	if (typeof indexedDB === "undefined") {
 		return false;
 	}
 	try {
 		const db = await openSketchflowDb();
+		const prefix = userId ? `local-projects:${userId}:` : "local-projects:";
 		return new Promise<boolean>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readonly");
 			const store = transaction.objectStore(STORE_NAME);
@@ -105,7 +146,7 @@ export async function hasAnyLocalProjects(): Promise<boolean> {
 			request.onsuccess = (event) => {
 				const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
 				if (cursor) {
-					if (typeof cursor.key === "string" && cursor.key.startsWith("local-projects:")) {
+					if (typeof cursor.key === "string" && cursor.key.startsWith(prefix)) {
 						const list = cursor.value?.value;
 						if (Array.isArray(list) && list.length > 0) {
 							found = true;
@@ -124,6 +165,33 @@ export async function hasAnyLocalProjects(): Promise<boolean> {
 	} catch (e) {
 		console.warn("Error checking local projects in IndexedDB:", e);
 		return false;
+	}
+}
+
+export async function purgeUserCache(userId: string) {
+	if (typeof indexedDB === "undefined" || !userId) return;
+	try {
+		const db = await openSketchflowDb();
+		return new Promise<void>((resolve, reject) => {
+			const transaction = db.transaction(STORE_NAME, "readwrite");
+			const store = transaction.objectStore(STORE_NAME);
+			const request = store.openCursor();
+			request.onsuccess = (event) => {
+				const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+				if (cursor) {
+					if (typeof cursor.key === "string" && cursor.key.includes(userId)) {
+						cursor.delete();
+					}
+					cursor.continue();
+				} else {
+					resolve();
+				}
+			};
+			request.onerror = () => reject(request.error);
+			transaction.oncomplete = () => db.close();
+		});
+	} catch (e) {
+		console.warn("Error purging user cache:", e);
 	}
 }
 

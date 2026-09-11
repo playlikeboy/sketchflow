@@ -31,14 +31,14 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-	createWorkspaceProject,
 	syncWorkspaceProjectsMetadata,
 	ApiError,
 	type Workspace,
 } from "@/lib/api";
 import type { WorkspaceProject } from "@/lib/project-metadata";
 import { slugify, draftKey, humanizeSlug } from "@/lib/sketchflow";
-import { getLocalProjects, saveLocalProject, setDraft } from "@/lib/indexeddb";
+import { saveLocalProject, setDraft } from "@/lib/indexeddb";
+import { queueCreateProject } from "@/lib/sync-manager";
 import {
 	DEFAULT_SKETCH_ID,
 	embedHref,
@@ -50,9 +50,11 @@ import {
 import {
 	useAuthMe,
 	useGithubStatus,
-	useWorkspaceProjects,
-	useWorkspaces,
 } from "@/lib/swr-hooks";
+import {
+	useOfflineWorkspaces,
+	useOfflineWorkspaceProjects,
+} from "@/lib/swr-offline";
 
 function shortSha(value: string | null) {
 	return value ? value.slice(0, 7) : "pending";
@@ -76,7 +78,7 @@ function formatDate(value: string) {
 }
 
 function projectDescription(project: WorkspaceProject) {
-	return project.description || `${project.sketches.length} sketch${project.sketches.length === 1 ? "" : "es"} in this project`;
+	return project.description || `${project.sketches.length} sketch${project.sketches.length === 1 ? "" : "es"}`;
 }
 
 function errorCopy(error: unknown) {
@@ -118,7 +120,6 @@ export function ProjectsHomeClient() {
 	const [creatingProject, setCreatingProject] = useState(false);
 	const [projectSearch, setProjectSearch] = useState("");
 	const [localError, setLocalError] = useState<string | null>(null);
-	const syncedMissingMetadataRef = useRef<string | null>(null);
 	const appliedTemplateRef = useRef<string | null>(null);
 
 	const {
@@ -126,52 +127,33 @@ export function ProjectsHomeClient() {
 		error: authError,
 		isLoading: authLoading,
 	} = useAuthMe();
+
 	const {
-		data: workspaceData,
-		error: workspacesError,
+		workspaces,
 		isLoading: workspacesLoading,
 		mutate: mutateWorkspaces,
-	} = useWorkspaces(auth?.user?.id);
+		error: workspacesError,
+	} = useOfflineWorkspaces(auth?.user?.id);
+
 	const {
 		data: githubStatus,
 		error: githubError,
 		mutate: mutateGithubStatus,
 	} = useGithubStatus(auth?.user?.id);
 
-	const workspaces = useMemo(() => workspaceData?.workspaces ?? [], [workspaceData]);
 	const selectedWorkspace = useMemo(
 		() => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0] ?? null,
 		[selectedWorkspaceId, workspaces],
 	);
+
 	const {
-		data: projectsResponse,
-		error: projectsError,
+		projects,
+		metadataPresent,
 		isLoading: projectsLoading,
 		mutate: mutateProjects,
-	} = useWorkspaceProjects(selectedWorkspace?.id, auth?.user?.id);
+		error: projectsError,
+	} = useOfflineWorkspaceProjects(selectedWorkspace?.id, auth?.user?.id);
 
-	const [localProjects, setLocalProjects] = useState<WorkspaceProject[]>([]);
-
-	useEffect(() => {
-		if (selectedWorkspace?.id) {
-			getLocalProjects(selectedWorkspace.id).then(setLocalProjects);
-		} else {
-			setLocalProjects([]);
-		}
-	}, [selectedWorkspace?.id]);
-
-	const remoteProjects = projectsResponse?.projects ?? [];
-	const projects = useMemo(() => {
-		const merged = [...remoteProjects];
-		for (const lp of localProjects) {
-			if (!merged.some((p) => p.id === lp.id)) {
-				merged.push(lp);
-			}
-		}
-		return merged;
-	}, [remoteProjects, localProjects]);
-
-	const metadataPresent = projectsResponse?.metadataPresent ?? false;
 	const filteredProjects = useMemo(() => {
 		const query = projectSearch.trim().toLowerCase();
 		if (!query) return projects;
@@ -191,8 +173,8 @@ export function ProjectsHomeClient() {
 			return haystack.includes(query);
 		});
 	}, [projectSearch, projects]);
-	const githubConnected = githubStatus?.connected === true;
-	const loading = authLoading || workspacesLoading;
+
+	const loading = authLoading;
 	const pageError =
 		localError ||
 		errorCopy(authError) ||
@@ -234,37 +216,6 @@ export function ProjectsHomeClient() {
 		);
 	}, [workspaces]);
 
-	useEffect(() => {
-		async function syncMissingMetadata(workspace: Workspace) {
-			setSyncingIndex(true);
-			setLocalError(null);
-
-			try {
-				const response = await syncWorkspaceProjectsMetadata(workspace.id);
-				await mutateProjects(response, { revalidate: false });
-				await mutateWorkspaces();
-			} catch (error) {
-				setLocalError(
-					error instanceof Error
-						? friendlyError(error.message)
-						: "Project index could not be written",
-				);
-			} finally {
-				setSyncingIndex(false);
-			}
-		}
-
-		if (
-			selectedWorkspace &&
-			projectsResponse &&
-			!projectsResponse.metadataPresent &&
-			syncedMissingMetadataRef.current !== selectedWorkspace.id
-		) {
-			syncedMissingMetadataRef.current = selectedWorkspace.id;
-			void syncMissingMetadata(selectedWorkspace);
-		}
-	}, [mutateProjects, mutateWorkspaces, projectsResponse, selectedWorkspace]);
-
 	async function refresh() {
 		setLocalError(null);
 		await Promise.all([
@@ -303,117 +254,92 @@ export function ProjectsHomeClient() {
 
 		const title = newProjectTitle.trim() || "Untitled Project";
 		const projectId = slugify(title);
+		const now = new Date().toISOString();
+
+		const localProject: WorkspaceProject = {
+			id: projectId,
+			title,
+			description: newProjectDescription.trim() || undefined,
+			visibility: selectedWorkspace.visibility,
+			createdAt: now,
+			updatedAt: now,
+			defaultSketch: `projects/${projectId}/sketches/${DEFAULT_SKETCH_ID}.excalidraw.json`,
+			defaultSketchId: DEFAULT_SKETCH_ID,
+			notesFile: `projects/${projectId}/docs/notes.md`,
+			projectFile: `projects/${projectId}/project.json`,
+			sketches: [
+				{
+					id: DEFAULT_SKETCH_ID,
+					title: humanizeSlug(DEFAULT_SKETCH_ID),
+					file: `projects/${projectId}/sketches/${DEFAULT_SKETCH_ID}.excalidraw.json`,
+				},
+			],
+			sharing: {
+				enabled: selectedWorkspace.visibility === "public",
+				embed: selectedWorkspace.visibility === "public",
+			},
+			isLocalOnly: true,
+		};
 
 		try {
-			try {
-				const response = await createWorkspaceProject({
-					workspaceId: selectedWorkspace.id,
-					title,
-					description: newProjectDescription.trim() || undefined,
-					projectId,
-					sketchId: DEFAULT_SKETCH_ID,
-					visibility: selectedWorkspace.visibility,
-				});
-				const createdProject = response.projects.find((project) => project.id === projectId);
-
-				await mutateProjects(response, { revalidate: false });
-				await mutateWorkspaces();
-				setNewProjectTitle("");
-				setNewProjectDescription("");
-
-				if (createdProject) {
-					router.push(sketchHref(selectedWorkspace.id, createdProject.id, firstSketchId(createdProject)));
-				}
-			} catch (apiError) {
-				console.warn("GitHub creation failed or requires reauth, staging project locally...", apiError);
-
-				const now = new Date().toISOString();
-				const localProject: WorkspaceProject = {
-					id: projectId,
-					title,
-					description: newProjectDescription.trim() || undefined,
-					visibility: selectedWorkspace.visibility,
-					createdAt: now,
-					updatedAt: now,
-					defaultSketch: `projects/${projectId}/sketches/${DEFAULT_SKETCH_ID}.excalidraw.json`,
-					defaultSketchId: DEFAULT_SKETCH_ID,
-					notesFile: `projects/${projectId}/docs/notes.md`,
-					projectFile: `projects/${projectId}/project.json`,
-					sketches: [
-						{
-							id: DEFAULT_SKETCH_ID,
-							title: humanizeSlug(DEFAULT_SKETCH_ID),
-							file: `projects/${projectId}/sketches/${DEFAULT_SKETCH_ID}.excalidraw.json`,
-						}
-					],
-					sharing: {
-						enabled: selectedWorkspace.visibility === "public",
-						embed: selectedWorkspace.visibility === "public",
-					},
-					isLocalOnly: true,
-				};
-
-				// Prepare IndexedDB drafts
-				const currentDraft = draftKey(selectedWorkspace.id, projectId, DEFAULT_SKETCH_ID, auth?.user?.id);
-
-				await setDraft(currentDraft, {
+			// 1. Instant local persistence in IndexedDB (<2ms)
+			const currentDraft = draftKey(selectedWorkspace.id, projectId, DEFAULT_SKETCH_ID, auth?.user?.id);
+			await Promise.all([
+				setDraft(currentDraft, {
 					scene: {
 						type: "excalidraw",
 						version: 2,
 						source: "https://sketchflow.space",
 						elements: [],
-						appState: {
-							viewBackgroundColor: "#ffffff",
-						},
+						appState: { viewBackgroundColor: "#ffffff" },
 						files: {},
 					},
 					updatedAt: now,
-				});
-
-				await setDraft(`${currentDraft}:notes`, {
-					notes: `# ${title}\n\nThis project is offline. Re-connect GitHub and save to sync.\n`,
+				}),
+				setDraft(`${currentDraft}:notes`, {
+					notes: `# ${title}\n\nProject created offline first.\n`,
 					updatedAt: now,
-				});
-
-				await setDraft(`${currentDraft}:state`, {
+				}),
+				setDraft(`${currentDraft}:state`, {
 					state: {
 						viewMode: "split",
 						lastActiveSketchId: DEFAULT_SKETCH_ID,
 						panelSizes: [50, 50],
-						history: [
-							{
-								action: "Project created offline",
-								user: auth?.user?.displayName || auth?.user?.primaryEmail || "Offline User",
-								timestamp: now,
-							}
-						]
 					},
 					updatedAt: now,
-				});
+				}),
+				saveLocalProject(selectedWorkspace.id, localProject, auth?.user?.id),
+			]);
 
-				await saveLocalProject(selectedWorkspace.id, localProject);
+			// 2. Queue background GitHub commit without blocking UI!
+			void queueCreateProject(
+				selectedWorkspace.id,
+				{
+					title,
+					description: newProjectDescription.trim() || undefined,
+					projectId,
+					sketchId: DEFAULT_SKETCH_ID,
+					visibility: selectedWorkspace.visibility,
+				},
+				auth?.user?.id,
+			).catch((err) => {
+				console.warn("[sync] Background project commit queued:", err);
+			});
 
-				const updatedLocals = await getLocalProjects(selectedWorkspace.id);
-				setLocalProjects(updatedLocals);
+			setNewProjectTitle("");
+			setNewProjectDescription("");
 
-				setNewProjectTitle("");
-				setNewProjectDescription("");
-
-				router.push(sketchHref(selectedWorkspace.id, projectId, DEFAULT_SKETCH_ID));
-			}
-		} catch (createError) {
-			setLocalError(
-				createError instanceof Error
-					? friendlyError(createError.message)
-					: "Project could not be created",
-			);
+			// 3. Immediately navigate to the sketch canvas!
+			router.push(sketchHref(selectedWorkspace.id, projectId, DEFAULT_SKETCH_ID));
+		} catch (err) {
+			setLocalError(err instanceof Error ? err.message : "Failed to create project");
 		} finally {
 			setCreatingProject(false);
 		}
 	}
 
 	const newProjectSlug = slugify(newProjectTitle || "untitled-project");
-	const projectBusy = projectsLoading || syncingIndex;
+	const isInitialLoading = workspacesLoading && workspaces.length === 0;
 
 	return (
 		<AppShell
@@ -438,8 +364,8 @@ export function ProjectsHomeClient() {
 						onClick={() => void refresh()}
 						aria-label="Refresh projects"
 					>
-						{loading ? (
-							<Loader2 className="size-4 animate-spin" />
+						{syncingIndex ? (
+							<Loader2 className="size-4 animate-spin text-[#58CC02]" />
 						) : (
 							<RefreshCw className="size-4" />
 						)}
@@ -492,11 +418,11 @@ export function ProjectsHomeClient() {
 								</Button>
 								<button
 									className="btn-3d btn-3d--secondary h-9 px-3.5 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
-									disabled={projectBusy}
+									disabled={syncingIndex}
 									onClick={handleSyncProjectIndex}
 								>
-									{projectBusy ? (
-										<Loader2 className="size-4 animate-spin" />
+									{syncingIndex ? (
+										<Loader2 className="size-4 animate-spin text-[#58CC02]" />
 									) : (
 										<GitCommit className="size-4" />
 									)}
@@ -505,32 +431,23 @@ export function ProjectsHomeClient() {
 							</div>
 						</div>
 
-						{projectError ? (
-							projectError.toLowerCase().includes("github") ? (
-								<GithubAccessCard
-									scopes={githubStatus?.scopes}
-									onRecovered={async () => {
-										await refresh();
-									}}
-								/>
-							) : (
-								<div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-									<span className="inline-flex items-center gap-2">
-										<KeyRound className="size-4" />
-										{projectError}
-									</span>
-								</div>
-							)
+						{projectError && !projectError.toLowerCase().includes("github") ? (
+							<div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+								<span className="inline-flex items-center gap-2">
+									<KeyRound className="size-4" />
+									{projectError}
+								</span>
+							</div>
 						) : null}
 
 						<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-							<Card className="min-h-[280px] border-dashed bg-muted/35">
+							<Card className="min-h-[260px] border-dashed bg-muted/30">
 								<CardHeader>
 									<div className="flex items-center justify-between gap-3">
 										<div>
 											<CardTitle>Create project</CardTitle>
 											<CardDescription>
-												Add a new folder with a canvas, notes, assets, and metadata.
+												Instant local canvas, auto-synced to GitHub.
 											</CardDescription>
 										</div>
 										<div className="grid size-10 place-items-center rounded-[14px] bg-primary/10 text-primary">
@@ -549,133 +466,125 @@ export function ProjectsHomeClient() {
 										value={newProjectDescription}
 										onChange={(event) => setNewProjectDescription(event.target.value)}
 										aria-label="Project description"
-										placeholder="Short description"
+										placeholder="Short description (optional)"
 									/>
 									<div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-2">
 										<span className="truncate text-xs font-semibold text-muted-foreground">
 											projects/{newProjectSlug}
 										</span>
-									<button
-										className="btn-3d btn-3d--primary h-10 px-4 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
-										disabled={creatingProject}
-										onClick={handleCreateProject}
-									>
-										{creatingProject ? (
-											<Loader2 className="size-4 animate-spin" />
-										) : (
-											<Plus className="size-4" />
-										)}
-										Create
-									</button>
+										<button
+											className="btn-3d btn-3d--primary h-10 px-4 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
+											disabled={creatingProject}
+											onClick={handleCreateProject}
+										>
+											{creatingProject ? (
+												<Loader2 className="size-4 animate-spin" />
+											) : (
+												<Plus className="size-4" />
+											)}
+											Create
+										</button>
 									</div>
 								</CardContent>
 							</Card>
 
-							{projectBusy
-								? [0, 1, 2].map((item) => (
-										<div key={item} className="min-h-[280px] animate-pulse rounded-[16px] bg-muted" />
-									))
-								: filteredProjects.map((project) => (
-										<Card key={project.id} className="min-h-[280px] transition-colors hover:border-primary/60">
-											<CardHeader>
-												<div className="flex items-start justify-between gap-3">
-													<div className="min-w-0">
-														<div className="flex items-center gap-2">
-															<CardTitle className="truncate">{project.title}</CardTitle>
-															{project.isLocalOnly && (
-																<span className="relative flex h-2 w-2 shrink-0" title="Offline (Sync Required)">
-																	<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-																	<span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
-																</span>
-															)}
-														</div>
-														<CardDescription className="line-clamp-2">
-															{projectDescription(project)}
-														</CardDescription>
-													</div>
-													<div className="flex flex-col items-end gap-1.5 shrink-0">
-														<Badge variant={project.visibility === "public" ? "default" : "outline"}>
-															{project.visibility}
-														</Badge>
-														{project.isLocalOnly && (
-															<Badge variant="destructive" className="bg-red-600 text-white text-[9px] py-0.5 px-1.5 font-extrabold uppercase tracking-wide border-none rounded">
-																Offline
-															</Badge>
-														)}
-													</div>
+							{filteredProjects.map((project) => (
+								<Card key={project.id} className="min-h-[260px] transition-colors hover:border-primary/60">
+									<CardHeader>
+										<div className="flex items-start justify-between gap-3">
+											<div className="min-w-0">
+												<div className="flex items-center gap-2">
+													<CardTitle className="truncate">{project.title}</CardTitle>
+													{project.isLocalOnly && (
+														<span className="relative flex h-2 w-2 shrink-0" title="Offline (Saved Locally)">
+															<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+															<span className="relative inline-flex rounded-full h-2 w-2 bg-[#58CC02]"></span>
+														</span>
+													)}
 												</div>
-											</CardHeader>
-											<CardContent className="flex flex-1 flex-col gap-4">
-												<div className="grid gap-2 rounded-[14px] border bg-muted/50 p-3 text-xs font-semibold text-muted-foreground">
-													<div className="flex items-center justify-between gap-3">
-														<span>Folder</span>
-														<span className="truncate font-mono text-foreground">projects/{project.id}</span>
-													</div>
-													<div className="flex items-center justify-between gap-3">
-														<span>Sketch</span>
-														<span className="truncate font-mono text-foreground">{project.defaultSketchId}</span>
-													</div>
-													<div className="flex items-center justify-between gap-3">
-														<span>Updated</span>
-														<span className="text-foreground">{formatDate(project.updatedAt)}</span>
-													</div>
-												</div>
-												<div className="mt-auto flex flex-wrap items-center gap-2">
-													<Link
-														href={sketchHref(selectedWorkspace.id, project.id, firstSketchId(project))}
-														className="btn-3d btn-3d--primary h-9 px-3.5 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
-													>
-														<ArrowRight className="size-4" />
-														Open
-													</Link>
+												<CardDescription className="line-clamp-2">
+													{projectDescription(project)}
+												</CardDescription>
+											</div>
+											<div className="flex flex-col items-end gap-1.5 shrink-0">
+												<Badge variant={project.visibility === "public" ? "default" : "outline"}>
+													{project.visibility}
+												</Badge>
+												{project.isLocalOnly && (
+													<Badge variant="outline" className="text-[#58CC02] border-[#58CC02] text-[9px] py-0.5 px-1.5 font-extrabold uppercase tracking-wide">
+														Local
+													</Badge>
+												)}
+											</div>
+										</div>
+									</CardHeader>
+									<CardContent className="flex flex-1 flex-col gap-4">
+										<div className="grid gap-2 rounded-[14px] border bg-muted/40 p-3 text-xs font-semibold text-muted-foreground">
+											<div className="flex items-center justify-between gap-3">
+												<span>Folder</span>
+												<span className="truncate font-mono text-foreground">projects/{project.id}</span>
+											</div>
+											<div className="flex items-center justify-between gap-3">
+												<span>Updated</span>
+												<span className="text-foreground">{formatDate(project.updatedAt)}</span>
+											</div>
+										</div>
+										<div className="mt-auto flex flex-wrap items-center gap-2">
+											<Link
+												href={sketchHref(selectedWorkspace.id, project.id, firstSketchId(project))}
+												className="btn-3d btn-3d--primary h-9 px-3.5 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
+											>
+												<ArrowRight className="size-4" />
+												Open
+											</Link>
+											<Button variant="outline" size="icon-sm" asChild>
+												<Link
+													href={repoFolderHref(selectedWorkspace, `projects/${project.id}`)}
+													target="_blank"
+													aria-label={`Open ${project.title} files on GitHub`}
+												>
+													<FolderOpen className="size-4" />
+												</Link>
+											</Button>
+											<Button variant="outline" size="icon-sm" asChild>
+												<Link
+													href={repoFileHref(selectedWorkspace, project.notesFile)}
+													target="_blank"
+													aria-label={`Open ${project.title} notes on GitHub`}
+												>
+													<FileText className="size-4" />
+												</Link>
+											</Button>
+											{project.visibility === "public" && selectedWorkspace.visibility === "public" ? (
+												<>
 													<Button variant="outline" size="icon-sm" asChild>
-														<Link
-															href={repoFolderHref(selectedWorkspace, `projects/${project.id}`)}
-															target="_blank"
-															aria-label={`Open ${project.title} files on GitHub`}
-														>
-															<FolderOpen className="size-4" />
+														<Link href={shareHref(selectedWorkspace, project.id)} target="_blank" aria-label={`Share ${project.title}`}>
+															<Globe className="size-4" />
 														</Link>
 													</Button>
 													<Button variant="outline" size="icon-sm" asChild>
-														<Link
-															href={repoFileHref(selectedWorkspace, project.notesFile)}
-															target="_blank"
-															aria-label={`Open ${project.title} notes on GitHub`}
-														>
-															<FileText className="size-4" />
+														<Link href={embedHref(selectedWorkspace, project.id)} target="_blank" aria-label={`Embed ${project.title}`}>
+															<Code2 className="size-4" />
 														</Link>
 													</Button>
-													{project.visibility === "public" && selectedWorkspace.visibility === "public" ? (
-														<>
-															<Button variant="outline" size="icon-sm" asChild>
-																<Link href={shareHref(selectedWorkspace, project.id)} target="_blank" aria-label={`Share ${project.title}`}>
-																	<Globe className="size-4" />
-																</Link>
-															</Button>
-															<Button variant="outline" size="icon-sm" asChild>
-																<Link href={embedHref(selectedWorkspace, project.id)} target="_blank" aria-label={`Embed ${project.title}`}>
-																	<Code2 className="size-4" />
-																</Link>
-															</Button>
-														</>
-													) : null}
-												</div>
-											</CardContent>
-										</Card>
-									))}
+												</>
+											) : null}
+										</div>
+									</CardContent>
+								</Card>
+							))}
 						</div>
 
-						{!projectBusy && filteredProjects.length === 0 ? (
+						{filteredProjects.length === 0 ? (
 							<div className="rounded-[16px] border bg-muted/40 px-4 py-3 text-sm font-semibold text-muted-foreground">
-								No projects match that search. Clear the search or create a new project.
+								No projects match that search. Clear the search or create a new project above.
 							</div>
 						) : null}
 					</section>
-				) : loading ? (
+				) : isInitialLoading ? (
 					<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 						{[0, 1, 2].map((item) => (
-							<div key={item} className="min-h-[280px] animate-pulse rounded-[16px] bg-muted" />
+							<div key={item} className="min-h-[260px] animate-pulse rounded-[16px] bg-muted" />
 						))}
 					</section>
 				) : (
@@ -683,26 +592,15 @@ export function ProjectsHomeClient() {
 						<Card className="md:col-span-2 xl:col-span-1">
 							<CardHeader>
 								<CardTitle>Create your first workspace</CardTitle>
-								<CardDescription>Connect GitHub and create your first project repo.</CardDescription>
+								<CardDescription>Connect GitHub to create your project repository.</CardDescription>
 							</CardHeader>
 							<CardContent className="flex flex-wrap gap-2">
-								{githubConnected ? (
-									<Button asChild>
-										<Link href="/app/workspace">
-											<Plus className="size-4" />
-											New workspace
-										</Link>
-									</Button>
-								) : (
-									<div className="w-full">
-										<GithubAccessCard
-											scopes={githubStatus?.scopes}
-											onRecovered={async () => {
-												await refresh();
-											}}
-										/>
-									</div>
-								)}
+								<Button asChild>
+									<Link href="/app/workspace">
+										<Plus className="size-4" />
+										New workspace
+									</Link>
+								</Button>
 							</CardContent>
 						</Card>
 					</section>

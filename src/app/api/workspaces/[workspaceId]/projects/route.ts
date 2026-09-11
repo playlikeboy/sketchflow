@@ -18,6 +18,7 @@ import {
 	createCommitOnBranch,
 	getBranchHeadSha,
 	getGithubRepository,
+	getGithubTreeRecursive,
 	jsDelivrBaseUrl,
 	listGithubDirectory,
 	readGithubFileText,
@@ -171,25 +172,40 @@ async function readWorkspaceProjects(input: {
 		repo: input.workspace.repoName,
 		ref: input.workspace.defaultBranch,
 	};
-	const [latestCommitSha, metadataFile, projectFolders] = await Promise.all([
+	const [latestCommitSha, metadataFile] = await Promise.all([
 		getBranchHeadSha(input.accessToken, input.workspace.repoOwner, input.workspace.repoName, input.workspace.defaultBranch),
 		readOptionalJson({ ...base, path: PROJECTS_METADATA_PATH }),
-		listProjectFolders(base),
 	]);
 	const metadata = normalizeProjectsMetadata(metadataFile?.json);
-	const projectsById = new Map<string, WorkspaceProject>();
-
-	for (const project of metadata?.projects ?? []) {
-		projectsById.set(project.id, project);
+	if (metadataFile && metadata?.projects && metadata.projects.length > 0) {
+		return {
+			latestCommitSha,
+			metadataPresent: true,
+			metadata,
+			projects: metadata.projects.sort((a, b) => a.title.localeCompare(b.title)),
+		};
 	}
 
+	const tree = await getGithubTreeRecursive({
+		accessToken: input.accessToken,
+		owner: input.workspace.repoOwner,
+		repo: input.workspace.repoName,
+		treeShaOrBranch: input.workspace.defaultBranch,
+	}).catch(() => null);
+
+	const projectJsonEntries = tree?.tree.filter((entry) =>
+		entry.type === "blob" && /^projects\/[^/]+\/project\.json$/.test(entry.path)
+	) ?? [];
+
 	const projectFiles = await Promise.all(
-		projectFolders.map(async (projectId) => ({
-			projectId,
-			projectFile: await readOptionalJson({ ...base, path: `projects/${projectId}/project.json` }),
-		})),
+		projectJsonEntries.map(async (entry) => {
+			const projectId = entry.path.split("/")[1];
+			const projectFile = await readOptionalJson({ ...base, path: entry.path }).catch(() => null);
+			return { projectId, projectFile };
+		}),
 	);
 
+	const projectsById = new Map<string, WorkspaceProject>();
 	for (const { projectId, projectFile } of projectFiles) {
 		const project = projectFromProjectJson({
 			projectId,
@@ -326,16 +342,23 @@ export async function GET(
 			result = await readAuthenticatedWorkspaceProjects(request, workspace);
 		}
 
-		return jsonOk({
-			workspace: {
-				...workspace,
-				latestCommitSha: result.latestCommitSha,
+		return jsonOk(
+			{
+				workspace: {
+					...workspace,
+					latestCommitSha: result.latestCommitSha,
+				},
+				projects: result.projects,
+				metadata: result.metadata,
+				metadataPresent: result.metadataPresent,
+				metadataPath: PROJECTS_METADATA_PATH,
 			},
-			projects: result.projects,
-			metadata: result.metadata,
-			metadataPresent: result.metadataPresent,
-			metadataPath: PROJECTS_METADATA_PATH,
-		});
+			{
+				headers: {
+					"Cache-Control": "private, max-age=30, stale-while-revalidate=120",
+				},
+			},
+		);
 	} catch (error) {
 		return jsonError(error);
 	}

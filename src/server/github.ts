@@ -65,6 +65,22 @@ type GithubTree = {
 	sha: string;
 };
 
+export type GithubTreeEntry = {
+	path: string;
+	mode: string;
+	type: "blob" | "tree";
+	sha: string;
+	size?: number;
+	url: string;
+};
+
+export type GithubTreeResponse = {
+	sha: string;
+	url: string;
+	tree: GithubTreeEntry[];
+	truncated: boolean;
+};
+
 export type GithubFileChange = {
 	path: string;
 	content: string;
@@ -181,6 +197,18 @@ export async function updateRepositoryDetails(input: {
 export async function getBranchHeadSha(accessToken: string, owner: string, repo: string, branch: string) {
 	const ref = await githubRequest<GithubRef>(accessToken, repoApiPath(owner, repo, `/git/ref/heads/${branch}`));
 	return ref.object.sha;
+}
+
+export async function getGithubTreeRecursive(input: {
+	accessToken: string;
+	owner: string;
+	repo: string;
+	treeShaOrBranch: string;
+}) {
+	return githubRequest<GithubTreeResponse>(
+		input.accessToken,
+		repoApiPath(input.owner, input.repo, `/git/trees/${encodeURIComponent(input.treeShaOrBranch)}?recursive=1`),
+	);
 }
 
 export async function getPathCommits(input: {

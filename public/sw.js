@@ -1,4 +1,5 @@
-const CACHE_NAME = "sketchflow-static-v2";
+const CACHE_NAME = "sketchflow-static-v3";
+const APP_PAGES = ["/app", "/app/recent", "/app/docs", "/app/templates", "/help"];
 const STATIC_ASSETS = [
 	"/favicon.ico",
 	"/favicon.svg",
@@ -13,7 +14,7 @@ self.addEventListener("install", (event) => {
 	event.waitUntil(
 		caches
 			.open(CACHE_NAME)
-			.then((cache) => cache.addAll(STATIC_ASSETS))
+			.then((cache) => cache.addAll([...STATIC_ASSETS, ...APP_PAGES]))
 			.then(() => self.skipWaiting()),
 	);
 });
@@ -35,6 +36,32 @@ self.addEventListener("fetch", (event) => {
 		return;
 	}
 
+	// HTML Navigation requests (network first with cache fallback)
+	if (request.mode === "navigate") {
+		event.respondWith(
+			fetch(request)
+				.then((response) => {
+					if (response.ok) {
+						const copy = response.clone();
+						caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+					}
+					return response;
+				})
+				.catch(async () => {
+					const cached = await caches.match(request);
+					if (cached) return cached;
+					const fallback = await caches.match("/app");
+					if (fallback) return fallback;
+					return new Response("Sketchflow is currently offline.", {
+						status: 503,
+						headers: { "Content-Type": "text/plain" },
+					});
+				}),
+		);
+		return;
+	}
+
+	// Static assets and scripts: Cache first
 	event.respondWith(
 		caches.match(request).then((cached) => {
 			if (cached) return cached;

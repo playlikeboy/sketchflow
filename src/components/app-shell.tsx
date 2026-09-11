@@ -16,9 +16,19 @@ import {
   Plus,
   Search,
   Settings,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { type ReactNode, useState, useEffect } from "react";
-import { getLocalProjects, hasAnyLocalProjects } from "@/lib/indexeddb";
+import {
+  getLocalProjects,
+  hasAnyLocalProjects,
+  getOfflineModeSetting,
+  setOfflineModeSetting,
+  purgeUserCache,
+} from "@/lib/indexeddb";
+import { startSyncManager, triggerSyncNow } from "@/lib/sync-manager";
+import { useAuthMe } from "@/lib/swr-hooks";
 
 import { BrandMark } from "@/components/brand-mark";
 import { Badge } from "@/components/ui/badge";
@@ -68,10 +78,12 @@ function AppSidebar({
   workspaces = [],
   selectedWorkspaceId,
   onWorkspaceChange,
+  userId,
 }: {
   workspaces?: Workspace[];
   selectedWorkspaceId?: string | null;
   onWorkspaceChange?: (workspaceId: string) => void;
+  userId?: string | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -80,7 +92,7 @@ function AppSidebar({
   useEffect(() => {
     let active = true;
     function check() {
-      hasAnyLocalProjects().then((val) => {
+      hasAnyLocalProjects(userId).then((val) => {
         if (active) setHasUnsynced(val);
       }).catch(() => {});
     }
@@ -90,7 +102,7 @@ function AppSidebar({
       active = false;
       clearInterval(interval);
     };
-  }, [pathname]);
+  }, [pathname, userId]);
 
   function handleWorkspaceValue(value: string) {
     if (value === CREATE_WORKSPACE_VALUE) {
@@ -169,8 +181,8 @@ function AppSidebar({
                     <span className="truncate group-data-[collapsible=icon]:hidden">{item.label}</span>
                     {item.label === "Projects" && hasUnsynced && (
                       <span className="relative flex h-2 w-2 shrink-0 ml-auto group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:top-1 group-data-[collapsible=icon]:right-1" title="Offline projects require sync">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-[#58CC02]"></span>
                       </span>
                     )}
                   </Link>
@@ -179,7 +191,6 @@ function AppSidebar({
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
       </SidebarContent>
 
       <SidebarFooter className="p-3 border-t-2 border-sidebar-border">
@@ -224,7 +235,15 @@ export function AppShell({
 }) {
   const app = useStackApp();
   const { mutate } = useSWRConfig();
+  const { data: auth } = useAuthMe();
+  const userId = auth?.user?.id;
+
   const [hasWorkspaceUnsynced, setHasWorkspaceUnsynced] = useState(false);
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+
+  useEffect(() => {
+    getOfflineModeSetting().then(setIsOfflineMode).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!selectedWorkspaceId) {
@@ -234,7 +253,7 @@ export function AppShell({
     const wsId = selectedWorkspaceId;
     let active = true;
     function check() {
-      getLocalProjects(wsId).then((projects) => {
+      getLocalProjects(wsId, userId).then((projects) => {
         if (active) setHasWorkspaceUnsynced(projects.length > 0);
       }).catch(() => {});
     }
@@ -244,7 +263,20 @@ export function AppShell({
       active = false;
       clearInterval(interval);
     };
-  }, [selectedWorkspaceId]);
+  }, [selectedWorkspaceId, userId]);
+
+  useEffect(() => {
+    startSyncManager();
+  }, []);
+
+  async function toggleOfflineMode() {
+    const next = !isOfflineMode;
+    setIsOfflineMode(next);
+    await setOfflineModeSetting(next);
+    if (!next) {
+      await triggerSyncNow();
+    }
+  }
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -252,6 +284,7 @@ export function AppShell({
         workspaces={workspaces}
         selectedWorkspaceId={selectedWorkspaceId}
         onWorkspaceChange={onWorkspaceChange}
+        userId={userId}
       />
       <SidebarInset>
         <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b-2 border-border bg-background/95 px-4 backdrop-blur sm:px-6">
@@ -274,20 +307,60 @@ export function AppShell({
                   className="h-9 w-full rounded-[14px] pl-8 text-sm font-bold placeholder:text-muted-foreground/50"
                 />
               </div>
+
+              {/* Offline mode indicator & toggle */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleOfflineMode}
+                className={cn(
+                  "h-8 px-2.5 text-xs font-extrabold gap-1.5 rounded-xl transition-colors",
+                  isOfflineMode
+                    ? "text-amber-600 bg-amber-500/10 hover:bg-amber-500/20"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title={
+                  isOfflineMode
+                    ? "Offline Mode active (Git sync paused). Click to enable Auto-Sync."
+                    : "Auto-Sync active. Click to switch to pure Offline Mode."
+                }
+              >
+                {isOfflineMode ? (
+                  <>
+                    <WifiOff className="size-3.5 text-amber-600" />
+                    <span className="hidden sm:inline">Offline</span>
+                  </>
+                ) : (
+                  <>
+                    <Wifi className="size-3.5 text-emerald-600" />
+                    <span className="hidden sm:inline">Online</span>
+                  </>
+                )}
+              </Button>
+
               <ThemeToggle />
+
               {syncLabel ? (
                 <Badge variant="secondary" className="gap-1.5 text-xs font-extrabold">
                   <GitBranch className="size-3" />
                   {syncLabel}
                 </Badge>
               ) : null}
+
               {hasWorkspaceUnsynced && (
-                <Badge variant="destructive" className="animate-pulse bg-red-600 hover:bg-red-600 text-white gap-1.5 text-xs font-extrabold border-none py-1 px-3 rounded-full uppercase tracking-wider shrink-0 cursor-pointer" title="Some projects in this workspace are only saved locally and need syncing to GitHub. Save inside the project to sync.">
-                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
-                  Sync Required
+                <Badge
+                  variant="outline"
+                  onClick={() => void triggerSyncNow()}
+                  className="text-[#58CC02] border-[#58CC02] bg-[#58CC02]/10 gap-1.5 text-xs font-extrabold py-1 px-2.5 rounded-full uppercase tracking-wider shrink-0 cursor-pointer"
+                  title="Local drafts exist. Click to sync to GitHub now."
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#58CC02]" />
+                  Local Drafts
                 </Badge>
               )}
+
               {action}
+
               <Button
                 variant="ghost"
                 size="icon"
@@ -297,6 +370,7 @@ export function AppShell({
               >
                 <Settings className="size-4" />
               </Button>
+
               <Button
                 variant="ghost"
                 size="icon"
@@ -305,6 +379,9 @@ export function AppShell({
                     window.localStorage.removeItem("sketchflow:active-user-id");
                   }
                   clearStoredGithubToken();
+                  if (userId) {
+                    void purgeUserCache(userId);
+                  }
                   void mutate(() => true, undefined, { revalidate: false }).then(() => {
                     void app.signOut({ redirectUrl: "/" });
                   });

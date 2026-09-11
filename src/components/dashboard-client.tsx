@@ -175,8 +175,8 @@ export function DashboardClient() {
 		});
 	}, [projectSearch, combinedProjects]);
 	const githubConnected = githubStatus?.connected === true;
-	const loading = authLoading || workspacesLoading;
-	const projectsLoading = workspaceProjectsLoading || syncingProjects;
+	const loading = authLoading;
+	const projectsLoading = syncingProjects;
 
 	useEffect(() => {
 		appRef.current = app;
@@ -200,11 +200,11 @@ export function DashboardClient() {
 
 	useEffect(() => {
 		if (selectedWorkspaceId) {
-			getLocalProjects(selectedWorkspaceId).then(setLocalProjects);
+			getLocalProjects(selectedWorkspaceId, auth?.user?.id).then(setLocalProjects);
 		} else {
 			setLocalProjects([]);
 		}
-	}, [selectedWorkspaceId]);
+	}, [selectedWorkspaceId, auth?.user?.id]);
 
 
 	useEffect(() => {
@@ -478,9 +478,9 @@ export function DashboardClient() {
 					updatedAt: now,
 				});
 
-				await saveLocalProject(selectedWorkspace.id, localProject);
+				await saveLocalProject(selectedWorkspace.id, localProject, auth?.user?.id);
 
-				const updatedLocals = await getLocalProjects(selectedWorkspace.id);
+				const updatedLocals = await getLocalProjects(selectedWorkspace.id, auth?.user?.id);
 				setLocalProjects(updatedLocals);
 
 				setNewProjectTitle("");
@@ -584,7 +584,7 @@ export function DashboardClient() {
 								</div>
 							</CardHeader>
 							<CardContent>
-								<div className="text-xl font-semibold">{projectsLoading ? "..." : projects.length}</div>
+								<div className="text-xl font-semibold">{projects.length}</div>
 							</CardContent>
 						</Card>
 					</div>
@@ -675,15 +675,9 @@ export function DashboardClient() {
 										</div>
 									) : null}
 
-									{projectsLoading ? (
-										<div className="grid gap-3">
-											{[0, 1, 2].map((item) => (
-												<div key={item} className="h-24 animate-pulse rounded-lg bg-muted" />
-											))}
-										</div>
-									) : filteredProjects.length > 0 ? (
-										<div className="divide-y divide-border">
-											{filteredProjects.map((project) => (
+							{filteredProjects.length > 0 ? (
+								<div className="divide-y divide-border">
+									{filteredProjects.map((project) => (
 												<div
 													key={project.id}
 													className={`grid gap-3 rounded-lg py-4 first:pt-0 last:pb-0 lg:grid-cols-[1fr_auto] ${
@@ -961,39 +955,6 @@ export function DashboardClient() {
 								</Button>
 							</div>
 						</CardContent>
-					</Card>
-
-					<Card id="docs" size="sm">
-						<CardHeader>
-							<CardTitle>Repo layout</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<div className="space-y-2 font-mono text-xs text-muted-foreground">
-								<div>.sketchflow/workspace.json</div>
-								<div>projects/projects-metadata.json</div>
-								<div>projects/[project]/project.json</div>
-								<div>projects/[project]/sketches/[sketch].excalidraw.json</div>
-								<div>projects/[project]/docs/notes.md</div>
-							</div>
-						</CardContent>
-					</Card>
-
-					<Card id="public" size="sm">
-						<CardHeader>
-							<CardTitle>Publishing</CardTitle>
-							<CardDescription>Share and embed public project pages from GitHub-backed files.</CardDescription>
-						</CardHeader>
-						<CardContent className="space-y-2 text-sm text-muted-foreground">
-							<div>Public workspace repos can expose project pages.</div>
-							<div>Private workspaces stay private unless you make the repo public.</div>
-						</CardContent>
-					</Card>
-
-					<Card id="templates" size="sm">
-						<CardHeader>
-							<CardTitle>Templates</CardTitle>
-							<CardDescription>Starter systems, product maps, and docs packs will appear here.</CardDescription>
-						</CardHeader>
 					</Card>
 				</aside>
 			</div>

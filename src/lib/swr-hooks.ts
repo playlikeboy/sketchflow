@@ -104,9 +104,10 @@ export const swrKeys = {
 
 export function useAuthMe() {
 	return useSWR<AuthMeResponse>(swrKeys.authMe, getAuthMe, {
-		revalidateOnFocus: true,
+		revalidateOnFocus: false,
 		revalidateOnReconnect: true,
-		dedupingInterval: 2000,
+		dedupingInterval: 2_000,
+		keepPreviousData: true,
 		onSuccess: (data) => {
 			if (typeof window !== "undefined" && window.localStorage) {
 				if (data.authenticated && data.user?.id) {
@@ -125,13 +126,15 @@ export function useGithubStatus(stackUserId: string | null | undefined) {
 	return useSWR<GithubStatus>(swrKeys.githubStatus(stackUserId, githubTokenKey), getGithubStatus, {
 		revalidateOnFocus: false,
 		revalidateOnReconnect: true,
-		dedupingInterval: 5000,
+		dedupingInterval: 5_000,
+		keepPreviousData: true,
 	});
 }
 
 export function useExcalidrawLibraries() {
 	return useSWR<ExcalidrawLibrariesResponse>(swrKeys.excalidrawLibraries, getExcalidrawLibraries, {
 		revalidateOnFocus: false,
+		keepPreviousData: true,
 	});
 }
 
@@ -139,7 +142,8 @@ export function useWorkspaces(stackUserId: string | null | undefined) {
 	return useSWR(swrKeys.workspaces(stackUserId), getWorkspaces, {
 		revalidateOnFocus: false,
 		revalidateOnReconnect: true,
-		dedupingInterval: 5000,
+		dedupingInterval: 5_000,
+		keepPreviousData: true,
 	});
 }
 
@@ -152,8 +156,8 @@ export function useWorkspaceProjects(workspaceId: string | null | undefined, sta
 		{
 			revalidateOnFocus: false,
 			revalidateOnReconnect: true,
-			dedupingInterval: 5000,
-			keepPreviousData: false,
+			dedupingInterval: 5_000,
+			keepPreviousData: true,
 		},
 	);
 }
@@ -176,6 +180,9 @@ export function useSketch(
 			),
 		{
 			revalidateOnFocus: false,
+			revalidateOnReconnect: true,
+			dedupingInterval: 5_000,
+			keepPreviousData: true,
 		},
 	);
 }
@@ -193,7 +200,8 @@ export function useProjectHistory(
 		{
 			revalidateOnFocus: false,
 			revalidateOnReconnect: true,
-			dedupingInterval: 5000,
+			dedupingInterval: 5_000,
+			keepPreviousData: true,
 		},
 	);
 }
@@ -211,7 +219,8 @@ export function useProjectHistorySnapshot(
 		() => getProjectHistorySnapshot(workspaceId as string, projectId as string, commitSha as string),
 		{
 			revalidateOnFocus: false,
-			revalidateOnReconnect: false,
+			revalidateOnReconnect: true,
+			keepPreviousData: true,
 		},
 	);
 }

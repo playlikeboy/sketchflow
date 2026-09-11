@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/card";
 import type { Workspace } from "@/lib/api";
 import type { WorkspaceProject } from "@/lib/project-metadata";
-import { getLocalProjects } from "@/lib/indexeddb";
 import {
 	DEFAULT_SKETCH_ID,
 	embedHref,
@@ -38,11 +37,8 @@ import {
 	shareHref,
 	sketchHref,
 } from "@/lib/workspace-routes";
-import {
-	useAuthMe,
-	useWorkspaceProjects,
-	useWorkspaces,
-} from "@/lib/swr-hooks";
+import { useAuthMe } from "@/lib/swr-hooks";
+import { useOfflineWorkspaces, useOfflineWorkspaceProjects } from "@/lib/swr-offline";
 import templatesData from "@/lib/templates-data.json";
 
 type AppSection = "recent" | "docs" | "public" | "templates";
@@ -122,41 +118,19 @@ export function AppSectionClient({ section }: { section: AppSection }) {
 		isLoading: authLoading,
 	} = useAuthMe();
 	const {
-		data: workspaceData,
+		workspaces,
 		isLoading: workspacesLoading,
 		mutate: mutateWorkspaces,
-	} = useWorkspaces(auth?.user?.id);
-	const workspaces = useMemo(() => workspaceData?.workspaces ?? [], [workspaceData]);
+	} = useOfflineWorkspaces(auth?.user?.id);
 	const selectedWorkspace = useMemo(
 		() => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? workspaces[0] ?? null,
 		[selectedWorkspaceId, workspaces],
 	);
 	const {
-		data: projectsData,
+		projects,
 		isLoading: projectsLoading,
 		mutate: mutateProjects,
-	} = useWorkspaceProjects(selectedWorkspace?.id, auth?.user?.id);
-
-	const [localProjects, setLocalProjects] = useState<WorkspaceProject[]>([]);
-
-	useEffect(() => {
-		if (selectedWorkspace?.id) {
-			getLocalProjects(selectedWorkspace.id).then(setLocalProjects);
-		} else {
-			setLocalProjects([]);
-		}
-	}, [selectedWorkspace?.id]);
-
-	const remoteProjects = projectsData?.projects ?? [];
-	const projects = useMemo(() => {
-		const merged = [...remoteProjects];
-		for (const lp of localProjects) {
-			if (!merged.some((p) => p.id === lp.id)) {
-				merged.push(lp);
-			}
-		}
-		return merged;
-	}, [remoteProjects, localProjects]);
+	} = useOfflineWorkspaceProjects(selectedWorkspace?.id, auth?.user?.id);
 
 	const query = search.trim().toLowerCase();
 	const visibleTemplates = useMemo(() => {
