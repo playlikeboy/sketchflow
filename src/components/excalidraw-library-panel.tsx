@@ -12,6 +12,7 @@ import {
 	RefreshCw,
 	Search,
 	Sparkles,
+	X,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useMemo, useState } from "react";
@@ -33,6 +34,7 @@ type LibraryPanelProps = {
 	installedSources: string[];
 	installingSource: string | null;
 	onInstall: (library: ExcalidrawLibrary) => Promise<void>;
+	onClose?: () => void;
 };
 
 const audienceIcons = {
@@ -84,6 +86,7 @@ export function ExcalidrawLibraryPanel({
 	installedSources,
 	installingSource,
 	onInstall,
+	onClose,
 }: LibraryPanelProps) {
 	const [audience, setAudience] = useState<LibraryAudience>("all");
 	const [query, setQuery] = useState("");
@@ -122,9 +125,16 @@ export function ExcalidrawLibraryPanel({
 							{data?.total ?? 0} public Excalidraw packs, curated for real work.
 						</p>
 					</div>
-					<Button variant="ghost" size="icon-sm" onClick={() => void mutate()} aria-label="Refresh libraries">
-						<RefreshCw className="size-4" />
-					</Button>
+					<div className="flex items-center gap-1">
+						<Button variant="ghost" size="icon-xs" onClick={() => void mutate()} aria-label="Refresh libraries" className="size-7">
+							<RefreshCw className="size-3.5" />
+						</Button>
+						{onClose && (
+							<Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close panel" className="size-7 text-muted-foreground hover:text-foreground">
+								<X className="size-3.5" />
+							</Button>
+						)}
+					</div>
 				</div>
 
 				<Tabs value={audience} onValueChange={(value) => setAudience(value as LibraryAudience)} className="mt-3">

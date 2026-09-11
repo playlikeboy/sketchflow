@@ -2,7 +2,7 @@
 
 import { useProjectHistory } from "@/lib/swr-hooks";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, GitBranch, Loader2, Clock, Share2 } from "lucide-react";
+import { ExternalLink, GitBranch, Loader2, Clock, Share2, X } from "lucide-react";
 import { toast } from "sonner";
 
 function formatDate(value: string) {
@@ -19,6 +19,7 @@ export function HistoryPanel({
 	onRestore,
 	restoringSha,
 	workspace,
+	onClose,
 }: {
 	workspaceId: string;
 	projectId: string;
@@ -28,6 +29,7 @@ export function HistoryPanel({
 	onRestore: (sha: string) => void;
 	restoringSha: string | null;
 	workspace?: { repoOwner: string; repoName: string; visibility: string } | null;
+	onClose?: () => void;
 }) {
 	const { data, isLoading, error } = useProjectHistory(workspaceId, projectId, userId);
 
@@ -45,6 +47,17 @@ export function HistoryPanel({
 						</div>
 					</div>
 				</div>
+				{onClose && (
+					<Button
+						variant="ghost"
+						size="icon-xs"
+						onClick={onClose}
+						className="size-7 text-muted-foreground hover:text-foreground"
+						title="Close history"
+					>
+						<X className="size-4" />
+					</Button>
+				)}
 			</div>
 
 			<div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">

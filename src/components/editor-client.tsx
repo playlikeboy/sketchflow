@@ -21,6 +21,7 @@ import {
 	PanelsTopLeft,
 	Save,
 	SquarePen,
+	WifiOff,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -39,6 +40,7 @@ import { ExcalidrawLibraryPanel } from "@/components/excalidraw-library-panel";
 import { GithubAccessCard } from "@/components/github-access-card";
 import { HistoryPanel } from "@/components/history-panel";
 import { ProjectDocEditor } from "@/components/project-doc-editor";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -127,20 +129,56 @@ function appendProjectHistoryLog(existingHistory: any[] | undefined | null, acti
 	return history.slice(0, 15); // keep last 15 actions
 }
 
-function ensureVisibleStrokeColors(elements: any[], isDark: boolean): any[] {
+function isDarkColor(color: string | null | undefined): boolean {
+	if (!color) return true;
+	const c = color.trim().toLowerCase();
+	if (c === "#000000" || c === "#000" || c === "#1e1e1e" || c === "#121212" || c === "#262626" || c === "#333333" || c === "#4b4b4b" || c === "black") {
+		return true;
+	}
+	if (c.startsWith("#") && (c.length === 7 || c.length === 4)) {
+		const hex = c.length === 4 ? `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}` : c;
+		const r = parseInt(hex.slice(1, 3), 16);
+		const g = parseInt(hex.slice(3, 5), 16);
+		const b = parseInt(hex.slice(5, 7), 16);
+		if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+			const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+			return lum < 65;
+		}
+	}
+	return false;
+}
+
+function isLightColor(color: string | null | undefined): boolean {
+	if (!color) return false;
+	const c = color.trim().toLowerCase();
+	if (c === "#ffffff" || c === "#fff" || c === "#f8f9fa" || c === "#f0f0f0" || c === "#e0e0e0" || c === "#f7f7f7" || c === "#f5f5f5" || c === "white") {
+		return true;
+	}
+	if (c.startsWith("#") && (c.length === 7 || c.length === 4)) {
+		const hex = c.length === 4 ? `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}` : c;
+		const r = parseInt(hex.slice(1, 3), 16);
+		const g = parseInt(hex.slice(3, 5), 16);
+		const b = parseInt(hex.slice(5, 7), 16);
+		if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+			const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+			return lum > 195;
+		}
+	}
+	return false;
+}
+
+function ensureVisibleStrokeColors(elements: readonly any[], isDark: boolean): any[] {
 	if (!elements || !Array.isArray(elements)) return [];
 	return elements.map((el) => {
 		if (!el) return el;
-		if (el.type === "text" || el.type === "line" || el.type === "arrow" || el.type === "freedraw" || el.type === "rectangle" || el.type === "ellipse" || el.type === "diamond") {
-			const stroke = el.strokeColor?.toLowerCase();
-			if (isDark) {
-				if (stroke === "#000000" || stroke === "#1e1e1e" || !stroke) {
-					return { ...el, strokeColor: "#ffffff" };
-				}
-			} else {
-				if (stroke === "#ffffff" || stroke === "#f0f0f0") {
-					return { ...el, strokeColor: "#000000" };
-				}
+		const stroke = el.strokeColor;
+		if (isDark) {
+			if (isDarkColor(stroke)) {
+				return { ...el, strokeColor: "#ffffff" };
+			}
+		} else {
+			if (isLightColor(stroke)) {
+				return { ...el, strokeColor: "#1e1e1e" };
 			}
 		}
 		return el;
@@ -148,16 +186,29 @@ function ensureVisibleStrokeColors(elements: any[], isDark: boolean): any[] {
 }
 
 function toInitialData(scene: SketchScene, resolvedTheme?: string, libraryItems?: LibraryItems): ExcalidrawInitialDataState {
-	const isDark = resolvedTheme === "dark";
+	const isDark = (resolvedTheme ?? "dark") === "dark";
+	const targetBg = isDark ? "#121212" : "#ffffff";
+	const targetStroke = isDark ? "#ffffff" : "#1e1e1e";
 	const elements = ensureVisibleStrokeColors(scene.elements || [], isDark);
+
+	const sceneBg = String((scene.appState as any)?.viewBackgroundColor || "").trim().toLowerCase();
+	const isDefaultOrNeutralBg =
+		!sceneBg ||
+		sceneBg === "#ffffff" ||
+		sceneBg === "#fff" ||
+		sceneBg === "#121212" ||
+		sceneBg === "#1a1a1a" ||
+		sceneBg === "#000000" ||
+		sceneBg === "#f8f9fa";
+
+	const viewBackgroundColor = isDefaultOrNeutralBg ? targetBg : scene.appState?.viewBackgroundColor ?? targetBg;
 
 	const initialData: ExcalidrawInitialDataState = {
 		elements: elements as ExcalidrawInitialDataState["elements"],
 		appState: {
 			...scene.appState,
-			viewBackgroundColor: isDark && (scene.appState?.viewBackgroundColor === "#ffffff" || !scene.appState?.viewBackgroundColor)
-				? "#121212"
-				: scene.appState?.viewBackgroundColor ?? "#ffffff",
+			viewBackgroundColor,
+			currentItemStrokeColor: targetStroke,
 		} as ExcalidrawInitialDataState["appState"],
 		files: scene.files as ExcalidrawInitialDataState["files"],
 	};
@@ -211,8 +262,8 @@ function buildProjectFile(projectId: string, sketchId: string, existingProject: 
 	};
 }
 
-function fallbackNotes(projectId: string, sketchId: string) {
-	return `# ${humanizeSlug(projectId)}\n\nSketch notes for ${humanizeSlug(sketchId)}.\n`;
+function fallbackNotes(projectId: string, _sketchId: string) {
+	return `# ${humanizeSlug(projectId)}\n\nProject documentation and notes.\n`;
 }
 
 function buildUpdatedSketchData(input: {
@@ -352,7 +403,12 @@ export function EditorClient({
 		});
 	}, [currentStateDraftKey, sketchId]);
 
+	const lastPrimaryModeRef = useRef<"canvas" | "split" | "docs">("split");
+
 	const setEditorMode = useCallback((nextMode: EditorMode) => {
+		if (nextMode === "canvas" || nextMode === "split" || nextMode === "docs") {
+			lastPrimaryModeRef.current = nextMode;
+		}
 		setMode(nextMode);
 		queueStateDraftSave(nextMode, splitPanelSizes);
 
@@ -365,6 +421,14 @@ export function EditorClient({
 		window.history.pushState({ sketchflowView: nextMode }, "", url);
 		refreshEditorFrame();
 	}, [refreshEditorFrame, queueStateDraftSave, splitPanelSizes]);
+
+	const toggleDrawer = useCallback((drawerMode: "libraries" | "history" | "source-control") => {
+		if (mode === drawerMode) {
+			setEditorMode(lastPrimaryModeRef.current);
+		} else {
+			setEditorMode(drawerMode);
+		}
+	}, [mode, setEditorMode]);
 
 	const handleMouseDown = useCallback((e: React.MouseEvent) => {
 		e.preventDefault();
@@ -455,14 +519,43 @@ export function EditorClient({
 
 	useEffect(() => {
 		const api = excalidrawApi || excalidrawApiRef.current;
-		if (api && resolvedTheme && hasScene) {
+		if (api && hasScene) {
+			const isDark = (resolvedTheme ?? "dark") === "dark";
+			const targetBg = isDark ? "#121212" : "#ffffff";
+			const targetStroke = isDark ? "#ffffff" : "#1e1e1e";
 			const appState = api.getAppState();
-			const currentBg = appState.viewBackgroundColor;
-			const targetBg = resolvedTheme === "dark" ? "#121212" : "#ffffff";
-			if (currentBg !== targetBg && (currentBg === "#ffffff" || currentBg === "#121212" || currentBg === "#1a1a1a" || !currentBg)) {
-				api.updateScene({
-					appState: { viewBackgroundColor: targetBg }
-				});
+			const currentBg = (appState.viewBackgroundColor || "").trim().toLowerCase();
+			const isDefaultOrNeutralBg =
+				!currentBg ||
+				currentBg === "#ffffff" ||
+				currentBg === "#fff" ||
+				currentBg === "#121212" ||
+				currentBg === "#1a1a1a" ||
+				currentBg === "#000000" ||
+				currentBg === "#f8f9fa";
+
+			const currentElements = api.getSceneElements();
+			const updatedElements = ensureVisibleStrokeColors(currentElements, isDark);
+
+			api.updateScene({
+				elements: updatedElements,
+				appState: {
+					viewBackgroundColor: isDefaultOrNeutralBg ? targetBg : appState.viewBackgroundColor,
+					currentItemStrokeColor: targetStroke,
+				},
+			});
+			api.refresh();
+
+			if (sceneRef.current) {
+				sceneRef.current = {
+					...sceneRef.current,
+					elements: updatedElements,
+					appState: {
+						...(sceneRef.current.appState || {}),
+						viewBackgroundColor: isDefaultOrNeutralBg ? targetBg : sceneRef.current.appState?.viewBackgroundColor,
+						currentItemStrokeColor: targetStroke,
+					},
+				};
 			}
 		}
 	}, [excalidrawApi, resolvedTheme, hasScene]);
@@ -504,12 +597,13 @@ export function EditorClient({
 					return;
 				}
 
+				const isDarkDefault = (resolvedTheme ?? "dark") === "dark";
 				const githubScene = nextData ? normalizeScene(nextData.sketch) : {
 					type: "excalidraw",
 					version: 2,
 					source: "https://sketchflow.space",
 					elements: [],
-					appState: { viewBackgroundColor: "#ffffff" },
+					appState: { viewBackgroundColor: isDarkDefault ? "#121212" : "#ffffff" },
 					files: {},
 				};
 				const githubState = nextData?.state;
@@ -566,7 +660,7 @@ export function EditorClient({
 				clearTimeout(notesTimer.current);
 			}
 		};
-	}, [currentDraftKey, currentLibraryDraftKey, currentNotesDraftKey, data, sketchError, sketchLoading, projectId, sketchId, resolvedTheme]);
+	}, [currentDraftKey, currentLibraryDraftKey, currentNotesDraftKey, data, sketchError, sketchLoading, projectId, sketchId]);
 
 	const queueSceneDraftSave = useCallback((nextScene: SketchScene) => {
 		if (sceneTimer.current) {
@@ -1118,18 +1212,35 @@ export function EditorClient({
 				excalidrawAPI={(api) => {
 					excalidrawApiRef.current = api;
 					setExcalidrawApi(api);
-					if (api && resolvedTheme) {
+					if (api) {
+						const isDark = (resolvedTheme ?? "dark") === "dark";
+						const targetBg = isDark ? "#121212" : "#ffffff";
+						const targetStroke = isDark ? "#ffffff" : "#1e1e1e";
 						const appState = api.getAppState();
-						const currentBg = appState.viewBackgroundColor;
-						const targetBg = resolvedTheme === "dark" ? "#121212" : "#ffffff";
-						if (currentBg !== targetBg && (currentBg === "#ffffff" || currentBg === "#121212" || currentBg === "#1a1a1a" || !currentBg)) {
+						const currentBg = (appState.viewBackgroundColor || "").trim().toLowerCase();
+						const isDefaultOrNeutralBg =
+							!currentBg ||
+							currentBg === "#ffffff" ||
+							currentBg === "#fff" ||
+							currentBg === "#121212" ||
+							currentBg === "#1a1a1a" ||
+							currentBg === "#000000" ||
+							currentBg === "#f8f9fa";
+						if (isDefaultOrNeutralBg && currentBg !== targetBg) {
+							const currentElements = api.getSceneElements();
+							const updatedElements = ensureVisibleStrokeColors(currentElements, isDark);
 							api.updateScene({
-								appState: { viewBackgroundColor: targetBg }
+								elements: updatedElements,
+								appState: {
+									viewBackgroundColor: targetBg,
+									currentItemStrokeColor: targetStroke,
+								},
 							});
+							api.refresh();
 						}
 					}
 				}}
-				theme={resolvedTheme === "dark" ? "dark" : "light"}
+				theme={(resolvedTheme ?? "dark") === "dark" ? "dark" : "light"}
 				viewModeEnabled={!isOwner}
 				UIOptions={{
 					tools: {
@@ -1205,6 +1316,15 @@ export function EditorClient({
 							Sync ({offlineCommits.length})
 						</Button>
 					)}
+					<Button
+						variant="ghost"
+						size="icon-xs"
+						onClick={() => setEditorMode(lastPrimaryModeRef.current)}
+						className="size-7 text-muted-foreground hover:text-foreground"
+						title="Close panel"
+					>
+						<X className="size-4" />
+					</Button>
 				</div>
 			</div>
 
@@ -1293,6 +1413,7 @@ export function EditorClient({
 			installedSources={installedLibrarySources}
 			installingSource={installingLibrarySource}
 			onInstall={handleInstallLibrary}
+			onClose={() => setEditorMode(lastPrimaryModeRef.current)}
 		/>
 	);
 	const historyPanel = (
@@ -1305,6 +1426,7 @@ export function EditorClient({
 			onRestore={handleRestoreProject}
 			restoringSha={restoringSha}
 			workspace={data?.workspace ?? workspace}
+			onClose={() => setEditorMode(lastPrimaryModeRef.current)}
 		/>
 	);
 
@@ -1318,174 +1440,199 @@ export function EditorClient({
 			)}
 			<div className="h-1 w-full bg-gradient-to-r from-[#58CC02] via-[#1CB0F6] to-[#CE82FF]" />
 
-			<header className="flex h-13 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-3 py-1.5 sm:px-4">
+			<header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-3 sm:px-4">
+				{/* Left: Navigation & Breadcrumb */}
 				<div className="flex min-w-0 items-center gap-2">
-					<Button variant="ghost" size="icon-xs" asChild className="text-muted-foreground hover:text-[#58CC02] shrink-0">
+					<Button variant="ghost" size="icon-xs" asChild className="size-7 text-muted-foreground hover:text-foreground shrink-0">
 						<Link href="/app" aria-label="Back to projects">
 							<ArrowLeft className="size-4" />
 						</Link>
 					</Button>
 					<Breadcrumb className="text-xs font-semibold select-none">
 						<BreadcrumbList className="flex-nowrap gap-1">
-							<BreadcrumbItem className="hidden sm:inline-flex max-w-[100px] truncate">
+							<BreadcrumbItem className="hidden sm:inline-flex max-w-[120px] truncate">
 								<BreadcrumbLink asChild>
-									<Link href="/app" className="text-muted-foreground/75 hover:text-primary">
+									<Link href="/app" className="text-muted-foreground/70 hover:text-foreground">
 										{data?.workspace?.repoName ?? workspace?.repoName ?? "Workspace"}
 									</Link>
 								</BreadcrumbLink>
 							</BreadcrumbItem>
 							<BreadcrumbSeparator className="hidden sm:inline-flex text-muted-foreground/30" />
-							<BreadcrumbItem className="max-w-[100px] truncate">
+							<BreadcrumbItem className="max-w-[120px] truncate">
 								<BreadcrumbLink asChild>
-									<Link href={`/app?workspace=${workspaceId}`} className="text-muted-foreground/75 hover:text-primary">
+									<Link href={`/app?workspace=${workspaceId}`} className="text-muted-foreground/70 hover:text-foreground">
 										{projectId}
 									</Link>
 								</BreadcrumbLink>
 							</BreadcrumbItem>
 							<BreadcrumbSeparator className="text-muted-foreground/30" />
-							<BreadcrumbItem className="font-extrabold text-foreground truncate max-w-[140px]">
+							<BreadcrumbItem className="font-bold text-foreground truncate max-w-[160px]">
 								<BreadcrumbPage>{title}</BreadcrumbPage>
 							</BreadcrumbItem>
 						</BreadcrumbList>
 					</Breadcrumb>
 				</div>
 
+				{/* Center: Primary View Modes (Canvas | Split | Docs) */}
+				<div className="flex items-center rounded-lg border border-border/70 bg-muted/30 p-0.5 shadow-xs">
+					<Button
+						variant="ghost"
+						size="xs"
+						onClick={() => setEditorMode("canvas")}
+						className={cn(
+							"h-7 gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-all",
+							mode === "canvas"
+								? "bg-card text-foreground shadow-xs border border-border/50"
+								: "text-muted-foreground hover:text-foreground hover:bg-transparent"
+						)}
+						title="Full Canvas"
+					>
+						<Maximize2 className="size-3.5" />
+						<span className="hidden md:inline">Canvas</span>
+					</Button>
+					<Button
+						variant="ghost"
+						size="xs"
+						onClick={() => setEditorMode("split")}
+						className={cn(
+							"h-7 gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-all",
+							mode === "split"
+								? "bg-card text-foreground shadow-xs border border-border/50"
+								: "text-muted-foreground hover:text-foreground hover:bg-transparent"
+						)}
+						title="Canvas & Docs Split"
+					>
+						<PanelsTopLeft className="size-3.5" />
+						<span className="hidden md:inline">Split</span>
+					</Button>
+					<Button
+						variant="ghost"
+						size="xs"
+						onClick={() => setEditorMode("docs")}
+						className={cn(
+							"h-7 gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-all",
+							mode === "docs"
+								? "bg-card text-foreground shadow-xs border border-border/50"
+								: "text-muted-foreground hover:text-foreground hover:bg-transparent"
+						)}
+						title="Full Docs"
+					>
+						<FileText className="size-3.5" />
+						<span className="hidden md:inline">Docs</span>
+					</Button>
+				</div>
+
+				{/* Right: Drawer Actions, Theme Toggle, Status & Save */}
 				<div className="flex min-w-0 items-center gap-2">
-					<div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/20 p-0.5 shadow-inner">
+					{/* Drawer side-panel toggles */}
+					<div className="flex items-center gap-0.5">
 						<Button
 							variant="ghost"
-							size="xs"
-							onClick={() => setEditorMode("canvas")}
+							size="icon-xs"
+							onClick={() => toggleDrawer("libraries")}
 							className={cn(
-								"h-7 rounded-md px-2 md:px-2.5 text-xs font-bold transition-all",
-								mode === "canvas"
-									? "bg-card text-foreground shadow-sm border border-border/50"
-									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
-							)}
-							title="Canvas Mode"
-						>
-							<Maximize2 className="size-3.5" />
-							<span className="hidden md:inline ml-1">Canvas</span>
-						</Button>
-						<Button
-							variant="ghost"
-							size="xs"
-							onClick={() => setEditorMode("split")}
-							className={cn(
-								"h-7 rounded-md px-2 md:px-2.5 text-xs font-bold transition-all",
-								mode === "split"
-									? "bg-card text-foreground shadow-sm border border-border/50"
-									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
-							)}
-							title="Split Mode"
-						>
-							<PanelsTopLeft className="size-3.5" />
-							<span className="hidden md:inline ml-1">Split</span>
-						</Button>
-						<Button
-							variant="ghost"
-							size="xs"
-							onClick={() => setEditorMode("docs")}
-							className={cn(
-								"h-7 rounded-md px-2 md:px-2.5 text-xs font-bold transition-all",
-								mode === "docs"
-									? "bg-card text-foreground shadow-sm border border-border/50"
-									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
-							)}
-							title="Docs Mode"
-						>
-							<FileText className="size-3.5" />
-							<span className="hidden md:inline ml-1">Docs</span>
-						</Button>
-						<Button
-							variant="ghost"
-							size="xs"
-							onClick={() => setEditorMode("libraries")}
-							className={cn(
-								"h-7 rounded-md px-2 md:px-2.5 text-xs font-bold transition-all",
+								"size-7 rounded-md transition-colors",
 								mode === "libraries"
-									? "bg-card text-foreground shadow-sm border border-border/50"
-									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
+									? "bg-primary/10 text-primary border border-primary/20"
+									: "text-muted-foreground hover:text-foreground hover:bg-muted"
 							)}
-							title="Libraries Mode"
+							title="Component Libraries"
 						>
 							<BookOpen className="size-3.5" />
-							<span className="hidden md:inline ml-1">Libraries</span>
 						</Button>
 						<Button
 							variant="ghost"
-							size="xs"
-							onClick={() => setEditorMode("history")}
+							size="icon-xs"
+							onClick={() => toggleDrawer("history")}
 							className={cn(
-								"h-7 rounded-md px-2 md:px-2.5 text-xs font-bold transition-all",
+								"size-7 rounded-md transition-colors",
 								mode === "history"
-									? "bg-card text-foreground shadow-sm border border-border/50"
-									: "text-muted-foreground hover:text-foreground hover:bg-transparent"
+									? "bg-primary/10 text-primary border border-primary/20"
+									: "text-muted-foreground hover:text-foreground hover:bg-muted"
 							)}
-							title="History Mode"
+							title="Commit History & Restores"
 						>
 							<Clock className="size-3.5" />
-							<span className="hidden md:inline ml-1">History</span>
 						</Button>
 						{isOwner && (
 							<Button
 								variant="ghost"
-								size="xs"
-								onClick={() => setEditorMode("source-control")}
+								size="icon-xs"
+								onClick={() => toggleDrawer("source-control")}
 								className={cn(
-									"h-7 rounded-md px-2 md:px-2.5 text-xs font-bold transition-all",
+									"size-7 rounded-md transition-colors relative",
 									mode === "source-control"
-										? "bg-card text-foreground shadow-sm border border-border/50"
-										: "text-muted-foreground hover:text-foreground hover:bg-transparent"
+										? "bg-primary/10 text-primary border border-primary/20"
+										: "text-muted-foreground hover:text-foreground hover:bg-muted"
 								)}
-								title="Source Control"
+								title="Git Source Control"
 							>
 								<GitBranch className="size-3.5" />
-								<span className="hidden md:inline ml-1">Source Control</span>
+								{dirty && (
+									<span className="absolute top-1 right-1 size-1.5 rounded-full bg-amber-500" />
+								)}
 							</Button>
 						)}
 					</div>
 
-					<div className="hidden items-center gap-1.5 text-xs font-semibold text-muted-foreground sm:flex">
+					<div className="h-4 w-px bg-border/80" />
+
+					{/* Calm status indicator */}
+					<div className="hidden items-center gap-1.5 text-xs font-medium text-muted-foreground sm:flex">
 						{saving ? (
-							<span className="flex items-center gap-1">
-								<Loader2 className="size-3 animate-spin text-[#58CC02]" />
-								Saving...
+							<span className="flex items-center gap-1.5">
+								<Loader2 className="size-3 animate-spin text-primary" />
+								<span>Saving</span>
 							</span>
 						) : dirty ? (
-							<span className="flex items-center gap-1 text-amber-500 font-bold">
-								<span className="relative flex h-2 w-2">
-									<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-									<span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-								</span>
-								Unsaved
+							<span className="flex items-center gap-1.5 text-amber-500 font-semibold">
+								<span className="size-1.5 rounded-full bg-amber-500" />
+								<span>Draft</span>
 							</span>
 						) : !data || (status && status.includes("Offline")) ? (
-							<span className="flex items-center gap-1.5 text-red-500 font-extrabold animate-pulse">
-								<span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-								Offline (Unsynced)
+							<span className="flex items-center gap-1 text-muted-foreground">
+								<WifiOff className="size-3 text-muted-foreground/70" />
+								<span>Local</span>
 							</span>
 						) : (
-							<span className="flex items-center gap-1 text-emerald-500/80">
-								<span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-								Synced ({shortSha(data?.workspace?.latestCommitSha ?? workspace?.latestCommitSha)})
+							<span className="flex items-center gap-1.5 text-emerald-500/90 font-semibold">
+								<span className="size-1.5 rounded-full bg-emerald-500" />
+								<span>Synced</span>
 							</span>
 						)}
 					</div>
 
+					{/* Working Theme Toggle */}
+					<ThemeToggle className="size-7" />
+
+					{/* Save / Fork Action */}
 					{isOwner ? (
-						<Button disabled={!hasScene || saving || (!dirty && !!data)} onClick={handleManualSave} size="sm" className="h-8 py-0 px-3.5 rounded-xl font-bold transition-all shadow-sm">
-							{saving ? (
-								<Loader2 className="size-4 animate-spin" />
-							) : (
-								<Save className="size-4" />
+						<Button
+							disabled={!hasScene || saving || (!dirty && !!data)}
+							onClick={handleManualSave}
+							size="xs"
+							className={cn(
+								"h-7 px-3 rounded-lg font-bold text-xs transition-all shadow-xs gap-1.5",
+								dirty
+									? "bg-primary text-primary-foreground hover:bg-primary/90"
+									: "bg-muted text-muted-foreground hover:text-foreground"
 							)}
-							Save
+						>
+							{saving ? (
+								<Loader2 className="size-3 animate-spin" />
+							) : (
+								<Save className="size-3" />
+							)}
+							<span>Save</span>
 						</Button>
 					) : (
-						<Button onClick={handleForkClick} size="sm" className="h-8 py-0 px-3.5 rounded-xl font-bold transition-all bg-[#CE82FF] hover:bg-[#b86ce6] text-white shadow-sm flex items-center gap-1.5 border-none">
-							<GitBranch className="size-4 rotate-180" />
-							Fork
+						<Button
+							onClick={handleForkClick}
+							size="xs"
+							className="h-7 px-3 rounded-lg font-bold text-xs transition-all bg-[#CE82FF] hover:bg-[#b86ce6] text-white shadow-xs flex items-center gap-1.5 border-none"
+						>
+							<GitBranch className="size-3 rotate-180" />
+							<span>Fork</span>
 						</Button>
 					)}
 				</div>

@@ -297,7 +297,7 @@ export function ProjectsHomeClient() {
 					updatedAt: now,
 				}),
 				setDraft(`${currentDraft}:notes`, {
-					notes: `# ${title}\n\nProject created offline first.\n`,
+					notes: `# ${title}\n\nProject documentation and notes.\n`,
 					updatedAt: now,
 				}),
 				setDraft(`${currentDraft}:state`, {

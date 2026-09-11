@@ -22,20 +22,56 @@ const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).
   ),
 });
 
-function ensureVisibleStrokeColors(elements: any[], isDark: boolean): any[] {
+function isDarkColor(color: string | null | undefined): boolean {
+  if (!color) return true;
+  const c = color.trim().toLowerCase();
+  if (c === "#000000" || c === "#000" || c === "#1e1e1e" || c === "#121212" || c === "#262626" || c === "#333333" || c === "#4b4b4b" || c === "black") {
+    return true;
+  }
+  if (c.startsWith("#") && (c.length === 7 || c.length === 4)) {
+    const hex = c.length === 4 ? `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}` : c;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      return lum < 65;
+    }
+  }
+  return false;
+}
+
+function isLightColor(color: string | null | undefined): boolean {
+  if (!color) return false;
+  const c = color.trim().toLowerCase();
+  if (c === "#ffffff" || c === "#fff" || c === "#f8f9fa" || c === "#f0f0f0" || c === "#e0e0e0" || c === "#f7f7f7" || c === "#f5f5f5" || c === "white") {
+    return true;
+  }
+  if (c.startsWith("#") && (c.length === 7 || c.length === 4)) {
+    const hex = c.length === 4 ? `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}` : c;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      return lum > 195;
+    }
+  }
+  return false;
+}
+
+function ensureVisibleStrokeColors(elements: readonly any[], isDark: boolean): any[] {
   if (!elements || !Array.isArray(elements)) return [];
   return elements.map((el) => {
     if (!el) return el;
-    if (el.type === "text" || el.type === "line" || el.type === "arrow" || el.type === "freedraw" || el.type === "rectangle" || el.type === "ellipse" || el.type === "diamond") {
-      const stroke = el.strokeColor?.toLowerCase();
-      if (isDark) {
-        if (stroke === "#000000" || stroke === "#1e1e1e" || !stroke) {
-          return { ...el, strokeColor: "#ffffff" };
-        }
-      } else {
-        if (stroke === "#ffffff" || stroke === "#f0f0f0") {
-          return { ...el, strokeColor: "#000000" };
-        }
+    const stroke = el.strokeColor;
+    if (isDark) {
+      if (isDarkColor(stroke)) {
+        return { ...el, strokeColor: "#ffffff" };
+      }
+    } else {
+      if (isLightColor(stroke)) {
+        return { ...el, strokeColor: "#1e1e1e" };
       }
     }
     return el;
@@ -43,15 +79,27 @@ function ensureVisibleStrokeColors(elements: any[], isDark: boolean): any[] {
 }
 
 function toInitialData(scene: SketchScene, resolvedTheme?: string): ExcalidrawInitialDataState {
-  const isDark = resolvedTheme === "dark";
+  const isDark = (resolvedTheme ?? "dark") === "dark";
+  const targetBg = isDark ? "#121212" : "#ffffff";
+  const targetStroke = isDark ? "#ffffff" : "#1e1e1e";
   const elements = ensureVisibleStrokeColors(scene.elements || [], isDark);
+  const sceneBg = String((scene.appState as any)?.viewBackgroundColor || "").trim().toLowerCase();
+  const isDefaultOrNeutralBg =
+    !sceneBg ||
+    sceneBg === "#ffffff" ||
+    sceneBg === "#fff" ||
+    sceneBg === "#121212" ||
+    sceneBg === "#1a1a1a" ||
+    sceneBg === "#000000" ||
+    sceneBg === "#f8f9fa";
+  const viewBackgroundColor = isDefaultOrNeutralBg ? targetBg : scene.appState?.viewBackgroundColor ?? targetBg;
+
   return {
     elements: elements as ExcalidrawInitialDataState["elements"],
     appState: {
       ...scene.appState,
-      viewBackgroundColor: isDark && (scene.appState?.viewBackgroundColor === "#ffffff" || !scene.appState?.viewBackgroundColor)
-        ? "#121212"
-        : scene.appState?.viewBackgroundColor ?? "#ffffff",
+      viewBackgroundColor,
+      currentItemStrokeColor: targetStroke,
     } as ExcalidrawInitialDataState["appState"],
     files: scene.files as ExcalidrawInitialDataState["files"],
   };

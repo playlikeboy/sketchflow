@@ -30,6 +30,7 @@ import { useTheme } from "next-themes";
 
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { SKETCHFLOW_APP_URL } from "@/lib/config";
 import { useAuthMe } from "@/lib/swr-hooks";
 
@@ -141,14 +142,7 @@ export function HomeClient() {
 						</Link>
 					</nav>
 					<div className="flex items-center gap-2">
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-							aria-label="Toggle theme"
-						>
-							{mounted && theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-						</Button>
+						<ThemeToggle className="size-9 rounded-xl border border-border/50" />
 						<button
 							className="btn-3d btn-3d--secondary h-9 px-4 text-xs font-extrabold cursor-pointer"
 							onClick={() => void app.redirectToSignIn()}

@@ -458,7 +458,7 @@ export function DashboardClient() {
 				});
 
 				await setDraft(`${currentDraft}:notes`, {
-					notes: `# ${title}\n\nThis project is offline. Re-connect GitHub and save to sync.\n`,
+					notes: `# ${title}\n\nProject documentation and notes.\n`,
 					updatedAt: now,
 				});
 
