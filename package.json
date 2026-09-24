@@ -37,7 +37,8 @@
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
     "typecheck": "tsc --noEmit",
-    "verify": "bun run lint && bun run typecheck && bun run build"
+    "verify": "bun run lint && bun run typecheck && bun run build",
+    "test": "bun test"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
