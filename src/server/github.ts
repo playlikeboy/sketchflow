@@ -1,6 +1,13 @@
 import { PROJECTS_METADATA_PATH, buildProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
 import { GITHUB_REST_API_VERSION } from "@/lib/config";
 import { BadRequestError, HttpError } from "@/server/http";
+import {
+	validateGithubFileChange as validateFileChange,
+	validateGithubFilePath as validateFilePath,
+	validateGithubPathSegment as validatePathSegment,
+	validateGithubRepoName as validateRepoName,
+	jsDelivrBaseUrl as buildJsDelivrBaseUrl,
+} from "@/server/github-validation";
 
 const GITHUB_API_URL = "https://api.github.com";
 const MAX_FILE_BYTES = 8_000_000;
@@ -327,38 +334,35 @@ export async function ensureUserRepository(accessToken: string, owner: string, r
 }
 
 export function validateGithubRepoName(repoName: string) {
-	if (!/^[A-Za-z0-9_.-]+$/.test(repoName)) {
-		throw new BadRequestError("Repository name can only contain letters, numbers, dots, dashes, and underscores");
+	try {
+		return validateRepoName(repoName);
+	} catch (error) {
+		throw new BadRequestError(error instanceof Error ? error.message : "Invalid GitHub repository name");
 	}
-
-	if (repoName.startsWith(".") || repoName.endsWith(".")) {
-		throw new BadRequestError("Repository name cannot start or end with a dot");
-	}
-
-	return repoName;
 }
 
 export function validateGithubPathSegment(segment: string) {
-	return validateGithubRepoName(segment);
+	try {
+		return validatePathSegment(segment);
+	} catch (error) {
+		throw new BadRequestError(error instanceof Error ? error.message : "Invalid GitHub path segment");
+	}
 }
 
 export function validateGithubFilePath(path: string) {
-	if (!path || path.startsWith("/") || path.includes("..") || path.includes("\\")) {
-		throw new BadRequestError(`Unsafe GitHub file path: ${path || "(empty)"}`);
+	try {
+		return validateFilePath(path);
+	} catch (error) {
+		throw new BadRequestError(error instanceof Error ? error.message : "Unsafe GitHub file path");
 	}
-
-	return path;
 }
 
 export function validateGithubFileChange(file: GithubFileChange) {
-	validateGithubFilePath(file.path);
-
-	const size = new TextEncoder().encode(file.content).byteLength;
-	if (size > MAX_FILE_BYTES) {
-		throw new BadRequestError(`File is too large for Git-backed sync: ${file.path}. Keep uploaded images under 8 MB.`);
+	try {
+		return validateFileChange(file, MAX_FILE_BYTES);
+	} catch (error) {
+		throw new BadRequestError(error instanceof Error ? error.message : "Invalid GitHub file");
 	}
-
-	return file;
 }
 
 export async function createCommitOnBranch(input: {
@@ -644,5 +648,5 @@ export function buildInitialWorkspaceFiles(input: {
 }
 
 export function jsDelivrBaseUrl(owner: string, repo: string, commitSha: string) {
-	return `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${commitSha}/`;
+	return buildJsDelivrBaseUrl(owner, repo, commitSha);
 }

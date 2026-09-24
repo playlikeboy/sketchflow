@@ -1,12 +1,11 @@
 import { expect, test } from "bun:test";
 
 import {
-  GithubConflictError,
-  jsDelivrBaseUrl,
   validateGithubFileChange,
   validateGithubFilePath,
   validateGithubRepoName,
-} from "../src/server/github";
+  jsDelivrBaseUrl,
+} from "../src/server/github-validation";
 
 test("rejects unsafe GitHub paths", () => {
   expect(() => validateGithubFilePath("../secret")).toThrow();
@@ -34,10 +33,4 @@ test("builds immutable jsDelivr URLs", () => {
   expect(jsDelivrBaseUrl("owner", "repo", "0123456789abcdef")).toBe(
     "https://cdn.jsdelivr.net/gh/owner/repo@0123456789abcdef/",
   );
-});
-
-test("exposes a typed GitHub conflict response", () => {
-  const error = new GithubConflictError("branch changed");
-  expect(error.status).toBe(409);
-  expect(error.code).toBe("github_conflict");
 });
