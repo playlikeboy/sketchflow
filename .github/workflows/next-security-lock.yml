@@ -3,6 +3,8 @@ name: One-time Next.js security lock refresh
 on:
   push:
     branches: [main]
+    paths:
+      - package.json
 
 permissions:
   contents: write
