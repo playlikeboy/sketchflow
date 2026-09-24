@@ -225,12 +225,14 @@ export function commitWorkspaceFiles(input: {
 	workspaceId: string;
 	message: string;
 	files: Array<{ path: string; content: string }>;
+	expectedHeadSha?: string | null;
 }) {
 	return apiJson<CommitResponse>(`/api/workspaces/${encodeURIComponent(input.workspaceId)}/commit`, {
 		method: "POST",
 		json: {
 			message: input.message,
 			files: input.files,
+			expectedHeadSha: input.expectedHeadSha ?? undefined,
 		},
 	});
 }

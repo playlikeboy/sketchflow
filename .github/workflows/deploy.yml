@@ -5,8 +5,6 @@ on:
     branches:
       - main
   workflow_dispatch:
-  schedule:
-    - cron: "17 2 * * *"
 
 concurrency:
   group: sketchflow-deploy
@@ -36,6 +34,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Restore build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            .next/cache
+          key: ${{ runner.os }}-sketchflow-${{ hashFiles('bun.lock') }}-${{ hashFiles('src/**/*', 'public/**/*', 'next.config.ts', 'open-next.config.ts', 'wrangler.jsonc') }}
+          restore-keys: |
+            ${{ runner.os }}-sketchflow-${{ hashFiles('bun.lock') }}-
+            ${{ runner.os }}-sketchflow-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run typecheck
+
       - name: Verify deploy secrets
         shell: bash
         run: |
@@ -61,31 +84,8 @@ jobs:
           if [ "${#missing[@]}" -gt 0 ]; then
             printf 'Missing required deploy secrets/env values:\n'
             printf ' - %s\n' "${missing[@]}"
-            printf '\nCreate a Cloudflare API token with Workers Scripts:Edit, Workers Routes:Edit, Account:Read, and Zone:Read, then save it as CLOUDFLARE_API_TOKEN in GitHub Actions secrets.\n'
             exit 1
           fi
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Restore build cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.bun/install/cache
-            .next/cache
-          key: ${{ runner.os }}-sketchflow-${{ hashFiles('bun.lock') }}-${{ hashFiles('src/**/*', 'public/**/*', 'next.config.ts', 'open-next.config.ts', 'wrangler.jsonc') }}
-          restore-keys: |
-            ${{ runner.os }}-sketchflow-${{ hashFiles('bun.lock') }}-
-            ${{ runner.os }}-sketchflow-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Typecheck
-        run: bunx tsc --noEmit
 
       - name: Deploy to Cloudflare
         run: bun run deploy

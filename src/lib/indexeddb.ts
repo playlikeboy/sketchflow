@@ -168,30 +168,69 @@ export async function hasAnyLocalProjects(userId?: string | null): Promise<boole
 	}
 }
 
-export async function purgeUserCache(userId: string) {
-	if (typeof indexedDB === "undefined" || !userId) return;
+export async function purgeProjectDrafts(workspaceId: string, projectId: string, userId?: string | null) {
+	if (typeof indexedDB === "undefined") return;
+
 	try {
 		const db = await openSketchflowDb();
-		return new Promise<void>((resolve, reject) => {
+		const prefix = "sketch:" + workspaceId + ":" + projectId + ":";
+		await new Promise<void>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readwrite");
 			const store = transaction.objectStore(STORE_NAME);
 			const request = store.openCursor();
 			request.onsuccess = (event) => {
 				const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
-				if (cursor) {
-					if (typeof cursor.key === "string" && cursor.key.includes(userId)) {
-						cursor.delete();
-					}
-					cursor.continue();
-				} else {
-					resolve();
-				}
+				if (!cursor) return;
+				const key = typeof cursor.key === "string" ? cursor.key : "";
+				const segments = key.split(":");
+				const matchesUser =
+					!userId || segments.at(-1) === userId || segments.at(-2) === userId;
+				if (key.startsWith(prefix) && matchesUser) cursor.delete();
+				cursor.continue();
 			};
 			request.onerror = () => reject(request.error);
-			transaction.oncomplete = () => db.close();
+			transaction.oncomplete = () => { db.close(); resolve(); };
+			transaction.onerror = () => { db.close(); reject(transaction.error); };
 		});
-	} catch (e) {
-		console.warn("Error purging user cache:", e);
+	} catch (error) {
+		console.warn("Error purging project drafts:", error);
+	}
+}
+
+export async function purgeUserCache(userId: string) {
+	if (typeof indexedDB === "undefined" || !userId) return;
+	const exactPrefixes = [
+		"local-projects:" + userId + ":",
+		"projects-cache:" + userId + ":",
+		"offline-commits:" + userId + ":",
+		"workspaces:" + userId,
+	];
+	try {
+		const db = await openSketchflowDb();
+		await new Promise<void>((resolve, reject) => {
+			const transaction = db.transaction(STORE_NAME, "readwrite");
+			const store = transaction.objectStore(STORE_NAME);
+			const request = store.openCursor();
+			request.onsuccess = (event) => {
+				const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+				if (!cursor) return;
+				const key = typeof cursor.key === "string" ? cursor.key : "";
+				const knownUserKey = exactPrefixes.some((prefix) =>
+					prefix === "workspaces:" + userId ? key === prefix : key.startsWith(prefix),
+				);
+				const segments = key.split(":");
+				const sketchUserKey =
+					segments[0] === "sketch" &&
+					(segments.at(-1) === userId || segments.at(-2) === userId);
+				if (knownUserKey || sketchUserKey) cursor.delete();
+				cursor.continue();
+			};
+			request.onerror = () => reject(request.error);
+			transaction.oncomplete = () => { db.close(); resolve(); };
+			transaction.onerror = () => { db.close(); reject(transaction.error); };
+		});
+	} catch (error) {
+		console.warn("Error purging user cache:", error);
 	}
 }
 
@@ -200,23 +239,51 @@ export type OfflineCommit = {
 	message: string;
 	timestamp: string;
 	author: string;
+	baseCommitSha?: string | null;
 	files: {
 		path: string;
 		content: string;
 	}[];
 };
 
-export async function getOfflineCommits(workspaceId: string, projectId: string): Promise<OfflineCommit[]> {
-	const result = await getDraft<OfflineCommit[]>(`offline-commits:${workspaceId}:${projectId}`);
-	return result?.value ?? [];
+function offlineCommitsKey(workspaceId: string, projectId: string, userId?: string | null) {
+	return userId
+		? "offline-commits:" + userId + ":" + workspaceId + ":" + projectId
+		: "offline-commits:" + workspaceId + ":" + projectId;
 }
 
-export async function saveOfflineCommit(workspaceId: string, projectId: string, commit: OfflineCommit) {
-	const existing = await getOfflineCommits(workspaceId, projectId);
-	const updated = [...existing, commit];
-	await setDraft(`offline-commits:${workspaceId}:${projectId}`, updated);
+export async function getOfflineCommits(
+	workspaceId: string,
+	projectId: string,
+	userId?: string | null,
+): Promise<OfflineCommit[]> {
+	const scoped = await getDraft<OfflineCommit[]>(offlineCommitsKey(workspaceId, projectId, userId));
+	if (scoped?.value) return scoped.value;
+	if (userId) {
+		const legacy = await getDraft<OfflineCommit[]>(offlineCommitsKey(workspaceId, projectId));
+		return legacy?.value ?? [];
+	}
+	return [];
 }
 
-export async function clearOfflineCommits(workspaceId: string, projectId: string) {
-	await deleteDraft(`offline-commits:${workspaceId}:${projectId}`);
+export async function saveOfflineCommit(
+	workspaceId: string,
+	projectId: string,
+	commit: OfflineCommit,
+	userId?: string | null,
+) {
+	const existing = await getOfflineCommits(workspaceId, projectId, userId);
+	await setDraft(offlineCommitsKey(workspaceId, projectId, userId), [...existing, commit]);
+	if (userId) await deleteDraft(offlineCommitsKey(workspaceId, projectId));
+}
+
+export async function clearOfflineCommits(
+	workspaceId: string,
+	projectId: string,
+	userId?: string | null,
+) {
+	await Promise.all([
+		deleteDraft(offlineCommitsKey(workspaceId, projectId, userId)),
+		deleteDraft(offlineCommitsKey(workspaceId, projectId)),
+	]);
 }

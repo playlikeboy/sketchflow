@@ -27,7 +27,14 @@ import {
   setOfflineModeSetting,
   purgeUserCache,
 } from "@/lib/indexeddb";
-import { startSyncManager, triggerSyncNow } from "@/lib/sync-manager";
+import {
+  startSyncManager,
+  triggerSyncNow,
+  getSyncFailureCount,
+  retryFailedSyncActions,
+  clearSyncQueueForUser,
+  onSyncQueueChange,
+} from "@/lib/sync-manager";
 import { useAuthMe } from "@/lib/swr-hooks";
 
 import { BrandMark } from "@/components/brand-mark";
@@ -240,6 +247,7 @@ export function AppShell({
 
   const [hasWorkspaceUnsynced, setHasWorkspaceUnsynced] = useState(false);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [syncFailures, setSyncFailures] = useState(0);
 
   useEffect(() => {
     getOfflineModeSetting().then(setIsOfflineMode).catch(() => {});
@@ -267,6 +275,21 @@ export function AppShell({
 
   useEffect(() => {
     startSyncManager();
+
+    let active = true;
+    const refreshFailures = () => {
+      void getSyncFailureCount().then((count) => {
+        if (active) setSyncFailures(count);
+      });
+    };
+
+    refreshFailures();
+    const unsubscribe = onSyncQueueChange(refreshFailures);
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   async function toggleOfflineMode() {
@@ -359,6 +382,18 @@ export function AppShell({
                 </Badge>
               )}
 
+              {syncFailures > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void retryFailedSyncActions(userId ?? undefined)}
+                  className="h-8 rounded-xl border-destructive/40 bg-destructive/5 px-2.5 text-xs font-extrabold text-destructive hover:bg-destructive/10"
+                  title="Retry failed background syncs"
+                >
+                  {syncFailures} sync {syncFailures === 1 ? "failure" : "failures"}
+                </Button>
+              )}
+
               {action}
 
               <Button
@@ -375,13 +410,18 @@ export function AppShell({
                 variant="ghost"
                 size="icon"
                 onClick={() => {
+                  if (userId) {
+                    clearStoredGithubToken();
+                    void clearSyncQueueForUser(userId);
+                    void purgeUserCache(userId);
+                  } else {
+                    clearStoredGithubToken();
+                  }
+
                   if (typeof window !== "undefined" && window.localStorage) {
                     window.localStorage.removeItem("sketchflow:active-user-id");
                   }
-                  clearStoredGithubToken();
-                  if (userId) {
-                    void purgeUserCache(userId);
-                  }
+
                   void mutate(() => true, undefined, { revalidate: false }).then(() => {
                     void app.signOut({ redirectUrl: "/" });
                   });

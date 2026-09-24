@@ -1,6 +1,7 @@
 "use client";
 
-import { getOfflineCommits, clearOfflineCommits } from "@/lib/indexeddb";
+import { getOfflineCommits, clearOfflineCommits, purgeProjectDrafts } from "@/lib/indexeddb";
+import { getActiveUserId } from "@/lib/github-token";
 import { commitWorkspaceFiles, createWorkspaceProject, syncWorkspaceProjectsMetadata } from "@/lib/api";
 
 type QueuedAction =
@@ -13,9 +14,13 @@ type QueuedAction =
 			payload: {
 				message: string;
 				files: Array<{ path: string; content: string }>;
+				expectedHeadSha?: string | null;
 			};
 			attempts: number;
 			nextAttemptAt: number;
+			status?: "pending" | "failed";
+			lastError?: string;
+			failedAt?: number;
 	  }
 	| {
 			id: string;
@@ -31,6 +36,9 @@ type QueuedAction =
 			};
 			attempts: number;
 			nextAttemptAt: number;
+			status?: "pending" | "failed";
+			lastError?: string;
+			failedAt?: number;
 	  }
 	| {
 			id: string;
@@ -39,6 +47,9 @@ type QueuedAction =
 			userId?: string;
 			attempts: number;
 			nextAttemptAt: number;
+			status?: "pending" | "failed";
+			lastError?: string;
+			failedAt?: number;
 	  };
 
 const SYNC_STORE = "sync-queue";
@@ -55,7 +66,7 @@ let timer: ReturnType<typeof setInterval> | null = null;
 const listeners = new Set<Listener>();
 
 function generateId(type: string) {
-	return `${type}:${Date.now()}:${Math.random().toString(36).slice(2, 9)}`;
+	return type + ":" + Date.now() + ":" + (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 }
 
 function openSyncDb() {
@@ -100,7 +111,10 @@ async function loadQueue(): Promise<QueuedAction[]> {
 		const transaction = db.transaction(SYNC_STORE, "readonly");
 		const store = transaction.objectStore(SYNC_STORE);
 		const request = store.getAll();
-		request.onsuccess = () => resolve((request.result as QueuedAction[]) ?? []);
+		request.onsuccess = () => {
+			const records = (request.result as QueuedAction[]) ?? [];
+			resolve(records.map((action) => ({ ...action, status: action.status ?? "pending" })));
+		};
 		request.onerror = () => reject(request.error);
 		transaction.oncomplete = () => db.close();
 		transaction.onerror = () => {
@@ -137,19 +151,18 @@ export function onSyncQueueChange(listener: Listener) {
 
 export async function getSyncQueueLength(): Promise<number> {
 	try {
-		const db = await openSyncDb();
-		return new Promise<number>((resolve, reject) => {
-			const transaction = db.transaction(SYNC_STORE, "readonly");
-			const store = transaction.objectStore(SYNC_STORE);
-			const request = store.count();
-			request.onsuccess = () => resolve(request.result);
-			request.onerror = () => reject(request.error);
-			transaction.oncomplete = () => db.close();
-			transaction.onerror = () => {
-				db.close();
-				reject(transaction.error);
-			};
-		});
+		const queue = await loadQueue();
+		return queue.filter((action) => action.status !== "failed").length;
+	} catch {
+		return 0;
+	}
+}
+
+export async function getSyncFailureCount(): Promise<number> {
+	try {
+		const userId = getActiveUserId();
+		const queue = await loadQueue();
+		return queue.filter((action) => action.status === "failed" && Boolean(userId) && action.userId === userId).length;
 	} catch {
 		return 0;
 	}
@@ -171,6 +184,7 @@ async function enqueue(action: {
 		payload: action.payload ?? { message: "", files: [] },
 		attempts: 0,
 		nextAttemptAt: Date.now(),
+		status: "pending",
 	} as QueuedAction;
 	await persistAction(record);
 	notify();
@@ -187,20 +201,14 @@ async function processCommit(action: QueuedAction & { type: "commit" }) {
 		workspaceId: action.workspaceId,
 		message: action.payload.message,
 		files: action.payload.files,
+		expectedHeadSha: action.payload.expectedHeadSha,
 	});
 
 	try {
-		const { deleteLocalProject, deleteDraft } = await import("@/lib/indexeddb");
+		const { deleteLocalProject } = await import("@/lib/indexeddb");
 		await deleteLocalProject(action.workspaceId, action.projectId, action.userId);
-		const draftBase = action.userId
-			? `sketch:${action.workspaceId}:${action.projectId}:system-map:${action.userId}`
-			: `sketch:${action.workspaceId}:${action.projectId}`;
-		await Promise.all([
-			deleteDraft(draftBase),
-			deleteDraft(`${draftBase}:notes`),
-			deleteDraft(`${draftBase}:state`),
-		]);
-		await clearOfflineCommits(action.workspaceId, action.projectId);
+		await purgeProjectDrafts(action.workspaceId, action.projectId, action.userId);
+	await clearOfflineCommits(action.workspaceId, action.projectId, action.userId);
 	} catch {
 		// best-effort cleanup
 	}
@@ -245,7 +253,14 @@ async function drainQueue(force = false) {
 	try {
 		const queue = await loadQueue();
 		const now = Date.now();
-		const ready = queue.filter((action) => action.nextAttemptAt <= now);
+		const activeUserId = getActiveUserId();
+		const ready = queue.filter(
+			(action) =>
+				action.status !== "failed" &&
+				action.nextAttemptAt <= now &&
+				Boolean(activeUserId) &&
+				action.userId === activeUserId,
+		);
 
 		for (const action of ready) {
 			try {
@@ -262,8 +277,15 @@ async function drainQueue(force = false) {
 			} catch (error) {
 				const attempts = action.attempts + 1;
 				if (attempts >= MAX_ATTEMPTS) {
-					await removeAction(action.id);
-					console.warn("[sync-manager] Dropping action after max attempts", action, error);
+					await persistAction({
+						...action,
+						attempts,
+						status: "failed",
+						lastError: error instanceof Error ? error.message : "Sync failed",
+						failedAt: Date.now(),
+						nextAttemptAt: Number.MAX_SAFE_INTEGER,
+					});
+					console.warn("[sync-manager] Preserving failed action for recovery", action, error);
 					notify();
 					continue;
 				}
@@ -271,6 +293,8 @@ async function drainQueue(force = false) {
 				await persistAction({
 					...action,
 					attempts,
+					status: "pending",
+					lastError: error instanceof Error ? error.message : "Sync failed",
 					nextAttemptAt: Date.now() + backoffDelay(attempts),
 				});
 				notify();
@@ -279,6 +303,34 @@ async function drainQueue(force = false) {
 	} finally {
 		processing = false;
 	}
+}
+
+export async function retryFailedSyncActions(userId = getActiveUserId()) {
+	if (!userId) return;
+	const queue = await loadQueue();
+	for (const action of queue) {
+		if (action.userId === userId && action.status === "failed") {
+			await persistAction({
+				...action,
+				attempts: 0,
+				status: "pending",
+				lastError: undefined,
+				failedAt: undefined,
+				nextAttemptAt: Date.now(),
+			});
+		}
+	}
+	notify();
+	await drainQueue(true);
+}
+
+export async function clearSyncQueueForUser(userId: string) {
+	if (!userId) return;
+	const queue = await loadQueue();
+	for (const action of queue) {
+		if (action.userId === userId) await removeAction(action.id);
+	}
+	notify();
 }
 
 export async function queueCommit(
@@ -315,7 +367,7 @@ export async function queueSyncMetadata(workspaceId: string, userId?: string) {
 }
 
 export async function processOfflineCommitsNow(workspaceId: string, projectId: string) {
-	const commits = await getOfflineCommits(workspaceId, projectId);
+	const commits = await getOfflineCommits(workspaceId, projectId, getActiveUserId());
 	for (const commit of commits) {
 		await enqueue({
 			type: "commit",
@@ -324,7 +376,9 @@ export async function processOfflineCommitsNow(workspaceId: string, projectId: s
 			payload: {
 				message: commit.message,
 				files: commit.files,
+				expectedHeadSha: commit.baseCommitSha,
 			},
+			userId: getActiveUserId() ?? undefined,
 		});
 	}
 }

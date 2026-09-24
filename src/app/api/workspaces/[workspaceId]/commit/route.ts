@@ -40,6 +40,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ wor
 
 		const files = parseFiles(body.files);
 		const message = optionalString(body, "message") || "Update Sketchflow workspace";
+		const expectedHeadSha = optionalString(body, "expectedHeadSha");
+		if (expectedHeadSha && !/^[0-9a-f]{40}$/i.test(expectedHeadSha)) {
+			throw new BadRequestError('Expected "expectedHeadSha" to be a 40-character Git SHA');
+		}
 		const commit = await createCommitOnBranch({
 			accessToken,
 			owner: workspace.repoOwner,
@@ -47,6 +51,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ wor
 			branch: workspace.defaultBranch,
 			message,
 			files,
+			expectedHeadSha,
 		});
 
 		await updateWorkspaceCommit(workspace.id, commit.sha);

@@ -842,6 +842,7 @@ export function EditorClient({
 			const response = await commitWorkspaceFiles({
 				workspaceId,
 				message: `Update ${humanizeSlug(projectId)} visual doc`,
+				expectedHeadSha: data?.workspace?.latestCommitSha ?? workspace?.latestCommitSha ?? null,
 				files: [
 					{
 						path: projectFilePath(projectId),
@@ -956,9 +957,9 @@ export function EditorClient({
 	}
 
 	const loadOfflineCommits = useCallback(async () => {
-		const list = await getOfflineCommits(workspaceId, projectId);
+		const list = await getOfflineCommits(workspaceId, projectId, auth?.user?.id);
 		setOfflineCommits(list);
-	}, [workspaceId, projectId]);
+	}, [workspaceId, projectId, auth?.user?.id]);
 
 	useEffect(() => {
 		void loadOfflineCommits();
@@ -1004,6 +1005,7 @@ export function EditorClient({
 
 		const commit: OfflineCommit = {
 			id: commitId,
+			baseCommitSha: data?.workspace?.latestCommitSha ?? workspace?.latestCommitSha ?? null,
 			message: commitMessage.trim(),
 			timestamp,
 			author: authorName,
@@ -1032,7 +1034,7 @@ export function EditorClient({
 		};
 
 		try {
-			await saveOfflineCommit(workspaceId, projectId, commit);
+			await saveOfflineCommit(workspaceId, projectId, commit, auth?.user?.id);
 			setCommitMessage("");
 			setSceneDirty(false);
 			setNotesDirty(false);
@@ -1054,12 +1056,15 @@ export function EditorClient({
 		setSaveError(null);
 
 		try {
+			let expectedHeadSha = data?.workspace?.latestCommitSha ?? workspace?.latestCommitSha ?? null;
 			for (const commit of offlineCommits) {
-				await commitWorkspaceFiles({
+				const response = await commitWorkspaceFiles({
 					workspaceId,
 					message: commit.message,
 					files: commit.files,
+					expectedHeadSha: expectedHeadSha,
 				});
+				expectedHeadSha = response.commit.sha;
 			}
 
 			try {
@@ -1074,7 +1079,7 @@ export function EditorClient({
 				deleteDraft(currentStateDraftKey),
 			]);
 
-			await clearOfflineCommits(workspaceId, projectId);
+			await clearOfflineCommits(workspaceId, projectId, auth?.user?.id);
 			setOfflineCommits([]);
 			setStatus("Offline commits synced to GitHub");
 			await mutateSketch();

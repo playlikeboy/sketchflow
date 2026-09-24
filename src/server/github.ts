@@ -117,6 +117,15 @@ export class GithubApiError extends HttpError {
 	}
 }
 
+export class GithubConflictError extends HttpError {
+	readonly code = "github_conflict" as const;
+
+	constructor(message: string) {
+		super(message, 409);
+		this.name = "GithubConflictError";
+	}
+}
+
 function encodePathPart(value: string) {
 	return encodeURIComponent(value);
 }
@@ -359,6 +368,7 @@ export async function createCommitOnBranch(input: {
 	branch: string;
 	message: string;
 	files: GithubFileChange[];
+	expectedHeadSha?: string | null;
 }) {
 	const files = input.files.map(validateGithubFileChange);
 
@@ -370,6 +380,10 @@ export async function createCommitOnBranch(input: {
 		input.accessToken,
 		repoApiPath(input.owner, input.repo, `/git/ref/heads/${input.branch}`),
 	);
+	if (input.expectedHeadSha && input.expectedHeadSha !== ref.object.sha) {
+		throw new GithubConflictError("GitHub branch changed since this draft was created. Refresh the workspace before syncing.");
+	}
+
 	const parentCommit = await githubRequest<GithubCommit>(
 		input.accessToken,
 		repoApiPath(input.owner, input.repo, `/git/commits/${ref.object.sha}`),
@@ -395,13 +409,20 @@ export async function createCommitOnBranch(input: {
 		}),
 	});
 
-	await githubRequest<GithubRef>(input.accessToken, repoApiPath(input.owner, input.repo, `/git/refs/heads/${input.branch}`), {
-		method: "PATCH",
-		body: JSON.stringify({
+	try {
+		await githubRequest<GithubRef>(input.accessToken, repoApiPath(input.owner, input.repo, `/git/refs/heads/${input.branch}`), {
+			method: "PATCH",
+			body: JSON.stringify({
 			sha: commit.sha,
 			force: false,
 		}),
-	});
+		});
+	} catch (error) {
+		if (error instanceof GithubApiError && error.status === 422) {
+			throw new GithubConflictError("GitHub branch changed while syncing. Your local changes were not discarded.");
+		}
+		throw error;
+	}
 
 	return {
 		sha: commit.sha,
