@@ -36,3 +36,39 @@ export function validateGithubFileChange(file: GithubFileChange, maxBytes = 8_00
 export function jsDelivrBaseUrl(owner: string, repo: string, commitSha: string) {
   return "https://cdn.jsdelivr.net/gh/" + owner + "/" + repo + "@" + commitSha + "/";
 }
+
+// Git ref rules (subset of `git check-ref-format`) for branch names used in API paths.
+export function validateGithubBranch(branch: string) {
+  if (
+    !branch ||
+    branch.length > 255 ||
+    branch.startsWith("/") ||
+    branch.endsWith("/") ||
+    branch.endsWith(".") ||
+    branch.endsWith(".lock") ||
+    branch.includes("..") ||
+    branch.includes("//") ||
+    branch.includes("@{") ||
+    /[\x00-\x20\x7f~^:?*[\\]/.test(branch) ||
+    branch.split("/").some((part) => part.startsWith("."))
+  ) {
+    throw new Error("Invalid branch name: " + (branch || "(empty)"));
+  }
+  return branch;
+}
+
+export function encodeGithubBranch(branch: string) {
+  return validateGithubBranch(branch).split("/").map(encodeURIComponent).join("/");
+}
+
+// Ensures a path read from repo content stays inside the given project folder.
+export function validateProjectScopedPath(projectId: string, path: unknown) {
+  if (typeof path !== "string") {
+    throw new Error("Expected a project file path");
+  }
+  validateGithubFilePath(path);
+  if (!path.startsWith("projects/" + projectId + "/")) {
+    throw new Error("Path is outside project " + projectId + ": " + path);
+  }
+  return path;
+}

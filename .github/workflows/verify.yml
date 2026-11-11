@@ -13,11 +13,13 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: "1"
       WRANGLER_SEND_METRICS: "false"
-      NEXT_PUBLIC_STACK_PROJECT_ID: ci-project
+      NEXT_PUBLIC_STACK_PROJECT_ID: 00000000-0000-4000-8000-000000000000
       NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY: ci-publishable-key
       STACK_SECRET_SERVER_KEY: ci-server-key
       DATABASE_URL: postgresql://ci:ci@localhost:5432/sketchflow
@@ -33,7 +35,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: "1.4.4"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

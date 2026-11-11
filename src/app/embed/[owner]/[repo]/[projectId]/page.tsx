@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import { PublicSketchViewer } from "@/components/public-sketch-viewer";
 import { Badge } from "@/components/ui/badge";
-import { getPublicRepoDefaultBranch, readPublicProject, readPublicSketch } from "@/server/public-github";
+import { loadPublicProjectView } from "@/server/public-github";
 
 export default async function EmbedProjectPage({
 	params,
@@ -13,10 +14,11 @@ export default async function EmbedProjectPage({
 }) {
 	const { owner, repo, projectId } = await params;
 	const { ref } = await searchParams;
-	const defaultBranch = await getPublicRepoDefaultBranch(owner, repo);
-	const branch = ref || defaultBranch;
-	const project = await readPublicProject({ owner, repo, branch, projectId }).catch(() => null);
-	const scene = await readPublicSketch({ owner, repo, branch, projectId, project }).catch(() => null);
+	const view = await loadPublicProjectView({ owner, repo, projectId, ref, mode: "embed" });
+	if (!view) {
+		notFound();
+	}
+	const { project, scene } = view;
 
 	return (
 		<main className="h-screen w-screen bg-background p-4 overflow-hidden">

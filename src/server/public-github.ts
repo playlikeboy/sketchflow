@@ -1,11 +1,15 @@
+import "server-only";
+
 import type { SketchScene } from "@/lib/api";
 import { GITHUB_REST_API_VERSION } from "@/lib/config";
+import { encodeGithubBranch } from "@/server/github-validation";
 
 export type PublicProjectFile = {
 	title?: string;
 	visibility?: string;
 	updatedAt?: string;
 	sketches?: Array<{ id?: string; title?: string; file?: string }>;
+	sharing?: { enabled?: boolean; embed?: boolean };
 };
 
 type PublicRepo = {
@@ -54,7 +58,7 @@ export async function readPublicJson<T>(input: {
 	branch: string;
 	path: string;
 }) {
-	const url = `https://raw.githubusercontent.com/${safeGithubSegment(input.owner)}/${safeGithubSegment(input.repo)}/${safeGithubSegment(input.branch)}/${safeGithubPath(input.path)}`;
+	const url = `https://raw.githubusercontent.com/${safeGithubSegment(input.owner)}/${safeGithubSegment(input.repo)}/${encodeGithubBranch(input.branch)}/${safeGithubPath(input.path)}`;
 	const response = await fetch(url, { next: { revalidate: 60 } });
 
 	if (!response.ok) {
@@ -70,7 +74,7 @@ export async function readPublicText(input: {
 	branch: string;
 	path: string;
 }) {
-	const url = `https://raw.githubusercontent.com/${safeGithubSegment(input.owner)}/${safeGithubSegment(input.repo)}/${safeGithubSegment(input.branch)}/${safeGithubPath(input.path)}`;
+	const url = `https://raw.githubusercontent.com/${safeGithubSegment(input.owner)}/${safeGithubSegment(input.repo)}/${encodeGithubBranch(input.branch)}/${safeGithubPath(input.path)}`;
 	const response = await fetch(url, { next: { revalidate: 60 } });
 
 	if (!response.ok) {
@@ -108,4 +112,48 @@ export async function readPublicSketch(input: {
 		...input,
 		path: sketchPath,
 	});
+}
+
+export type PublicProjectView = {
+	branch: string;
+	project: PublicProjectFile | null;
+	scene: SketchScene | null;
+};
+
+// Shared loader for the share and embed pages. Returns null (render a 404) when the URL is
+// malformed or the owner has turned sharing off for the project.
+export async function loadPublicProjectView(input: {
+	owner: string;
+	repo: string;
+	projectId: string;
+	ref?: string;
+	mode: "share" | "embed";
+}): Promise<PublicProjectView | null> {
+	try {
+		safeGithubSegment(input.owner);
+		safeGithubSegment(input.repo);
+		safeGithubSegment(input.projectId);
+		const branch = input.ref ? input.ref : await getPublicRepoDefaultBranch(input.owner, input.repo);
+		encodeGithubBranch(branch);
+
+		const base = { owner: input.owner, repo: input.repo, branch, projectId: input.projectId };
+		const project = await readPublicProject(base).catch(() => null);
+
+		if (project) {
+			const sharingOff = project.sharing?.enabled === false || project.visibility === "private";
+			const embedOff = input.mode === "embed" && project.sharing?.embed === false;
+			if (sharingOff || embedOff) {
+				return null;
+			}
+		}
+
+		const scene = await readPublicSketch({ ...base, project }).catch(() => null);
+		if (!project && !scene) {
+			return null;
+		}
+
+		return { branch, project, scene };
+	} catch {
+		return null;
+	}
 }

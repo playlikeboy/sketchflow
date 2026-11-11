@@ -2,7 +2,7 @@ import { requireGithubAccessToken } from "@/server/auth";
 import { getWorkspace, recordSyncEvent, updateWorkspaceCommit } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
 import { createCommitOnBranch, jsDelivrBaseUrl, validateGithubFileChange, type GithubFileChange } from "@/server/github";
-import { BadRequestError, jsonError, jsonOk, NotFoundError } from "@/server/http";
+import { BadRequestError, jsonError, jsonOk, NotFoundError, assertSameOrigin } from "@/server/http";
 import { isJsonObject, optionalString } from "@/server/validation";
 
 function parseFiles(value: unknown) {
@@ -24,6 +24,7 @@ function parseFiles(value: unknown) {
 
 export async function POST(request: Request, { params }: { params: Promise<{ workspaceId: string }> }) {
 	try {
+		assertSameOrigin(request);
 		const { workspaceId } = await params;
 		const scopes = getGithubOAuthScopes();
 		const { accessToken, user } = await requireGithubAccessToken(scopes, request);

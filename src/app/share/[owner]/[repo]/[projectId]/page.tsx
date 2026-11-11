@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { ExternalLink, GitBranch } from "lucide-react";
 
 import { BrandMark } from "@/components/brand-mark";
@@ -6,7 +7,7 @@ import { PublicSketchViewer } from "@/components/public-sketch-viewer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getPublicRepoDefaultBranch, readPublicProject, readPublicSketch } from "@/server/public-github";
+import { loadPublicProjectView } from "@/server/public-github";
 
 export default async function ShareProjectPage({
 	params,
@@ -17,10 +18,11 @@ export default async function ShareProjectPage({
 }) {
 	const { owner, repo, projectId } = await params;
 	const { ref } = await searchParams;
-	const defaultBranch = await getPublicRepoDefaultBranch(owner, repo);
-	const branch = ref || defaultBranch;
-	const project = await readPublicProject({ owner, repo, branch, projectId }).catch(() => null);
-	const scene = await readPublicSketch({ owner, repo, branch, projectId, project }).catch(() => null);
+	const view = await loadPublicProjectView({ owner, repo, projectId, ref, mode: "share" });
+	if (!view) {
+		notFound();
+	}
+	const { branch, project, scene } = view;
 	const title = project?.title || projectId;
 
 	return (

@@ -24,7 +24,7 @@ import {
 	readGithubFileText,
 	validateGithubPathSegment,
 } from "@/server/github";
-import { BadRequestError, jsonError, jsonOk, NotFoundError } from "@/server/http";
+import { BadRequestError, jsonError, jsonOk, NotFoundError, assertSameOrigin } from "@/server/http";
 import { isJsonObject, optionalString } from "@/server/validation";
 import { humanizeSlug, notesFilePath, projectFilePath, sketchFilePath, slugify } from "@/lib/sketchflow";
 
@@ -369,6 +369,7 @@ export async function POST(
 	{ params }: { params: Promise<{ workspaceId: string }> },
 ) {
 	try {
+		assertSameOrigin(request);
 		const { workspaceId } = await params;
 		const scopes = getGithubOAuthScopes();
 		const { accessToken, user } = await requireGithubAccessToken(scopes, request);
@@ -527,6 +528,7 @@ export async function POST(
 				throw new BadRequestError("Expected sourceWorkspaceId and sourceProjectId");
 			}
 
+			validateGithubPathSegment(sourceProjectId);
 			const targetProjectId = validateGithubPathSegment(optionalString(body, "targetProjectId") || sourceProjectId);
 
 			const existing = result.projects.find((project) => project.id === targetProjectId);
@@ -557,12 +559,31 @@ export async function POST(
 				throw new NotFoundError("Source project file not found in repository");
 			}
 
-			const sourceProjectJson = sourceProjectFile.json as any;
-			const sourceSketches = Array.isArray(sourceProjectJson.sketches) ? sourceProjectJson.sketches : [];
+			// The source repository is untrusted: narrow everything read from it before use.
+			if (!isJsonObject(sourceProjectFile.json)) {
+				throw new BadRequestError("Source project file is not a JSON object");
+			}
+			const sourceProjectJson = sourceProjectFile.json;
+			const sourceTitle = typeof sourceProjectJson.title === "string" && sourceProjectJson.title.trim()
+				? sourceProjectJson.title.trim()
+				: humanizeSlug(sourceProjectId);
+			const sourceDescription = typeof sourceProjectJson.description === "string" ? sourceProjectJson.description : "";
+			const sourceSketches = (Array.isArray(sourceProjectJson.sketches) ? sourceProjectJson.sketches : [])
+				.filter((sketch): sketch is { id: string; title?: unknown } => isJsonObject(sketch) && typeof sketch.id === "string")
+				.map((sketch) => ({
+					id: validateGithubPathSegment(sketch.id),
+					title: typeof sketch.title === "string" ? sketch.title : humanizeSlug(sketch.id),
+				}));
+			const sourceDefaultSketchId =
+				typeof sourceProjectJson.defaultSketch === "string"
+					? sourceProjectJson.defaultSketch.split("/").pop()?.replace(".excalidraw.json", "")
+					: undefined;
+			const defaultSketchId =
+				sourceSketches.find((sketch) => sketch.id === sourceDefaultSketchId)?.id ?? sourceSketches[0]?.id ?? "system-map";
 
 			// Read sketches contents
 			const sketchFiles = await Promise.all(
-				sourceSketches.map(async (sketch: any) => {
+				sourceSketches.map(async (sketch) => {
 					const sketchContent = await readPublicOptionalJson({
 						...base,
 						path: `projects/${sourceProjectId}/sketches/${sketch.id}.excalidraw.json`,
@@ -588,11 +609,16 @@ export async function POST(
 				sourceWorkspace.repoName,
 			)}/${encodeURIComponent(sourceWorkspace.defaultBranch)}/projects/${sourceProjectId}/docs/notes.md`;
 			const notesResponse = await publicGithubFetch(notesUrl);
-			const sourceNotes = notesResponse.ok ? await notesResponse.text() : `# ${sourceProjectJson.title}\n`;
+			const sourceNotes = notesResponse.ok ? await notesResponse.text() : `# ${sourceTitle}\n`;
 
 			// Read state
 			const sourceStateFile = await readPublicOptionalJson({ ...base, path: `projects/${sourceProjectId}/state.json` });
-			const sourceStateJson = sourceStateFile?.json as any;
+			const sourceStateJson = isJsonObject(sourceStateFile?.json) ? sourceStateFile.json : null;
+			const sourceViewMode = typeof sourceStateJson?.viewMode === "string" ? sourceStateJson.viewMode : "split";
+			const sourcePanelSizes =
+				Array.isArray(sourceStateJson?.panelSizes) && sourceStateJson.panelSizes.every((size) => typeof size === "number")
+					? sourceStateJson.panelSizes
+					: [50, 50];
 
 			// 4. Create files for target workspace commit
 			const now = new Date().toISOString();
@@ -601,14 +627,14 @@ export async function POST(
 			const projectFileContent = {
 				schemaVersion: 1,
 				id: targetProjectId,
-				title: sourceProjectJson.title,
-				description: sourceProjectJson.description || `Forked from ${sourceWorkspace.repoOwner}/${sourceWorkspace.repoName}/${sourceProjectId}`,
+				title: sourceTitle,
+				description: sourceDescription || `Forked from ${sourceWorkspace.repoOwner}/${sourceWorkspace.repoName}/${sourceProjectId}`,
 				visibility: targetVisibility,
 				createdAt: now,
 				updatedAt: now,
 				projectFile: projectFilePath(targetProjectId),
-				defaultSketch: sourceProjectJson.defaultSketch ? sketchFilePath(targetProjectId, sourceProjectJson.defaultSketch.split("/").pop().replace(".excalidraw.json", "")) : sketchFilePath(targetProjectId, "system-map"),
-				sketches: sourceSketches.map((sk: any) => ({
+				defaultSketch: sketchFilePath(targetProjectId, defaultSketchId),
+				sketches: sourceSketches.map((sk) => ({
 					id: sk.id,
 					title: sk.title,
 					file: sketchFilePath(targetProjectId, sk.id),
@@ -623,9 +649,9 @@ export async function POST(
 			};
 
 			const targetState = {
-				viewMode: sourceStateJson?.viewMode || "split",
-				lastActiveSketchId: sourceStateJson?.lastActiveSketchId || "system-map",
-				panelSizes: sourceStateJson?.panelSizes || [50, 50],
+				viewMode: sourceViewMode,
+				lastActiveSketchId: defaultSketchId,
+				panelSizes: sourcePanelSizes,
 				updatedAt: now,
 				history: [
 					{

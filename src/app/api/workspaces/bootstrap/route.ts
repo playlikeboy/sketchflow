@@ -13,10 +13,13 @@ import {
 	createCommitOnBranch,
 	ensureUserRepository,
 	getAuthenticatedGithubUser,
+	getBranchHeadSha,
+	getGithubTreeRecursive,
 	jsDelivrBaseUrl,
+	validateGithubPathSegment,
 	validateGithubRepoName,
 } from "@/server/github";
-import { BadRequestError, jsonError, jsonOk } from "@/server/http";
+import { BadRequestError, jsonError, jsonOk, assertSameOrigin } from "@/server/http";
 import { isJsonObject, optionalBoolean, optionalString } from "@/server/validation";
 
 function parseVisibility(isPrivate: boolean): WorkspaceVisibility {
@@ -25,12 +28,13 @@ function parseVisibility(isPrivate: boolean): WorkspaceVisibility {
 
 export async function POST(request: Request) {
 	try {
+		assertSameOrigin(request);
 		const stackUser = await requireUser();
 		const user = normalizeStackUser(stackUser);
 		const scopes = getGithubOAuthScopes();
 		const { accessToken } = await requireGithubAccessToken(scopes, request);
 
-	const body = await request.json().catch(() => ({}));
+		const body = await request.json().catch(() => ({}));
 		if (!isJsonObject(body)) {
 			throw new BadRequestError("Expected a JSON object body");
 		}
@@ -38,13 +42,14 @@ export async function POST(request: Request) {
 		const repoName = validateGithubRepoName(optionalString(body, "repoName") || getOptionalEnv("SKETCHFLOW_REPO_NAME", "sketchflow-workspace"));
 		const isPrivate = optionalBoolean(body, "private") ?? false;
 		const appUrl = getOptionalEnv("NEXT_PUBLIC_APP_URL", SKETCHFLOW_APP_URL);
-		const requestedOwner = optionalString(body, "repoOwner");
+		const requestedOwnerInput = optionalString(body, "repoOwner");
+		const requestedOwner = requestedOwnerInput ? validateGithubPathSegment(requestedOwnerInput) : undefined;
 		const authenticatedGithubUser = await getAuthenticatedGithubUser(accessToken);
 		const repoOwner = requestedOwner || authenticatedGithubUser.login;
 
 		const { githubUser, repository, created } = await ensureUserRepository(accessToken, repoOwner, repoName, isPrivate, appUrl);
 		const branch = repository.default_branch || getOptionalEnv("SKETCHFLOW_DEFAULT_BRANCH", "main");
-		const files = buildInitialWorkspaceFiles({
+		const initialFiles = buildInitialWorkspaceFiles({
 			owner: repository.owner.login,
 			repo: repository.name,
 			branch,
@@ -54,14 +59,42 @@ export async function POST(request: Request) {
 			visibility: parseVisibility(repository.private),
 		});
 
-		const commit = await createCommitOnBranch({
-			accessToken,
-			owner: repository.owner.login,
-			repo: repository.name,
-			branch,
-			message: "Initialize Sketchflow workspace",
-			files,
-		});
+		// Never overwrite content in a repository that already exists: only add missing scaffold files,
+		// and leave the user's README alone.
+		let files = initialFiles;
+		if (!created) {
+			const tree = await getGithubTreeRecursive({
+				accessToken,
+				owner: repository.owner.login,
+				repo: repository.name,
+				treeShaOrBranch: branch,
+			}).catch(() => null);
+			if (tree?.truncated) {
+				throw new BadRequestError("Repository is too large to inspect safely. Use a dedicated Sketchflow repository.");
+			}
+			const existingPaths = new Set(tree?.tree.map((entry) => entry.path) ?? []);
+			const alreadyInitialized = existingPaths.has(".sketchflow/workspace.json");
+			files = alreadyInitialized
+				? []
+				: initialFiles.filter((file) => file.path !== "README.md" && !existingPaths.has(file.path));
+		}
+
+		const commit =
+			files.length > 0
+				? await createCommitOnBranch({
+						accessToken,
+						owner: repository.owner.login,
+						repo: repository.name,
+						branch,
+						message: "Initialize Sketchflow workspace",
+						files,
+					})
+				: {
+						sha: await getBranchHeadSha(accessToken, repository.owner.login, repository.name, branch),
+						htmlUrl: repository.html_url,
+						branch,
+						files: [] as string[],
+					};
 
 		await upsertUser(user);
 		await upsertGithubConnection(user.id, {

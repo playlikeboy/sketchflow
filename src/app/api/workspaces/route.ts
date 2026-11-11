@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic";
 
-import { requireUser, normalizeStackUser } from "@/server/auth";
+import { requireGithubAccessToken, requireUser, normalizeStackUser } from "@/server/auth";
+import { getGithubOAuthScopes } from "@/server/env";
+import { getGithubRepository, validateGithubBranch, validateGithubPathSegment, validateGithubRepoName } from "@/server/github";
 import { upsertUser } from "@/server/db/repositories";
 import { listWorkspaces, upsertWorkspace, type WorkspaceVisibility } from "@/server/db/repositories";
-import { BadRequestError, jsonError, jsonOk } from "@/server/http";
+import { BadRequestError, jsonError, jsonOk, assertSameOrigin } from "@/server/http";
 import { isJsonObject, optionalString, requiredString } from "@/server/validation";
 
 function parseVisibility(value: string | undefined): WorkspaceVisibility {
@@ -34,6 +36,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
 	try {
+		assertSameOrigin(request);
 		const stackUser = await requireUser();
 		const user = normalizeStackUser(stackUser);
 		await upsertUser(user);
@@ -43,12 +46,29 @@ export async function POST(request: Request) {
 			throw new BadRequestError("Expected a JSON object body");
 		}
 
+		const repoOwner = validateGithubPathSegment(requiredString(body, "repoOwner"));
+		const repoName = validateGithubRepoName(requiredString(body, "repoName"));
+		const requestedBranch = optionalString(body, "defaultBranch");
+		const requestedVisibility = optionalString(body, "visibility");
+		const latestCommitSha = optionalString(body, "latestCommitSha");
+		if (latestCommitSha && !/^[0-9a-f]{40}$/i.test(latestCommitSha)) {
+			throw new BadRequestError('Expected "latestCommitSha" to be a 40-character Git SHA');
+		}
+		if (requestedVisibility) {
+			parseVisibility(requestedVisibility);
+		}
+
+		// Only register repositories the caller can actually reach, and trust GitHub (not the
+		// request body) for visibility and the default branch.
+		const { accessToken } = await requireGithubAccessToken(getGithubOAuthScopes(), request);
+		const repository = await getGithubRepository(accessToken, repoOwner, repoName);
+
 		const workspace = await upsertWorkspace(user.id, {
-			repoOwner: requiredString(body, "repoOwner"),
-			repoName: requiredString(body, "repoName"),
-			defaultBranch: optionalString(body, "defaultBranch"),
-			visibility: parseVisibility(optionalString(body, "visibility")),
-			latestCommitSha: optionalString(body, "latestCommitSha") ?? null,
+			repoOwner: repository.owner.login,
+			repoName: repository.name,
+			defaultBranch: requestedBranch ? validateGithubBranch(requestedBranch) : repository.default_branch,
+			visibility: repository.private ? "private" : "public",
+			latestCommitSha: latestCommitSha ?? null,
 		});
 
 		return jsonOk({ workspace }, { status: 201 });

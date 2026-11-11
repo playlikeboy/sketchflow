@@ -140,6 +140,15 @@ export async function getWorkspacePublic(workspaceId: string) {
 	return row ? mapWorkspace(row) : null;
 }
 
+// Only overwrite columns the caller actually provided, so partial updates (e.g. a visibility
+// sync) never reset an existing workspace's branch back to the insert default.
+export function workspaceConflictUpdate(input: WorkspaceInput) {
+	return {
+		...(input.defaultBranch ? { defaultBranch: input.defaultBranch } : {}),
+		...(input.visibility ? { visibility: input.visibility } : {}),
+	};
+}
+
 export async function upsertWorkspace(stackUserId: string, input: WorkspaceInput) {
 	const db = getDb();
 	const workspaceId = crypto.randomUUID();
@@ -161,8 +170,7 @@ export async function upsertWorkspace(stackUserId: string, input: WorkspaceInput
 		.onConflictDoUpdate({
 			target: [sketchflowWorkspaces.stackUserId, sketchflowWorkspaces.repoOwner, sketchflowWorkspaces.repoName],
 			set: {
-				defaultBranch,
-				visibility,
+				...workspaceConflictUpdate(input),
 				latestCommitSha: input.latestCommitSha ? input.latestCommitSha : sql`sketchflow_workspaces.latest_commit_sha`,
 				updatedAt: sql`now()`,
 			},

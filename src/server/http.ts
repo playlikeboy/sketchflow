@@ -26,6 +26,46 @@ export class NotFoundError extends HttpError {
 	}
 }
 
+export class ForbiddenError extends HttpError {
+	constructor(message = "Forbidden") {
+		super(message, 403);
+		this.name = "ForbiddenError";
+	}
+}
+
+// CSRF guard for cookie-authenticated mutating routes: browsers always send Origin on
+// cross-site POSTs, so reject any request whose Origin is not this app.
+export function assertSameOrigin(request: Request) {
+	if (request.headers.get("sec-fetch-site") === "cross-site") {
+		throw new ForbiddenError("Cross-site requests are not allowed");
+	}
+
+	const origin = request.headers.get("origin");
+	if (!origin) {
+		return;
+	}
+
+	let originHost: string;
+	try {
+		originHost = new URL(origin).host;
+	} catch {
+		throw new ForbiddenError("Cross-site requests are not allowed");
+	}
+
+	const allowedHosts = new Set<string>();
+	const hostHeader = request.headers.get("host");
+	if (hostHeader) allowedHosts.add(hostHeader);
+	try {
+		allowedHosts.add(new URL(request.url).host);
+	} catch {
+		// ignore unparsable request URLs
+	}
+
+	if (!allowedHosts.has(originHost)) {
+		throw new ForbiddenError("Cross-site requests are not allowed");
+	}
+}
+
 export function jsonOk<T>(data: T, init?: ResponseInit) {
 	return NextResponse.json(data, init);
 }

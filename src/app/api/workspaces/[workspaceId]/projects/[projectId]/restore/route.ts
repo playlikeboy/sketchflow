@@ -1,8 +1,15 @@
 import { normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
 import { getWorkspace, recordSyncEvent, updateWorkspaceCommit } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
-import { createCommitOnBranch, getBranchHeadSha, readGithubFileText } from "@/server/github";
-import { BadRequestError, jsonError, jsonOk, NotFoundError } from "@/server/http";
+import {
+	createCommitOnBranch,
+	getBranchHeadSha,
+	parseRepoJson,
+	readGithubFileText,
+	validateGithubPathSegment,
+	validateProjectScopedPath,
+} from "@/server/github";
+import { BadRequestError, jsonError, jsonOk, NotFoundError, assertSameOrigin } from "@/server/http";
 import {
 	PROJECTS_METADATA_PATH,
 	buildProjectsMetadata,
@@ -16,7 +23,9 @@ export async function POST(
 	{ params }: { params: Promise<{ workspaceId: string; projectId: string }> },
 ) {
 	try {
-		const { workspaceId, projectId } = await params;
+		assertSameOrigin(request);
+		const { workspaceId, projectId: rawProjectId } = await params;
+		const projectId = validateGithubPathSegment(rawProjectId);
 		const user = normalizeStackUser(await requireUser());
 		const workspace = await getWorkspace(user.id, workspaceId);
 
@@ -30,6 +39,9 @@ export async function POST(
 		}
 
 		const sourceCommitSha = requiredString(body, "sourceCommitSha");
+		if (!/^[0-9a-f]{7,40}$/i.test(sourceCommitSha)) {
+			throw new BadRequestError('Expected "sourceCommitSha" to be a Git commit SHA');
+		}
 
 		const scopes = getGithubOAuthScopes();
 		const { accessToken } = await requireGithubAccessToken(scopes, request);
@@ -43,9 +55,18 @@ export async function POST(
 			path: `projects/${projectId}/project.json`,
 		});
 
-		const projectJson = JSON.parse(projectFileText.content);
-		const defaultSketchPath = projectJson.defaultSketch || `projects/${projectId}/sketches/system-map.excalidraw.json`;
-		const notesPath = projectJson.docs?.notes || `projects/${projectId}/docs/notes.md`;
+		const projectJson = parseRepoJson(projectFileText.content, projectFileText.path);
+		if (!isJsonObject(projectJson)) {
+			throw new BadRequestError("project.json at that commit is not a JSON object");
+		}
+		const docs = isJsonObject(projectJson.docs) ? projectJson.docs : null;
+		// Restored files are written back to the branch, so they must stay inside this project's folder.
+		const defaultSketchPath = projectJson.defaultSketch
+			? validateProjectScopedPath(projectId, projectJson.defaultSketch)
+			: `projects/${projectId}/sketches/system-map.excalidraw.json`;
+		const notesPath = docs?.notes
+			? validateProjectScopedPath(projectId, docs.notes)
+			: `projects/${projectId}/docs/notes.md`;
 
 		// 2. Fetch targeted sketch shapes and doc files from the target historical commit in parallel
 		const [sketchFileText, notesFileText] = await Promise.all([
@@ -82,7 +103,9 @@ export async function POST(
 			path: PROJECTS_METADATA_PATH,
 		}).catch(() => null);
 
-		const currentMetadata = normalizeProjectsMetadata(currentMetadataFile ? JSON.parse(currentMetadataFile.content) : null);
+		const currentMetadata = normalizeProjectsMetadata(
+			currentMetadataFile ? parseRepoJson(currentMetadataFile.content, currentMetadataFile.path) : null,
+		);
 		
 		const restoredProject = projectFromProjectJson({
 			projectId,

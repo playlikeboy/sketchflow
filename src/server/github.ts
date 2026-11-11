@@ -1,3 +1,5 @@
+import "server-only";
+
 import { PROJECTS_METADATA_PATH, buildProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
 import { GITHUB_REST_API_VERSION } from "@/lib/config";
 import { BadRequestError, HttpError } from "@/server/http";
@@ -7,6 +9,9 @@ import {
 	validateGithubPathSegment as validatePathSegment,
 	validateGithubRepoName as validateRepoName,
 	jsDelivrBaseUrl as buildJsDelivrBaseUrl,
+	encodeGithubBranch,
+	validateGithubBranch as validateBranch,
+	validateProjectScopedPath as validateProjectPath,
 } from "@/server/github-validation";
 
 const GITHUB_API_URL = "https://api.github.com";
@@ -211,7 +216,7 @@ export async function updateRepositoryDetails(input: {
 }
 
 export async function getBranchHeadSha(accessToken: string, owner: string, repo: string, branch: string) {
-	const ref = await githubRequest<GithubRef>(accessToken, repoApiPath(owner, repo, `/git/ref/heads/${branch}`));
+	const ref = await githubRequest<GithubRef>(accessToken, repoApiPath(owner, repo, `/git/ref/heads/${encodeGithubBranch(branch)}`));
 	return ref.object.sha;
 }
 
@@ -309,16 +314,9 @@ export async function ensureUserRepository(accessToken: string, owner: string, r
 	const githubUser = await getAuthenticatedGithubUser(accessToken);
 
 	try {
+		// Existing repositories belong to the user: connect them as-is, without rewriting their details.
 		const repository = await getGithubRepository(accessToken, owner, repoName);
-		const updatedRepository = await updateRepositoryDetails({
-			accessToken,
-			owner: repository.owner.login,
-			repo: repository.name,
-			description: "Sketchflow workspace: sketches, docs, exports, and project memory.",
-			homepage: appUrl,
-			isPrivate: repository.private,
-		});
-		return { githubUser, repository: updatedRepository, created: false };
+		return { githubUser, repository, created: false };
 	} catch (error) {
 		if (!(error instanceof GithubApiError) || error.status !== 404) {
 			throw error;
@@ -357,6 +355,30 @@ export function validateGithubFilePath(path: string) {
 	}
 }
 
+export function validateGithubBranch(branch: string) {
+	try {
+		return validateBranch(branch);
+	} catch (error) {
+		throw new BadRequestError(error instanceof Error ? error.message : "Invalid branch name");
+	}
+}
+
+export function validateProjectScopedPath(projectId: string, path: unknown) {
+	try {
+		return validateProjectPath(projectId, path);
+	} catch (error) {
+		throw new BadRequestError(error instanceof Error ? error.message : "Invalid project path");
+	}
+}
+
+export function parseRepoJson(content: string, path: string): unknown {
+	try {
+		return JSON.parse(content);
+	} catch {
+		throw new BadRequestError(`${path} is not valid JSON`);
+	}
+}
+
 export function validateGithubFileChange(file: GithubFileChange) {
 	try {
 		return validateFileChange(file, MAX_FILE_BYTES);
@@ -382,7 +404,7 @@ export async function createCommitOnBranch(input: {
 
 	const ref = await githubRequest<GithubRef>(
 		input.accessToken,
-		repoApiPath(input.owner, input.repo, `/git/ref/heads/${input.branch}`),
+		repoApiPath(input.owner, input.repo, `/git/ref/heads/${encodeGithubBranch(input.branch)}`),
 	);
 	if (input.expectedHeadSha && input.expectedHeadSha !== ref.object.sha) {
 		throw new GithubConflictError("GitHub branch changed since this draft was created. Refresh the workspace before syncing.");
@@ -414,7 +436,7 @@ export async function createCommitOnBranch(input: {
 	});
 
 	try {
-		await githubRequest<GithubRef>(input.accessToken, repoApiPath(input.owner, input.repo, `/git/refs/heads/${input.branch}`), {
+		await githubRequest<GithubRef>(input.accessToken, repoApiPath(input.owner, input.repo, `/git/refs/heads/${encodeGithubBranch(input.branch)}`), {
 			method: "PATCH",
 			body: JSON.stringify({
 			sha: commit.sha,
