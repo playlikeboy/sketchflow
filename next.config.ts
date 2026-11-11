@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
 		];
 	},
 	experimental: {
-		optimizePackageImports: ["lucide-react", "date-fns"],
+		optimizePackageImports: ["lucide-react"],
 	},
 };
 

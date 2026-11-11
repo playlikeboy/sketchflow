@@ -150,7 +150,7 @@ export function HomeClient() {
 							Sign in
 						</button>
 						<Link
-							href="https://github.com/SH20RAJ/sketch-flow"
+							href="https://github.com/playlikeboy/sketchflow"
 							target="_blank"
 							className="btn-3d btn-3d--secondary size-9 p-0 cursor-pointer flex items-center justify-center"
 							aria-label="Sketchflow on GitHub"
@@ -438,7 +438,7 @@ export function HomeClient() {
 					<div className="flex items-center gap-3">
 						<span>Sketchflow · Open Source GitHub-Native Workspace</span>
 						<Link
-							href="https://github.com/SH20RAJ/sketch-flow"
+							href="https://github.com/playlikeboy/sketchflow"
 							target="_blank"
 							className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-extrabold text-amber-500 hover:bg-amber-500/20 transition-colors"
 						>
@@ -452,7 +452,7 @@ export function HomeClient() {
 						<Link href="/app" className="hover:text-foreground transition-colors">
 							Open app
 						</Link>
-						<Link href="https://github.com/SH20RAJ/sketch-flow" target="_blank" className="hover:text-foreground transition-colors">
+						<Link href="https://github.com/playlikeboy/sketchflow" target="_blank" className="hover:text-foreground transition-colors">
 							GitHub
 						</Link>
 						<Link href="/help" className="hover:text-foreground transition-colors">

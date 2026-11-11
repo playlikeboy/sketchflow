@@ -203,7 +203,7 @@ function AppSidebar({
       <SidebarFooter className="p-3 border-t-2 border-sidebar-border">
         <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
           <Button variant="ghost" size="icon" className="size-8 shrink-0 text-sidebar-foreground/60 hover:text-[#58CC02]" asChild>
-            <Link href="https://github.com/SH20RAJ/sketch-flow" target="_blank" aria-label="Contribute on GitHub">
+            <Link href="https://github.com/playlikeboy/sketchflow" target="_blank" aria-label="Contribute on GitHub">
               <GitBranch className="size-4" />
             </Link>
           </Button>

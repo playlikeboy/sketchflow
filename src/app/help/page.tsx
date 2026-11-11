@@ -64,7 +64,7 @@ export default function HelpPage() {
 					<BrandMark href="/" subtitle="Help" />
 					<div className="flex items-center gap-2">
 						<Button variant="outline" size="sm" asChild>
-							<Link href="https://github.com/SH20RAJ/sketch-flow" target="_blank">
+							<Link href="https://github.com/playlikeboy/sketchflow" target="_blank">
 								<GitBranch className="size-4" />
 								GitHub
 							</Link>
@@ -132,7 +132,7 @@ export default function HelpPage() {
 						</div>
 						<Button variant="outline" asChild>
 							<Link
-								href="https://github.com/SH20RAJ/sketch-flow/blob/main/docs/project-versioning-offline-plan.md"
+								href="https://github.com/playlikeboy/sketchflow/blob/main/docs/project-versioning-offline-plan.md"
 								target="_blank"
 							>
 								Read plan
