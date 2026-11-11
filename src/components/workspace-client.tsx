@@ -117,6 +117,7 @@ export function WorkspaceClient() {
 			workspaces={workspaces}
 			selectedWorkspaceId={selectedWorkspace?.id ?? null}
 			onWorkspaceChange={setSelectedWorkspaceId}
+			githubUnreachable={githubStatus?.connected === false}
 			searchValue={search}
 			onSearchChange={workspaces.length > 4 ? setSearch : undefined}
 			searchPlaceholder="Search workspaces"

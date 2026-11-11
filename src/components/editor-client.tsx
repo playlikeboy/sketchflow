@@ -1533,10 +1533,12 @@ export function EditorClient({
 							<StateMark state={workState} />
 						</TitleBlockRow>
 					</TitleBlock>
-					<p className="legend-label mt-2.5 px-0.5">Save writes</p>
+					<p className="legend-label mt-2.5 px-0.5">Save writes, in this folder</p>
 					<ul className="mt-1 space-y-0.5 px-0.5 pb-0.5">
 						{[sketchFilePath(projectId, sketchId), notesFilePath(projectId), projectFilePath(projectId)].map((file) => (
-							<li key={file} className="datum truncate text-muted-foreground" title={file}>{file}</li>
+							<li key={file} className="datum truncate text-muted-foreground" title={file}>
+								{file.replace(`projects/${projectId}/`, "")}
+							</li>
 						))}
 					</ul>
 				</div>

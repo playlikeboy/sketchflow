@@ -97,7 +97,7 @@ function SheetDemo() {
 				<span className="legend-label shrink-0">Example</span>
 			</div>
 
-			<div className="grid sm:grid-cols-[minmax(0,1fr)_15rem]">
+			<div className="grid grid-cols-[minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_15rem]">
 				<div className="border-b border-rule p-3 sm:border-r sm:border-b-0">
 					<svg viewBox="0 0 320 190" role="img" aria-label="A small system diagram: a client calls an API, which uses a database and a worker" className="h-auto w-full">
 						<g className="fill-none stroke-foreground" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -194,7 +194,7 @@ function SheetDemo() {
 								<StateGlyph state={changed ? "draft" : "synced"} />
 								<span className="datum min-w-0 flex-1 truncate">{file}</span>
 								<span className={cn("shrink-0 text-xs", changed ? "font-medium text-contour" : "text-muted-foreground")}>
-									{changed ? "Unsaved" : "Committed"}
+									{changed ? "Unsaved" : "Synced"}
 								</span>
 							</li>
 						);
@@ -277,7 +277,7 @@ export function HomeClient() {
 				<section className="relative overflow-hidden border-b border-border bg-lowland">
 					<ContourField />
 					<div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:py-20">
-						<div>
+						<div className="min-w-0">
 							<h1 className="text-5xl leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-6xl">
 								Sketch it. Write it down. Keep the files.
 							</h1>
@@ -300,7 +300,7 @@ export function HomeClient() {
 							<p className="mt-4 text-sm text-muted-foreground">Open source under the MIT licence.</p>
 						</div>
 
-						<div>
+						<div className="min-w-0">
 							<SheetDemo />
 							<p className="mt-2.5 text-xs text-muted-foreground">
 								Try it: press Edit, then Save. The commit IDs here are made up for the example.

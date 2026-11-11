@@ -247,7 +247,7 @@ A cool, slightly green-tinted neutral sheet with four saturated map inks. All va
 
 ### Secondary
 - **Contour Orange** (`contour`, tint `contour-tint`): unsaved drafts. The half-disc draft mark, the `draft` badge, the dashed outline of an unsaved shape, the "Unsaved" label beside a changed file.
-- **Woodland Green** (`wood`, tint `wood-tint`): synced with GitHub. The filled-disc synced mark, the `synced` badge, the newest tick and "Latest" tag on the revision ladder.
+- **Woodland Green** (`wood`, tint `wood-tint`): synced with GitHub. The filled-disc synced mark, the `synced` badge, the "Latest" tag on the revision ladder.
 
 ### Tertiary
 - **Grid Magenta** (`grid`, tint `grid-tint`): selection, current location and keyboard focus. The 2px focus outline, the text caret, text selection background (the tint), the icon of the current navigation item, the selected revision (dot, border and tinted row), and the focused input border. `--ring` aliases it.
@@ -322,7 +322,7 @@ Flat. Depth is tonal and ruled: lowland rail, sheet page, paper work surface, ma
 
 ## Shapes
 
-Tight, drafted corners on a four-step scale: 3px (badges, skeleton bars, inline text links' focus box), 4px (buttons, inputs, select triggers, navigation items, title blocks, notices, revision cells), 6px (tables, cards, panels, empty states, the demo sheet), 8px (dialogs only). Nothing is pill-shaped; the only circles are the legend glyphs and the dots on the revision ladder.
+Tight, drafted corners on a four-step scale: 3px (badges, skeleton bars, inline text links' focus box), 4px (buttons, inputs, select triggers, navigation items, title blocks, notices, revision cells), 6px (tables, cards, panels, empty states, the demo sheet), 8px (dialogs only). Nothing is pill-shaped; the only circles are the legend glyphs.
 
 Borders are 1px. Solid `rule` for structure, solid `input` for controls, dashed `input` for an empty state waiting to be filled, and a dashed contour stroke for something drawn but not yet saved. Ruled containers clip their contents (`overflow: hidden`) so inner rules meet the outer border cleanly.
 

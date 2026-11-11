@@ -311,6 +311,7 @@ export function ProjectsHomeClient() {
 			workspaces={workspaces}
 			selectedWorkspaceId={selectedWorkspace?.id ?? null}
 			onWorkspaceChange={setSelectedWorkspaceId}
+			githubUnreachable={githubStatus?.connected === false || Boolean(pageError?.toLowerCase().includes("github"))}
 			searchValue={projectSearch}
 			onSearchChange={setProjectSearch}
 			searchPlaceholder="Search projects"

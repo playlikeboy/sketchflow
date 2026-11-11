@@ -6,6 +6,8 @@ import { useStackApp } from "@stackframe/stack";
 import { useSWRConfig } from "swr";
 import {
   CircleHelp,
+  Cloud,
+  CloudOff,
   CircleUser,
   Clock3,
   FileText,
@@ -232,6 +234,7 @@ export function AppShell({
   searchValue,
   onSearchChange,
   searchPlaceholder = "Search sketches, docs, commits",
+  githubUnreachable = false,
 }: {
   children: ReactNode;
   title: string;
@@ -244,6 +247,8 @@ export function AppShell({
   searchValue?: string;
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
+  /** Set when the page knows GitHub cannot be reached, so the bar never claims work is synced. */
+  githubUnreachable?: boolean;
 }) {
   const app = useStackApp();
   const { mutate } = useSWRConfig();
@@ -353,7 +358,9 @@ export function AppShell({
               </div>
             ) : null}
 
-            {syncFailures > 0 ? (
+            {githubUnreachable ? (
+              <StateMark state="error" label="GitHub unreachable" className="px-1.5" />
+            ) : syncFailures > 0 ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -390,7 +397,7 @@ export function AppShell({
                   : "Changes sync to GitHub in the background. Click to pause."
               }
             >
-              <StateGlyph state={isOfflineMode ? "offline" : "synced"} className="text-muted-foreground" />
+              {isOfflineMode ? <CloudOff /> : <Cloud />}
               <span className="hidden sm:inline">{isOfflineMode ? "Sync paused" : "Sync on"}</span>
             </Button>
 
