@@ -696,7 +696,7 @@
     "typographyMeta": {
       "display": {
         "displayName": "Display",
-        "purpose": "Landing headline only; 2.75rem below the sm breakpoint."
+        "purpose": "Landing headline only; 3rem below the sm breakpoint."
       },
       "headline": {
         "displayName": "Headline",

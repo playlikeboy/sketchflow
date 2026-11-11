@@ -126,7 +126,7 @@ function SheetDemo() {
 								strokeWidth="1.5"
 								strokeDasharray={dirty ? "4 3" : undefined}
 							/>
-							<text x="230" y="18" textAnchor="middle" className={cn("text-[10px] font-semibold", dirty ? "fill-contour" : "fill-foreground")}>
+							<text x="230" y="18" textAnchor="middle" className={cn("text-[0.6875rem] font-semibold", dirty ? "fill-contour" : "fill-foreground")}>
 								Cache
 							</text>
 						</g>
@@ -278,7 +278,7 @@ export function HomeClient() {
 					<ContourField />
 					<div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:py-20">
 						<div>
-							<h1 className="text-[2.75rem] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-6xl">
+							<h1 className="text-5xl leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-6xl">
 								Sketch it. Write it down. Keep the files.
 							</h1>
 							<p className="mt-5 max-w-[34rem] text-lg text-muted-foreground">

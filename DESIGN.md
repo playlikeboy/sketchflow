@@ -284,7 +284,7 @@ Both are self-hosted through `@fontsource-variable` and imported in `src/app/lay
 **Character:** One humanist sans designed for legibility, used at every size, with weight and size doing the hierarchy. Its mono sibling marks anything the machine wrote: a path, a branch, a commit SHA, a repository name.
 
 ### Hierarchy
-- **Display** (800, 2.75rem rising to 3.75rem from `sm`, line-height 1.05, tracking -0.03em): the landing headline only.
+- **Display** (800, 3rem rising to 3.75rem from `sm`, line-height 1.05, tracking -0.03em): the landing headline only.
 - **Headline** (700, 1.875rem, tracking -0.025em): landing section headings, held to about 24 to 26ch.
 - **Title** (700, 1.125rem): step and audience names on the landing page. **Title small** (700, 1rem): app page title in the top bar, card titles, empty-state titles, the wordmark. Panel headings drop to 0.875rem bold.
 - **Body** (400, 0.9375rem, line-height 1.5, tabular numerals): the document default. Long text is capped at 52 to 60ch. Landing lead copy is 1.125rem; notes in the document editor are 1rem at 1.65.
