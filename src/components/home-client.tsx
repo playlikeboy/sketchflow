@@ -152,10 +152,10 @@ export function HomeClient() {
 						<Link
 							href="https://github.com/playlikeboy/sketchflow"
 							target="_blank"
-							className="btn-3d btn-3d--secondary size-9 p-0 cursor-pointer flex items-center justify-center"
+							className="btn-3d btn-3d--secondary size-9 p-0! cursor-pointer flex items-center justify-center"
 							aria-label="Sketchflow on GitHub"
 						>
-							<GitBranch className="size-4" />
+							<GitBranch className="size-4 shrink-0" />
 						</Link>
 						<button
 							className="btn-3d btn-3d--primary h-9 px-4 text-xs font-extrabold cursor-pointer"

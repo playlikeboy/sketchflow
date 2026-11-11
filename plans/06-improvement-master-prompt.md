@@ -91,14 +91,14 @@ Write a short pricing proposal as a plan file and get the maintainer's sign-off 
 
 ### Next
 
-- [ ] A: offline cache scoping
-- [ ] A: health endpoint
-- [ ] A: unauthenticated GitHub rate limits
-- [ ] A: real 404 on share and embed
-- [ ] A: full Content-Security-Policy
-- [ ] A: rate limiting
-- [ ] A: repo hygiene and unused dependencies
-- [ ] B: route tests
+- [x] A: offline cache scoping
+- [x] A: health endpoint
+- [x] A: unauthenticated GitHub rate limits
+- [x] A: real 404 on share and embed
+- [ ] A: enforce the Content-Security-Policy (shipped report-only; needs a production pass against Excalidraw, BlockNote and Stack Auth)
+- [ ] A: durable rate limiting (in-memory per-isolate limiter shipped; move to a Cloudflare Rate Limiting binding)
+- [x] A: repo hygiene and unused dependencies
+- [ ] B: route tests (pure-logic unit tests and an HTTP smoke test shipped; handler tests with mocked GitHub and database still open)
 - [ ] B: Playwright e2e for the core loop
 - [ ] B: sync manager tests
 - [ ] B: typed API contracts
@@ -109,7 +109,7 @@ Write a short pricing proposal as a plan file and get the maintainer's sign-off 
 - [ ] C: commit-pinned sharing
 - [ ] C: accessibility pass
 - [ ] C: performance pass
-- [ ] D: README, CONTRIBUTING, SECURITY
+- [x] D: README, CONTRIBUTING, SECURITY
 - [ ] D: issues, templates, roadmap
 - [ ] D: releases and self-hosting guide
 - [ ] E: pricing proposal

@@ -6,7 +6,7 @@ Support sharing and embedding specific versions of projects by reading a `?ref={
 ## Proposed Changes
 
 ### 1. Update Workspace Routes
-In [workspace-routes.ts](file:///Users/shaswatraj/Desktop/startups/sketchflow/src/lib/workspace-routes.ts), update `shareHref` and `embedHref` to accept an optional `ref?: string | null`:
+In [workspace-routes.ts](../src/lib/workspace-routes.ts), update `shareHref` and `embedHref` to accept an optional `ref?: string | null`:
 ```typescript
 export function shareHref(workspace, projectId, ref) {
   const base = `/share/${workspace.repoOwner}/${workspace.repoName}/${projectId}`;
@@ -15,13 +15,13 @@ export function shareHref(workspace, projectId, ref) {
 ```
 
 ### 2. Update Share & Embed Route Handlers
-Update [share/page.tsx](file:///Users/shaswatraj/Desktop/startups/sketchflow/src/app/share/%5Bowner%5D/%5Brepo%5D/%5BprojectId%5D/page.tsx) and [embed/page.tsx](file:///Users/shaswatraj/Desktop/startups/sketchflow/src/app/embed/%5Bowner%5D/%5Brepo%5D/%5BprojectId%5D/page.tsx):
+Update [share/page.tsx](../src/app/share/%5Bowner%5D/%5Brepo%5D/%5BprojectId%5D/page.tsx) and [embed/page.tsx](../src/app/embed/%5Bowner%5D/%5Brepo%5D/%5BprojectId%5D/page.tsx):
 - Parse `searchParams` for `ref`.
 - Default to `getPublicRepoDefaultBranch(owner, repo)` if `ref` is missing.
 - Pass `branch` (commit SHA or branch name) to the loaders `readPublicProject` and `readPublicSketch`.
 
 ### 3. Add Commit Share Link in History Panel
-In [history-panel.tsx](file:///Users/shaswatraj/Desktop/startups/sketchflow/src/components/history-panel.tsx), add a "Copy Share Link" button next to preview commits when viewing a public workspace:
+In [history-panel.tsx](../src/components/history-panel.tsx), add a "Copy Share Link" button next to preview commits when viewing a public workspace:
 - Uses `shareHref(workspace, projectId, commit.sha)`.
 
 ## Verification

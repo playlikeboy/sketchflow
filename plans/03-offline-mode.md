@@ -6,7 +6,7 @@ Enable offline usage of Sketchflow by utilizing IndexedDB for pure offline works
 ## Proposed Changes
 
 ### 1. Offline Storage Wrapper
-In [indexeddb.ts](file:///Users/shaswatraj/Desktop/startups/sketchflow/src/lib/indexeddb.ts), add stores and wrappers for offline data:
+In [indexeddb.ts](../src/lib/indexeddb.ts), add stores and wrappers for offline data:
 - `sketchflow:offline:workspaces`: list of local workspaces.
 - `sketchflow:offline:{workspaceId}:projects`: list of local projects.
 - `sketchflow:offline:{workspaceId}:{projectId}:project`: local project settings.
@@ -17,7 +17,7 @@ In [indexeddb.ts](file:///Users/shaswatraj/Desktop/startups/sketchflow/src/lib/i
 - Render local IndexedDB workspaces when working in offline mode.
 
 ### 3. Editor Offline Indicators & Actions
-In [editor-client.tsx](file:///Users/shaswatraj/Desktop/startups/sketchflow/src/components/editor-client.tsx):
+In [editor-client.tsx](../src/components/editor-client.tsx):
 - Add a "Sync Status" pill in the header showing: `Offline / Local draft / Synced`.
 - Provide a "Save Locally" and "Sync to GitHub" control options.
 - Disable auto-commits to GitHub when offline or when sync is paused.

@@ -1,197 +1,150 @@
 <div align="center">
 
-# 🎨 Sketchflow
+# Sketchflow
 
-**A GitHub-native, offline-first visual workspace for builders.**  
-*Excalidraw canvas, BlockNote markdown docs, curated libraries, and durable Git-backed project memory.*
+**A visual workspace that saves to a GitHub repo you own.**
 
-[![Hacktoberfest](https://img.shields.io/badge/Hacktoberfest-2025-orange.svg?style=for-the-badge&logo=hacktoberfest)](https://github.com/SH20RAJ/sketch-flow/labels/hacktoberfest)
-[![Visitor Count](https://komarev.com/ghpvc/?username=SH20RAJ-sketch-flow&label=Repo%20Views&color=58cc02&style=for-the-badge)](https://github.com/SH20RAJ/sketch-flow)
-[![License: MIT](https://img.shields.io/badge/License-MIT-58cc02.svg?style=for-the-badge)](./LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/SH20RAJ/sketch-flow?style=for-the-badge&color=58cc02)](https://github.com/SH20RAJ/sketch-flow/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/SH20RAJ/sketch-flow?style=for-the-badge&color=1cb0f6)](https://github.com/SH20RAJ/sketch-flow/network)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](./CONTRIBUTING.md)
+Draw on an Excalidraw canvas, write notes beside it, and commit both as plain files.
 
-[**🌐 Explore Live App**](https://sketchflow.space) · [**📖 Architecture Guide**](./docs/ARCHITECTURE.md) · [**🤝 Contributing**](./CONTRIBUTING.md) · [**🐛 Report Bug**](https://github.com/SH20RAJ/sketch-flow/issues)
+[![Verify](https://github.com/playlikeboy/sketchflow/actions/workflows/verify.yml/badge.svg)](https://github.com/playlikeboy/sketchflow/actions/workflows/verify.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-58cc02.svg)](./LICENSE)
+[![Stars](https://img.shields.io/github/stars/playlikeboy/sketchflow?color=58cc02)](https://github.com/playlikeboy/sketchflow/stargazers)
+
+[Live app](https://sketchflow.space) · [Architecture](./docs/ARCHITECTURE.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
+
+<img src="./docs/images/landing.png" alt="Sketchflow landing page" width="860" />
 
 </div>
 
----
+## Why
 
-## 💡 What is Sketchflow?
+Most whiteboard tools keep your diagrams in their database. Sketchflow keeps them in yours: every sketch is a standard `.excalidraw.json` file and every note is a Markdown file, committed to a repository in your GitHub account. If Sketchflow disappeared tomorrow, your work would still open in Excalidraw and any text editor, with full Git history.
 
-Most whiteboard and diagramming apps lock your sketches, diagrams, and project documentation inside proprietary databases.
+## What it does
 
-**Sketchflow takes a different path:**
+- **Canvas and notes side by side.** An Excalidraw canvas next to a BlockNote editor, per project.
+- **Local first.** Edits are written to IndexedDB as you work, so the editor does not wait on the network. Drafts are scoped per signed-in user.
+- **Snapshot commits.** A save writes the sketch, notes and project metadata in one Git commit through the GitHub Git Data API. Nothing is committed per stroke.
+- **Conflict detection.** A commit is rejected if the branch moved since your draft was based on it, instead of overwriting someone else's work.
+- **Project history and restore.** List the commits that touched a project, preview an old version, and restore it as a new commit.
+- **Public share and embed pages.** Read-only pages for projects in public repositories, which respect the `sharing` setting in each project's `project.json`.
+- **Fork a public project** into your own workspace.
+- **Excalidraw libraries.** Browse and install community shape libraries.
+- **Installable.** Ships a web manifest and service worker.
 
-> **GitHub owns the durable files. Sketchflow owns the fast, offline-first editing experience.**
+## How it works
 
-- Every diagram is saved as standard `.excalidraw.json`.
-- Every document is saved as clean, human-readable `notes.md`.
-- Every save creates a clean, atomic Git commit in **your own GitHub repository**.
-- All edits write with **0ms latency** to browser-isolated IndexedDB, allowing you to work smoothly with or without internet.
-
----
-
-## ✨ Features
-
-- 🎨 **Full-Featured Excalidraw Canvas**: Wireframe, design software architecture, flowchart systems, and sketch ideas on an infinite visual board.
-- 🌓 **Dynamic Contrast & Theme Engine**: Instant 1-click switching between Dark Mode (`#121212`) and Light Mode (`#ffffff`). Strokes automatically adapt with luminance checks so strokes are never invisible.
-- 📝 **Notion-Style BlockNote Docs**: Edit rich markdown notes side-by-side with your canvas. Supports headings, checklists, code blocks, and media uploads under 2MB.
-- ⚡ **Offline-First with 0ms Cold Starts**: User-isolated IndexedDB storage (`stackUserId`) keeps drafts instant and offline-resilient without cross-account pollution.
-- 🐙 **Atomic Multi-File Git Sync**: Uses GitHub REST Git Trees to commit diagrams, docs, and project manifests in a single atomic commit without heavy clone overhead.
-- 📚 **Curated Excalidraw Libraries**: One-click install for software engineering icons, UML blocks, AWS/GCP architecture symbols, UI wireframes, and design kits.
-- ⏳ **Git Project History & Restore**: Browse commit logs for any project, preview past versions in read-only mode, and restore historical snapshots with 1 click.
-- 🌐 **Public Sharing & Embed Mode**: Share clean, read-only public project URLs or embed sketches directly into your websites and documentation via iframe.
-- 📱 **Progressive Web App (PWA)**: Install Sketchflow on desktop or mobile for a native, distraction-free app window.
-
----
-
-## 🏛️ Architecture & Data Flow
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        USER BROWSER / CLIENT                           │
-│   React 19 · Excalidraw · BlockNote Editor · Tailwind CSS · SWR Cache  │
-└────────────────────────────────────┬───────────────────────────────────┘
-                                     │
-         ┌───────────────────────────┴───────────────────────────┐
-         ▼                                                       ▼
-┌─────────────────────────────────┐             ┌─────────────────────────────────┐
-│     LOCAL INDEXEDDB CACHE       │             │       NEXT.JS / CLOUDFLARE      │
-│  - 0ms instant local drafts     │             │  - Edge API routes              │
-│  - User-scoped partition keys   │             │  - Stack Auth verification      │
-│  - Offline resilience           │             │  - SWR state hydration         │
-└─────────────────────────────────┘             └────────────────┬────────────────┘
-                                                                 │
-                                 ┌───────────────────────────────┴────────────────┐
-                                 ▼                                                ▼
-                ┌─────────────────────────────────┐              ┌─────────────────────────────────┐
-                │      NEON POSTGRES DATABASE     │              │       USER GITHUB REPOSITORY    │
-                │  - Users & workspace pointers   │              │  - Durable .excalidraw.json     │
-                │  - GitHub OAuth connection data │              │  - Durable notes.md             │
-                │  - Sync event audits            │              │  - Atomic multi-file Git Trees  │
-                └─────────────────────────────────┘              └─────────────────────────────────┘
+```mermaid
+flowchart LR
+    B[Browser<br/>Excalidraw · BlockNote · SWR] -->|drafts| I[(IndexedDB)]
+    B -->|snapshot commit| A[Next.js API routes<br/>on Cloudflare Workers]
+    A -->|auth| S[Stack Auth]
+    A -->|pointers and sync events| P[(Neon Postgres)]
+    A -->|trees · commits · refs| G[(Your GitHub repo)]
+    V[Share and embed pages] -->|public read| G
 ```
 
-For an in-depth breakdown of our storage models, sync algorithms, and data structures, read the [Architecture Guide](./docs/ARCHITECTURE.md).
+Three stores, each with one job:
 
----
+| Store | Holds | Why |
+| --- | --- | --- |
+| Your GitHub repo | Sketches, notes, project metadata, exports | The durable source of truth, owned by you |
+| IndexedDB | Unsaved drafts and offline caches | Instant edits and offline work |
+| Postgres | Users, workspace pointers, sync events | Small on purpose; no sketch content is stored here |
 
-## 🗂️ Workspace Repository Structure
+A workspace repository looks like this:
 
-When connected to GitHub, Sketchflow maintains your workspace with this clean hierarchy:
-
-```txt
+```text
 your-workspace-repo/
 ├── .sketchflow/
-│   ├── manifest.json              # Schema version & workspace pointers
-│   ├── workspace.json             # Workspace settings
-│   └── indexes/
-│       ├── public-projects.json   # Public sharing index
-│       └── search-index.json      # Fast search index
+│   ├── workspace.json
+│   └── manifest.json
 └── projects/
-    ├── projects-metadata.json     # Ordered project registry & tags
-    └── {project-slug}/
-        ├── project.json           # Project metadata & sketch links
-        ├── sketches/
-        │   └── {sketch-slug}.excalidraw.json   # Excalidraw scene JSON
-        ├── docs/
-        │   └── notes.md           # Markdown documentation
-        ├── exports/               # Exported PNG / SVG diagrams
-        └── assets/                # Attached images
+    ├── projects-metadata.json
+    └── <project>/
+        ├── project.json
+        ├── sketches/<sketch>.excalidraw.json
+        ├── docs/notes.md
+        ├── exports/
+        └── assets/
 ```
 
----
+More detail is in the [architecture guide](./docs/ARCHITECTURE.md).
 
-## 🚀 Getting Started
+## Tech stack
 
-### Prerequisites
-- [Bun](https://bun.sh/) (v1.1 or higher)
-- [Git](https://git-scm.com/)
-- A free [Stack Auth](https://stack-auth.com/) account (for user auth & GitHub OAuth)
-- A free [Neon Postgres](https://neon.tech/) database
+Next.js 16 (App Router) and React 19, deployed to Cloudflare Workers with OpenNext. Stack Auth for sign-in and the GitHub connection. Neon Postgres through Drizzle. Tailwind CSS 4. Bun for installs, scripts and tests.
 
-### 1. Clone the Repository
+## Run it locally
+
+You need [Bun](https://bun.sh), a [Stack Auth](https://stack-auth.com) project with the GitHub provider enabled, and a [Neon](https://neon.tech) database.
+
 ```bash
-git clone https://github.com/SH20RAJ/sketch-flow.git
-cd sketch-flow
-```
-
-### 2. Install Dependencies
-```bash
+git clone https://github.com/playlikeboy/sketchflow.git
+cd sketchflow
 bun install
-```
-
-### 3. Configure Environment Variables
-```bash
 cp .env.example .env.local
-cp .dev.vars.example .dev.vars
 ```
 
-Fill in your credentials in `.env.local`:
-```env
-NEXT_PUBLIC_STACK_PROJECT_ID=your-stack-project-id
-NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY=your-stack-publishable-key
-STACK_SECRET_SERVER_KEY=your-stack-secret-server-key
+Fill in `.env.local`:
 
-DATABASE_URL=postgresql://user:password@ep-sample-123456.us-east-2.aws.neon.tech/sketchflow?sslmode=require
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_STACK_PROJECT_ID` | Stack Auth project id (a UUID) |
+| `NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY` | Stack Auth client key |
+| `STACK_SECRET_SERVER_KEY` | Stack Auth server key |
+| `DATABASE_URL` | Neon Postgres connection string |
+| `NEXT_PUBLIC_APP_URL` | Base URL, `http://localhost:3000` in development |
+| `GITHUB_API_VERSION` | GitHub REST API version, default `2022-11-28` |
+| `GITHUB_OAUTH_SCOPES` | Scopes requested from GitHub, default `repo,read:user,user:email` |
+| `SKETCHFLOW_REPO_NAME` | Default name for a new workspace repository |
+| `SKETCHFLOW_DEFAULT_BRANCH` | Fallback branch name, default `main` |
 
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-GITHUB_API_VERSION=2022-11-28
-GITHUB_OAUTH_SCOPES=repo,read:user,user:email
+Then create the tables and start the app:
 
-SKETCHFLOW_REPO_NAME=sketchflow-workspace
-SKETCHFLOW_DEFAULT_BRANCH=main
-```
-
-### 4. Push Database Schema
 ```bash
 bun run db:push
-```
-
-### 5. Launch the Development Server
-```bash
 bun run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
 
----
+## Scripts
 
-## 🛠️ Available Scripts
+| Command | What it does |
+| --- | --- |
+| `bun run dev` | Development server |
+| `bun run test` | Unit tests |
+| `bun run lint` | ESLint |
+| `bun run typecheck` | TypeScript, no emit |
+| `bun run build` | Production build |
+| `node scripts/smoke.mjs <url>` | HTTP smoke test against a running build |
+| `bun run db:push` | Push the Drizzle schema to the database |
+| `bun run deploy` | Build with OpenNext and deploy to Cloudflare |
 
-| Script | Command | Description |
-|---|---|---|
-| **Dev Server** | `bun run dev` | Runs the Next.js development server on port 3000 |
-| **Type Check** | `bunx tsc --noEmit` | Validates TypeScript types across the entire project |
-| **Production Build** | `bun run build` | Builds the production bundle with Turbopack |
-| **Push Schema** | `bun run db:push` | Pushes Drizzle ORM schema directly to Neon Postgres |
-| **Migrations** | `bun run db:generate` | Generates SQL migration files from Drizzle schema |
-| **Deploy** | `bun run deploy` | Builds and deploys worker to Cloudflare OpenNext |
+CI runs test, lint, typecheck, build and the smoke test on every pull request.
 
----
+## Security model
 
-## 🎃 Hacktoberfest & Contributing
+- GitHub access tokens are never stored by Sketchflow. They come from Stack Auth per request, or from a personal access token the user keeps in their own browser session.
+- Every write route checks that the workspace belongs to the signed-in user, rejects cross-site requests, validates each path segment and branch name, and is rate limited per user.
+- Content read from a repository is treated as untrusted input, including the user's own.
+- Connecting an existing repository never overwrites files already in it.
+- App pages cannot be framed; only `/embed` pages can.
 
-We welcome contributions of all kinds! Whether fixing a bug, designing a new template, enhancing keyboard shortcuts, or optimizing offline sync, your help is appreciated.
+See [SECURITY.md](./SECURITY.md) for how to report a vulnerability.
 
-1. Browse issues with the [`hacktoberfest`](https://github.com/SH20RAJ/sketch-flow/labels/hacktoberfest) or [`good first issue`](https://github.com/SH20RAJ/sketch-flow/labels/good%20first%20issue) label.
-2. Read our [Contributing Guide](./CONTRIBUTING.md) for full setup instructions and conventions.
-3. Review our [Code of Conduct](./CODE_OF_CONDUCT.md).
-4. Run `bunx tsc --noEmit` and `bun run build` before submitting your PR!
+## Status
 
----
+Sketchflow is a working app under active development. Known gaps, tracked in [`plans/06-improvement-master-prompt.md`](./plans/06-improvement-master-prompt.md):
 
-## 👁️ Visitor Statistics
+- The Content-Security-Policy ships in report-only mode until it has been exercised in production.
+- Rate limiting is in memory per Worker isolate; a durable limiter is planned.
+- There are unit tests and an HTTP smoke test, but no signed-in end-to-end tests yet.
+- Conflict resolution reports the conflict; it does not yet offer a merge view.
 
-<div align="center">
+## Contributing
 
-![Visitor Count](https://komarev.com/ghpvc/?username=SH20RAJ-sketch-flow&label=Total%20Repository%20Views&color=58cc02&style=flat-square)
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md) first, and run the checks above before opening a pull request.
 
-</div>
+## License
 
----
-
-## 📄 License
-
-This project is licensed under the [MIT License](./LICENSE) © 2025-2026 [Shaswat Raj](https://github.com/SH20RAJ) and Sketchflow Contributors.
+[MIT](./LICENSE) © 2025-2026 [Shaswat Raj](https://github.com/SH20RAJ) and Sketchflow contributors.

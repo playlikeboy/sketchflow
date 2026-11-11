@@ -10,7 +10,7 @@ Sketchflow is an open-source, GitHub-native visual workspace combining an Excali
 
 Sketchflow proudly participates in **Hacktoberfest**!
 
-- Look for issues tagged [`hacktoberfest`](https://github.com/SH20RAJ/sketch-flow/labels/hacktoberfest), [`good first issue`](https://github.com/SH20RAJ/sketch-flow/labels/good%20first%20issue), and [`help wanted`](https://github.com/SH20RAJ/sketch-flow/labels/help%20wanted).
+- Look for issues tagged [`hacktoberfest`](https://github.com/playlikeboy/sketchflow/labels/hacktoberfest), [`good first issue`](https://github.com/playlikeboy/sketchflow/labels/good%20first%20issue), and [`help wanted`](https://github.com/playlikeboy/sketchflow/labels/help%20wanted).
 - Quality contributions are valued over quantity. Please avoid spam PRs (e.g. whitespace edits, trivial typos).
 - All approved and merged pull requests that adhere to our standards will be tagged with `hacktoberfest-accepted`.
 - Feel free to open an issue or propose improvements in discussions before starting large changes.
@@ -26,9 +26,9 @@ Sketchflow proudly participates in **Hacktoberfest**!
 
 ### 1. Fork and Clone
 ```bash
-git clone https://github.com/<your-username>/sketch-flow.git
-cd sketch-flow
-git remote add upstream https://github.com/SH20RAJ/sketch-flow.git
+git clone https://github.com/<your-username>/sketchflow.git
+cd sketchflow
+git remote add upstream https://github.com/playlikeboy/sketchflow.git
 ```
 
 ### 2. Install Dependencies
@@ -104,18 +104,25 @@ Sketchflow adheres to one central design principle:
 
 ## 🧪 Verification & Testing
 
-Before submitting a Pull Request, run the automated verification checks:
+Before submitting a Pull Request, run the same checks CI runs:
 
 ```bash
-# 1. Typecheck the entire codebase
-bunx tsc --noEmit
+bun run test          # unit tests
+bun run lint          # ESLint
+bunx tsc --noEmit     # typecheck
+bun run build         # production build
 
-# 2. Verify production bundle build
-bun run build
-
-# 3. If you modified database schemas in src/server/db/schema.ts:
+# If you changed src/server/db/schema.ts:
 bun run db:push
 ```
+
+Server rules that reviewers will check on any API change:
+
+- Every mutating route calls `assertSameOrigin(request)` and `assertRateLimit(...)` from `src/server/http.ts`.
+- Workspaces are always loaded with `getWorkspace(user.id, workspaceId)`, never by id alone, before a write.
+- Path segments, branch names and file paths go through the helpers in `src/server/github-validation.ts`.
+- Anything parsed from a repository is narrowed before use (`isJsonObject`, `parseRepoJson`); no `any`.
+- Logic worth testing lives in a module that does not import `server-only`, with a test in `tests/`.
 
 All commands must exit with code `0` before PR review.
 
@@ -127,7 +134,7 @@ All commands must exit with code `0` before PR review.
    ```bash
    git push origin feat/your-feature-name
    ```
-2. Open a Pull Request against the `main` branch of `SH20RAJ/sketch-flow`.
+2. Open a Pull Request against the `main` branch of `playlikeboy/sketchflow`.
 3. Fill out the PR template completely:
    - What problem does this solve?
    - What changes were made?
@@ -140,7 +147,7 @@ All commands must exit with code `0` before PR review.
 ## 🛡️ Security & Responsible Disclosure
 
 - **Never commit secrets**: Check that `.env*`, `.dev.vars`, tokens, database URLs, and PATs are never tracked by git.
-- If you discover a security vulnerability, please do NOT open a public issue. Email [shaswatraj2002@gmail.com](mailto:shaswatraj2002@gmail.com) directly.
+- If you discover a security vulnerability, do not open a public issue. Follow [SECURITY.md](./SECURITY.md).
 
 ---
 
