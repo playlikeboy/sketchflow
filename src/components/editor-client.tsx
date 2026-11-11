@@ -1525,7 +1525,7 @@ export function EditorClient({
 						{saveError ? (
 							<div
 								role="alert"
-								className="absolute top-3 left-1/2 z-20 w-[min(520px,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-contour/50 bg-card p-3 text-sm shadow-[0_12px_28px_-16px_rgb(24_33_29/0.5)]"
+								className="absolute top-3 left-1/2 z-20 w-[min(520px,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-contour/50 bg-card p-3 text-sm shadow-(--float-shadow)"
 							>
 								<div className="flex items-start justify-between gap-3">
 									<div>

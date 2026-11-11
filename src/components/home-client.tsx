@@ -85,7 +85,7 @@ function SheetDemo() {
 	const showCache = editCount > 0 || dirty;
 
 	return (
-		<div className="rounded-lg border border-rule bg-card shadow-[0_18px_40px_-24px_rgb(24_33_29/0.35)]">
+		<div className="rounded-lg border border-rule bg-card shadow-(--float-shadow)">
 			<div className="flex items-center justify-between gap-3 border-b border-rule px-3 py-2">
 				<span className="datum truncate text-muted-foreground">projects/payments-architecture</span>
 				<span className="legend-label shrink-0">Example</span>

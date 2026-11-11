@@ -95,6 +95,7 @@
   --wood-tint: #e0f0df;
   --grid: #b3136f;
   --grid-tint: #fae2ee;
+  --float-shadow: 0 16px 36px -22px rgb(24 33 29 / 0.4);
 
   --primary: var(--water);
   --primary-foreground: #ffffff;
@@ -147,6 +148,7 @@
   --wood-tint: #17321d;
   --grid: #f083c0;
   --grid-tint: #3d1730;
+  --float-shadow: 0 16px 36px -20px rgb(0 0 0 / 0.7);
 
   --primary: var(--water);
   --primary-foreground: #0a1622;

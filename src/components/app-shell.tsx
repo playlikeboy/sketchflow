@@ -192,7 +192,7 @@ function AppSidebar({
                             className="ml-auto group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:top-0.5 group-data-[collapsible=icon]:right-0.5"
                             title="Some projects exist only in this browser"
                           >
-                            <StateGlyph state="local" className="text-contour" />
+                            <StateGlyph state="local" />
                             <span className="sr-only">Some projects exist only in this browser</span>
                           </span>
                         ) : null}
@@ -369,10 +369,9 @@ export function AppShell({
                 variant="ghost"
                 size="sm"
                 onClick={() => void triggerSyncNow()}
-                className="text-contour hover:text-contour"
                 title="Some projects exist only in this browser. Sync them to GitHub now."
               >
-                <StateGlyph state="local" className="text-contour" />
+                <StateGlyph state="local" />
                 Sync local projects
               </Button>
             ) : syncLabel ? (
@@ -384,14 +383,14 @@ export function AppShell({
               size="sm"
               onClick={toggleOfflineMode}
               aria-pressed={isOfflineMode}
-              className={cn(isOfflineMode && "border-contour/50 bg-contour-tint text-contour hover:bg-contour-tint")}
+              className={cn(isOfflineMode && "bg-accent text-foreground")}
               title={
                 isOfflineMode
                   ? "Sync is paused. Changes stay in this browser until you resume."
                   : "Changes sync to GitHub in the background. Click to pause."
               }
             >
-              <StateGlyph state={isOfflineMode ? "offline" : "synced"} className={isOfflineMode ? "text-contour" : undefined} />
+              <StateGlyph state={isOfflineMode ? "offline" : "synced"} />
               <span className="hidden sm:inline">{isOfflineMode ? "Sync paused" : "Sync on"}</span>
             </Button>
 

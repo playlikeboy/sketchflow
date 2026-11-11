@@ -1,0 +1,959 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-11T00:00:00Z",
+  "title": "Design System: Sketchflow",
+  "extensions": {
+    "colorMeta": {
+      "water": {
+        "role": "primary",
+        "displayName": "Water Blue",
+        "canonical": "#1558a8",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.065 256)",
+          "oklch(27% 0.089 256)",
+          "oklch(38% 0.111 256)",
+          "oklch(50% 0.134 256)",
+          "oklch(62% 0.130 256)",
+          "oklch(73% 0.109 256)",
+          "oklch(85% 0.085 256)",
+          "oklch(95% 0.065 256)"
+        ]
+      },
+      "water-tint": {
+        "role": "primary",
+        "displayName": "Water Blue Tint",
+        "canonical": "#dfecfa",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.011 250)",
+          "oklch(27% 0.015 250)",
+          "oklch(38% 0.018 250)",
+          "oklch(50% 0.022 250)",
+          "oklch(62% 0.021 250)",
+          "oklch(73% 0.018 250)",
+          "oklch(85% 0.014 250)",
+          "oklch(95% 0.011 250)"
+        ]
+      },
+      "contour": {
+        "role": "secondary",
+        "displayName": "Contour Orange",
+        "canonical": "#9c4306",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.061 47)",
+          "oklch(27% 0.083 47)",
+          "oklch(38% 0.103 47)",
+          "oklch(50% 0.125 47)",
+          "oklch(62% 0.121 47)",
+          "oklch(73% 0.101 47)",
+          "oklch(85% 0.079 47)",
+          "oklch(95% 0.061 47)"
+        ]
+      },
+      "contour-tint": {
+        "role": "secondary",
+        "displayName": "Contour Orange Tint",
+        "canonical": "#fbe9da",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.013 62)",
+          "oklch(27% 0.017 62)",
+          "oklch(38% 0.022 62)",
+          "oklch(50% 0.026 62)",
+          "oklch(62% 0.025 62)",
+          "oklch(73% 0.021 62)",
+          "oklch(85% 0.017 62)",
+          "oklch(95% 0.013 62)"
+        ]
+      },
+      "wood": {
+        "role": "secondary",
+        "displayName": "Woodland Green",
+        "canonical": "#256c31",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.053 147)",
+          "oklch(27% 0.071 147)",
+          "oklch(38% 0.089 147)",
+          "oklch(50% 0.108 147)",
+          "oklch(62% 0.105 147)",
+          "oklch(73% 0.087 147)",
+          "oklch(85% 0.068 147)",
+          "oklch(95% 0.053 147)"
+        ]
+      },
+      "wood-tint": {
+        "role": "secondary",
+        "displayName": "Woodland Green Tint",
+        "canonical": "#e0f0df",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.013 144)",
+          "oklch(27% 0.017 144)",
+          "oklch(38% 0.022 144)",
+          "oklch(50% 0.026 144)",
+          "oklch(62% 0.026 144)",
+          "oklch(73% 0.021 144)",
+          "oklch(85% 0.017 144)",
+          "oklch(95% 0.013 144)"
+        ]
+      },
+      "grid": {
+        "role": "tertiary",
+        "displayName": "Grid Magenta",
+        "canonical": "#b3136f",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.091 353)",
+          "oklch(27% 0.124 353)",
+          "oklch(38% 0.154 353)",
+          "oklch(50% 0.186 353)",
+          "oklch(62% 0.181 353)",
+          "oklch(73% 0.151 353)",
+          "oklch(85% 0.118 353)",
+          "oklch(95% 0.091 353)"
+        ]
+      },
+      "grid-tint": {
+        "role": "tertiary",
+        "displayName": "Grid Magenta Tint",
+        "canonical": "#fae2ee",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.014 346)",
+          "oklch(27% 0.019 346)",
+          "oklch(38% 0.023 346)",
+          "oklch(50% 0.028 346)",
+          "oklch(62% 0.028 346)",
+          "oklch(73% 0.023 346)",
+          "oklch(85% 0.018 346)",
+          "oklch(95% 0.014 346)"
+        ]
+      },
+      "destructive": {
+        "role": "tertiary",
+        "displayName": "Fault Red",
+        "canonical": "#a8261b",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.076 30)",
+          "oklch(27% 0.104 30)",
+          "oklch(38% 0.129 30)",
+          "oklch(50% 0.157 30)",
+          "oklch(62% 0.152 30)",
+          "oklch(73% 0.127 30)",
+          "oklch(85% 0.099 30)",
+          "oklch(95% 0.076 30)"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Sheet",
+        "canonical": "#fafbf8",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.002 122)",
+          "oklch(27% 0.003 122)",
+          "oklch(38% 0.003 122)",
+          "oklch(50% 0.004 122)",
+          "oklch(62% 0.004 122)",
+          "oklch(73% 0.003 122)",
+          "oklch(85% 0.002 122)",
+          "oklch(95% 0.002 122)"
+        ]
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#ffffff",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(27% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(50% 0.000 90)",
+          "oklch(62% 0.000 90)",
+          "oklch(73% 0.000 90)",
+          "oklch(85% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "lowland": {
+        "role": "neutral",
+        "displayName": "Lowland",
+        "canonical": "#edf2e9",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.006 131)",
+          "oklch(27% 0.008 131)",
+          "oklch(38% 0.010 131)",
+          "oklch(50% 0.012 131)",
+          "oklch(62% 0.012 131)",
+          "oklch(73% 0.010 131)",
+          "oklch(85% 0.008 131)",
+          "oklch(95% 0.006 131)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Margin",
+        "canonical": "#f0f3ed",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.004 129)",
+          "oklch(27% 0.005 129)",
+          "oklch(38% 0.007 129)",
+          "oklch(50% 0.008 129)",
+          "oklch(62% 0.008 129)",
+          "oklch(73% 0.006 129)",
+          "oklch(85% 0.005 129)",
+          "oklch(95% 0.004 129)"
+        ]
+      },
+      "accent": {
+        "role": "neutral",
+        "displayName": "Hover Wash",
+        "canonical": "#e6ece2",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.007 132)",
+          "oklch(27% 0.009 132)",
+          "oklch(38% 0.011 132)",
+          "oklch(50% 0.014 132)",
+          "oklch(62% 0.013 132)",
+          "oklch(73% 0.011 132)",
+          "oklch(85% 0.009 132)",
+          "oklch(95% 0.007 132)"
+        ]
+      },
+      "sidebar-accent": {
+        "role": "neutral",
+        "displayName": "Rail Hover Wash",
+        "canonical": "#dfe7da",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.009 133)",
+          "oklch(27% 0.012 133)",
+          "oklch(38% 0.015 133)",
+          "oklch(50% 0.018 133)",
+          "oklch(62% 0.018 133)",
+          "oklch(73% 0.015 133)",
+          "oklch(85% 0.011 133)",
+          "oklch(95% 0.009 133)"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#cfd8cd",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.008 140)",
+          "oklch(27% 0.011 140)",
+          "oklch(38% 0.014 140)",
+          "oklch(50% 0.017 140)",
+          "oklch(62% 0.016 140)",
+          "oklch(73% 0.013 140)",
+          "oklch(85% 0.011 140)",
+          "oklch(95% 0.008 140)"
+        ]
+      },
+      "input": {
+        "role": "neutral",
+        "displayName": "Control Edge",
+        "canonical": "#839084",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.011 147)",
+          "oklch(27% 0.014 147)",
+          "oklch(38% 0.018 147)",
+          "oklch(50% 0.022 147)",
+          "oklch(62% 0.021 147)",
+          "oklch(73% 0.017 147)",
+          "oklch(85% 0.014 147)",
+          "oklch(95% 0.011 147)"
+        ]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#18211d",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.007 166)",
+          "oklch(27% 0.009 166)",
+          "oklch(38% 0.012 166)",
+          "oklch(50% 0.014 166)",
+          "oklch(62% 0.014 166)",
+          "oklch(73% 0.011 166)",
+          "oklch(85% 0.009 166)",
+          "oklch(95% 0.007 166)"
+        ]
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Faded Ink",
+        "canonical": "#505d55",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.009 158)",
+          "oklch(27% 0.013 158)",
+          "oklch(38% 0.016 158)",
+          "oklch(50% 0.019 158)",
+          "oklch(62% 0.019 158)",
+          "oklch(73% 0.016 158)",
+          "oklch(85% 0.012 158)",
+          "oklch(95% 0.009 158)"
+        ]
+      },
+      "primary-foreground": {
+        "role": "primary",
+        "displayName": "Ink On Water",
+        "canonical": "#ffffff",
+        "theme": "day",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(27% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(50% 0.000 90)",
+          "oklch(62% 0.000 90)",
+          "oklch(73% 0.000 90)",
+          "oklch(85% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "night-water": {
+        "role": "primary",
+        "displayName": "Water Blue (night)",
+        "canonical": "#7fb4f5",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.050 254)",
+          "oklch(27% 0.068 254)",
+          "oklch(38% 0.084 254)",
+          "oklch(50% 0.102 254)",
+          "oklch(62% 0.099 254)",
+          "oklch(73% 0.083 254)",
+          "oklch(85% 0.065 254)",
+          "oklch(95% 0.050 254)"
+        ]
+      },
+      "night-water-tint": {
+        "role": "primary",
+        "displayName": "Water Blue Tint (night)",
+        "canonical": "#16304d",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.028 253)",
+          "oklch(27% 0.038 253)",
+          "oklch(38% 0.047 253)",
+          "oklch(50% 0.058 253)",
+          "oklch(62% 0.056 253)",
+          "oklch(73% 0.047 253)",
+          "oklch(85% 0.036 253)",
+          "oklch(95% 0.028 253)"
+        ]
+      },
+      "night-contour": {
+        "role": "secondary",
+        "displayName": "Contour Orange (night)",
+        "canonical": "#f0a05a",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.058 60)",
+          "oklch(27% 0.079 60)",
+          "oklch(38% 0.099 60)",
+          "oklch(50% 0.120 60)",
+          "oklch(62% 0.116 60)",
+          "oklch(73% 0.097 60)",
+          "oklch(85% 0.076 60)",
+          "oklch(95% 0.058 60)"
+        ]
+      },
+      "night-contour-tint": {
+        "role": "secondary",
+        "displayName": "Contour Orange Tint (night)",
+        "canonical": "#3a2512",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.020 62)",
+          "oklch(27% 0.027 62)",
+          "oklch(38% 0.034 62)",
+          "oklch(50% 0.041 62)",
+          "oklch(62% 0.040 62)",
+          "oklch(73% 0.033 62)",
+          "oklch(85% 0.026 62)",
+          "oklch(95% 0.020 62)"
+        ]
+      },
+      "night-wood": {
+        "role": "secondary",
+        "displayName": "Woodland Green (night)",
+        "canonical": "#7fcb8a",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.054 148)",
+          "oklch(27% 0.074 148)",
+          "oklch(38% 0.092 148)",
+          "oklch(50% 0.111 148)",
+          "oklch(62% 0.108 148)",
+          "oklch(73% 0.090 148)",
+          "oklch(85% 0.070 148)",
+          "oklch(95% 0.054 148)"
+        ]
+      },
+      "night-wood-tint": {
+        "role": "secondary",
+        "displayName": "Woodland Green Tint (night)",
+        "canonical": "#17321d",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.023 150)",
+          "oklch(27% 0.031 150)",
+          "oklch(38% 0.039 150)",
+          "oklch(50% 0.047 150)",
+          "oklch(62% 0.046 150)",
+          "oklch(73% 0.038 150)",
+          "oklch(85% 0.030 150)",
+          "oklch(95% 0.023 150)"
+        ]
+      },
+      "night-grid": {
+        "role": "tertiary",
+        "displayName": "Grid Magenta (night)",
+        "canonical": "#f083c0",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.068 347)",
+          "oklch(27% 0.093 347)",
+          "oklch(38% 0.116 347)",
+          "oklch(50% 0.140 347)",
+          "oklch(62% 0.136 347)",
+          "oklch(73% 0.113 347)",
+          "oklch(85% 0.089 347)",
+          "oklch(95% 0.068 347)"
+        ]
+      },
+      "night-grid-tint": {
+        "role": "tertiary",
+        "displayName": "Grid Magenta Tint (night)",
+        "canonical": "#3d1730",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.032 343)",
+          "oklch(27% 0.043 343)",
+          "oklch(38% 0.053 343)",
+          "oklch(50% 0.065 343)",
+          "oklch(62% 0.063 343)",
+          "oklch(73% 0.052 343)",
+          "oklch(85% 0.041 343)",
+          "oklch(95% 0.032 343)"
+        ]
+      },
+      "night-destructive": {
+        "role": "tertiary",
+        "displayName": "Fault Red (night)",
+        "canonical": "#f2877b",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.060 27)",
+          "oklch(27% 0.082 27)",
+          "oklch(38% 0.102 27)",
+          "oklch(50% 0.124 27)",
+          "oklch(62% 0.120 27)",
+          "oklch(73% 0.100 27)",
+          "oklch(85% 0.078 27)",
+          "oklch(95% 0.060 27)"
+        ]
+      },
+      "night-destructive-foreground": {
+        "role": "tertiary",
+        "displayName": "Ink On Fault Red (night)",
+        "canonical": "#1f0906",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.018 31)",
+          "oklch(27% 0.024 31)",
+          "oklch(38% 0.030 31)",
+          "oklch(50% 0.037 31)",
+          "oklch(62% 0.036 31)",
+          "oklch(73% 0.030 31)",
+          "oklch(85% 0.023 31)",
+          "oklch(95% 0.018 31)"
+        ]
+      },
+      "night-background": {
+        "role": "neutral",
+        "displayName": "Sheet (night)",
+        "canonical": "#0f161a",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.006 233)",
+          "oklch(27% 0.008 233)",
+          "oklch(38% 0.010 233)",
+          "oklch(50% 0.012 233)",
+          "oklch(62% 0.012 233)",
+          "oklch(73% 0.010 233)",
+          "oklch(85% 0.008 233)",
+          "oklch(95% 0.006 233)"
+        ]
+      },
+      "night-card": {
+        "role": "neutral",
+        "displayName": "Paper (night)",
+        "canonical": "#151e23",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.007 233)",
+          "oklch(27% 0.010 233)",
+          "oklch(38% 0.012 233)",
+          "oklch(50% 0.015 233)",
+          "oklch(62% 0.015 233)",
+          "oklch(73% 0.012 233)",
+          "oklch(85% 0.010 233)",
+          "oklch(95% 0.007 233)"
+        ]
+      },
+      "night-popover": {
+        "role": "neutral",
+        "displayName": "Popover Paper (night)",
+        "canonical": "#18232a",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.009 237)",
+          "oklch(27% 0.013 237)",
+          "oklch(38% 0.016 237)",
+          "oklch(50% 0.019 237)",
+          "oklch(62% 0.018 237)",
+          "oklch(73% 0.015 237)",
+          "oklch(85% 0.012 237)",
+          "oklch(95% 0.009 237)"
+        ]
+      },
+      "night-lowland": {
+        "role": "neutral",
+        "displayName": "Lowland (night)",
+        "canonical": "#131c21",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.007 233)",
+          "oklch(27% 0.010 233)",
+          "oklch(38% 0.013 233)",
+          "oklch(50% 0.015 233)",
+          "oklch(62% 0.015 233)",
+          "oklch(73% 0.012 233)",
+          "oklch(85% 0.010 233)",
+          "oklch(95% 0.007 233)"
+        ]
+      },
+      "night-sidebar": {
+        "role": "neutral",
+        "displayName": "Rail (night)",
+        "canonical": "#0b1114",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.005 230)",
+          "oklch(27% 0.007 230)",
+          "oklch(38% 0.009 230)",
+          "oklch(50% 0.010 230)",
+          "oklch(62% 0.010 230)",
+          "oklch(73% 0.008 230)",
+          "oklch(85% 0.007 230)",
+          "oklch(95% 0.005 230)"
+        ]
+      },
+      "night-muted": {
+        "role": "neutral",
+        "displayName": "Margin (night)",
+        "canonical": "#18222a",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.010 243)",
+          "oklch(27% 0.013 243)",
+          "oklch(38% 0.016 243)",
+          "oklch(50% 0.019 243)",
+          "oklch(62% 0.019 243)",
+          "oklch(73% 0.016 243)",
+          "oklch(85% 0.012 243)",
+          "oklch(95% 0.010 243)"
+        ]
+      },
+      "night-secondary": {
+        "role": "neutral",
+        "displayName": "Secondary Fill (night)",
+        "canonical": "#1b262c",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.009 232)",
+          "oklch(27% 0.012 232)",
+          "oklch(38% 0.015 232)",
+          "oklch(50% 0.018 232)",
+          "oklch(62% 0.017 232)",
+          "oklch(73% 0.014 232)",
+          "oklch(85% 0.011 232)",
+          "oklch(95% 0.009 232)"
+        ]
+      },
+      "night-accent": {
+        "role": "neutral",
+        "displayName": "Hover Wash (night)",
+        "canonical": "#212e35",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.010 232)",
+          "oklch(27% 0.013 232)",
+          "oklch(38% 0.017 232)",
+          "oklch(50% 0.020 232)",
+          "oklch(62% 0.020 232)",
+          "oklch(73% 0.016 232)",
+          "oklch(85% 0.013 232)",
+          "oklch(95% 0.010 232)"
+        ]
+      },
+      "night-rule": {
+        "role": "neutral",
+        "displayName": "Hairline (night)",
+        "canonical": "#2a373e",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.010 232)",
+          "oklch(27% 0.013 232)",
+          "oklch(38% 0.016 232)",
+          "oklch(50% 0.020 232)",
+          "oklch(62% 0.019 232)",
+          "oklch(73% 0.016 232)",
+          "oklch(85% 0.013 232)",
+          "oklch(95% 0.010 232)"
+        ]
+      },
+      "night-input": {
+        "role": "neutral",
+        "displayName": "Control Edge (night)",
+        "canonical": "#64757e",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.011 231)",
+          "oklch(27% 0.015 231)",
+          "oklch(38% 0.019 231)",
+          "oklch(50% 0.023 231)",
+          "oklch(62% 0.022 231)",
+          "oklch(73% 0.019 231)",
+          "oklch(85% 0.015 231)",
+          "oklch(95% 0.011 231)"
+        ]
+      },
+      "night-foreground": {
+        "role": "neutral",
+        "displayName": "Ink (night)",
+        "canonical": "#e6ede8",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.005 155)",
+          "oklch(27% 0.006 155)",
+          "oklch(38% 0.008 155)",
+          "oklch(50% 0.009 155)",
+          "oklch(62% 0.009 155)",
+          "oklch(73% 0.008 155)",
+          "oklch(85% 0.006 155)",
+          "oklch(95% 0.005 155)"
+        ]
+      },
+      "night-muted-foreground": {
+        "role": "neutral",
+        "displayName": "Faded Ink (night)",
+        "canonical": "#a3b3ab",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.010 164)",
+          "oklch(27% 0.013 164)",
+          "oklch(38% 0.016 164)",
+          "oklch(50% 0.020 164)",
+          "oklch(62% 0.019 164)",
+          "oklch(73% 0.016 164)",
+          "oklch(85% 0.012 164)",
+          "oklch(95% 0.010 164)"
+        ]
+      },
+      "night-primary-foreground": {
+        "role": "primary",
+        "displayName": "Ink On Water (night)",
+        "canonical": "#0a1622",
+        "theme": "night",
+        "tonalRamp": [
+          "oklch(15% 0.014 250)",
+          "oklch(27% 0.018 250)",
+          "oklch(38% 0.023 250)",
+          "oklch(50% 0.028 250)",
+          "oklch(62% 0.027 250)",
+          "oklch(73% 0.023 250)",
+          "oklch(85% 0.018 250)",
+          "oklch(95% 0.014 250)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Landing headline only; 2.75rem below the sm breakpoint."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Landing section headings, held to 24-26ch."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Step and audience names on the landing page."
+      },
+      "title-sm": {
+        "displayName": "Title small",
+        "purpose": "App page title, card and empty-state titles, the wordmark."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Document default with tabular numerals; long text capped at 52-60ch."
+      },
+      "body-sm": {
+        "displayName": "Body small",
+        "purpose": "The working size of the app: buttons, inputs, table cells, navigation, notices."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "State-mark labels, revision metadata, helper text."
+      },
+      "label": {
+        "displayName": "Legend label",
+        "purpose": "Uppercase field, column and group names (the legend-label utility). Never an eyebrow."
+      },
+      "datum": {
+        "displayName": "Datum",
+        "purpose": "Mono for paths, owner/repo, branches and 7-character SHAs (the datum utility)."
+      }
+    },
+    "shadows": [
+      {
+        "name": "current-item-inset",
+        "value": "inset 0 0 0 1px var(--rule)",
+        "purpose": "Hairline around the current side-rail item; a rule, not a lift."
+      },
+      {
+        "name": "lifted-sheet",
+        "value": "0 18px 40px -24px rgb(24 33 29 / 0.35)",
+        "purpose": "The landing demo sheet over the hero contour field."
+      },
+      {
+        "name": "lifted-alert",
+        "value": "0 12px 28px -16px rgb(24 33 29 / 0.5)",
+        "purpose": "The save-failed alert floating over the canvas."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Easing for every state transition."
+      },
+      {
+        "name": "state-transition",
+        "value": "160ms",
+        "purpose": "Colour, background, border, shadow and opacity on buttons, links and fields."
+      },
+      {
+        "name": "press",
+        "value": "translateY(1px)",
+        "purpose": "Buttons move down 1px while pressed."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0.01ms",
+        "purpose": "prefers-reduced-motion collapses all animation and transition durations."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ],
+    "focus": {
+      "value": "outline: 2px solid var(--grid); outline-offset: 2px",
+      "purpose": "The single focus treatment for every interactive element."
+    },
+    "selection": {
+      "value": "background: var(--grid-tint); color: var(--foreground)",
+      "purpose": "Text selection; the caret is var(--grid)."
+    },
+    "themes": {
+      "day": ":root",
+      "night": ".dark",
+      "note": "Frontmatter keys without a prefix are day values; night-* keys are the same roles on the night sheet."
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one water-blue action in a view: Save, New project, Start with GitHub.",
+      "html": "<button class=\"ds-btn-primary\">Save</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px; border: 1px solid transparent; border-radius: 4px; font-family: var(--font-sans); font-size: 0.875rem; font-weight: 600; white-space: nowrap; cursor: pointer; transition: color 160ms cubic-bezier(0.16,1,0.3,1), background-color 160ms cubic-bezier(0.16,1,0.3,1), border-color 160ms cubic-bezier(0.16,1,0.3,1); background: var(--water); color: var(--primary-foreground); } .ds-btn-primary:hover { background: color-mix(in srgb, var(--water) 90%, transparent); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid var(--grid); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.5; pointer-events: none; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary actions beside a primary: Edit, Preview, Restore.",
+      "html": "<button class=\"ds-btn-outline\">Preview</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px; border: 1px solid transparent; border-radius: 4px; font-family: var(--font-sans); font-size: 0.875rem; font-weight: 600; white-space: nowrap; cursor: pointer; transition: color 160ms cubic-bezier(0.16,1,0.3,1), background-color 160ms cubic-bezier(0.16,1,0.3,1), border-color 160ms cubic-bezier(0.16,1,0.3,1); background: var(--card); color: var(--foreground); border-color: var(--input); } .ds-btn-outline:hover { background: var(--accent); } .ds-btn-outline:active { transform: translateY(1px); } .ds-btn-outline:focus-visible { outline: 2px solid var(--grid); outline-offset: 2px; } .ds-btn-outline:disabled { opacity: 0.5; pointer-events: none; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Quiet bar and row actions, and the default for icon-only buttons.",
+      "html": "<button class=\"ds-btn-ghost\">Sign in</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px; border: 1px solid transparent; border-radius: 4px; font-family: var(--font-sans); font-size: 0.875rem; font-weight: 600; white-space: nowrap; cursor: pointer; transition: color 160ms cubic-bezier(0.16,1,0.3,1), background-color 160ms cubic-bezier(0.16,1,0.3,1), border-color 160ms cubic-bezier(0.16,1,0.3,1); background: transparent; color: var(--muted-foreground); } .ds-btn-ghost:hover { background: var(--accent); color: var(--foreground); } .ds-btn-ghost:active { transform: translateY(1px); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--grid); outline-offset: 2px; } .ds-btn-ghost:disabled { opacity: 0.5; pointer-events: none; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Paper field with a control-edge border; border and outline turn grid magenta on focus.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Search sketches, docs, commits\" />",
+      "css": ".ds-input { height: 36px; width: 100%; min-width: 0; padding: 4px 12px; border: 1px solid var(--input); border-radius: 4px; background: var(--card); color: var(--foreground); font-family: var(--font-sans); font-size: 0.875rem; caret-color: var(--grid); transition: border-color 160ms cubic-bezier(0.16,1,0.3,1); } .ds-input::placeholder { color: var(--muted-foreground); } .ds-input:hover { border-color: color-mix(in srgb, var(--muted-foreground) 60%, transparent); } .ds-input:focus-visible { border-color: var(--grid); outline: 2px solid var(--grid); outline-offset: 2px; } .ds-input:disabled { background: var(--muted); opacity: 0.6; cursor: not-allowed; }"
+    },
+    {
+      "name": "Badges",
+      "kind": "chip",
+      "refersTo": "badge-default",
+      "description": "20px uppercase tags: default (water), draft (contour), synced (wood), outline.",
+      "html": "<span class=\"ds-badge\">Public</span> <span class=\"ds-badge ds-badge-draft\">Draft</span> <span class=\"ds-badge ds-badge-synced\">Synced</span> <span class=\"ds-badge ds-badge-outline\">Template</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border: 1px solid transparent; border-radius: 3px; font-family: var(--font-sans); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.025em; text-transform: uppercase; white-space: nowrap; background: var(--water-tint); color: var(--water); } .ds-badge-draft { background: var(--contour-tint); color: var(--contour); } .ds-badge-synced { background: var(--wood-tint); color: var(--wood); } .ds-badge-outline { background: transparent; border-color: var(--rule); color: var(--muted-foreground); }"
+    },
+    {
+      "name": "State Marks",
+      "kind": "custom",
+      "refersTo": "state-mark",
+      "description": "The legend: five sync states, each a distinct shape with a label and an ink.",
+      "html": "<div class=\"ds-state-row\"><span class=\"ds-state ds-state-synced\"><svg viewBox=\"0 0 12 12\" aria-hidden=\"true\" width=\"12\" height=\"12\"><circle cx=\"6\" cy=\"6\" r=\"5\" fill=\"currentColor\"/></svg><span>Synced</span></span><span class=\"ds-state ds-state-draft\"><svg viewBox=\"0 0 12 12\" aria-hidden=\"true\" width=\"12\" height=\"12\"><circle cx=\"6\" cy=\"6\" r=\"4.25\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><path d=\"M6 1.75a4.25 4.25 0 0 0 0 8.5z\" fill=\"currentColor\"/></svg><span>Unsaved draft</span></span><span class=\"ds-state ds-state-local\"><svg viewBox=\"0 0 12 12\" aria-hidden=\"true\" width=\"12\" height=\"12\"><circle cx=\"6\" cy=\"6\" r=\"4.25\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/></svg><span>Local only</span></span><span class=\"ds-state ds-state-offline\"><svg viewBox=\"0 0 12 12\" aria-hidden=\"true\" width=\"12\" height=\"12\"><circle cx=\"6\" cy=\"6\" r=\"4.25\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><path d=\"M3.5 6h5\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg><span>Sync paused</span></span><span class=\"ds-state ds-state-error\"><svg viewBox=\"0 0 12 12\" aria-hidden=\"true\" width=\"12\" height=\"12\"><rect x=\"1.5\" y=\"1.5\" width=\"9\" height=\"9\" rx=\"1\" fill=\"currentColor\"/></svg><span>Sync failed</span></span></div>",
+      "css": ".ds-state-row { display: flex; flex-wrap: wrap; gap: 16px; } .ds-state { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500; white-space: nowrap; } .ds-state svg { flex-shrink: 0; } .ds-state-synced { color: var(--wood); } .ds-state-draft { color: var(--contour); } .ds-state-local, .ds-state-offline { color: var(--muted-foreground); } .ds-state-error { color: var(--destructive); }"
+    },
+    {
+      "name": "Title Block",
+      "kind": "custom",
+      "refersTo": "title-block-label",
+      "description": "Ruled label/value pairs saying where a piece of work lives, its revision and its state.",
+      "html": "<dl class=\"ds-tb\"><div class=\"ds-tb-row\"><dt>Branch</dt><dd class=\"ds-tb-mono\">main</dd></div><div class=\"ds-tb-row\"><dt>Commit</dt><dd class=\"ds-tb-mono\">3c8d4e2</dd></div><div class=\"ds-tb-row\"><dt>State</dt><dd><span class=\"ds-state ds-state-synced\"><svg viewBox=\"0 0 12 12\" aria-hidden=\"true\" width=\"12\" height=\"12\"><circle cx=\"6\" cy=\"6\" r=\"5\" fill=\"currentColor\"/></svg><span>Synced</span></span></dd></div></dl>",
+      "css": ".ds-tb { display: grid; grid-template-columns: auto minmax(0, 1fr); margin: 0; overflow: hidden; border: 1px solid var(--rule); border-radius: 4px; font-family: var(--font-sans); font-size: 0.875rem; max-width: 15rem; } .ds-tb-row { grid-column: span 2; display: grid; grid-template-columns: subgrid; border-bottom: 1px solid var(--rule); } .ds-tb-row:last-child { border-bottom: 0; } .ds-tb dt { display: flex; align-items: center; padding: 6px 10px; border-right: 1px solid var(--rule); background: var(--muted); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); } .ds-tb dd { margin: 0; min-width: 0; padding: 6px 10px; color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-tb .ds-tb-mono { font-family: var(--font-mono); font-size: 0.8125rem; letter-spacing: -0.01em; } .ds-state { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500; white-space: nowrap; } .ds-state svg { flex-shrink: 0; } .ds-state-synced { color: var(--wood); } .ds-state-draft { color: var(--contour); } .ds-state-local, .ds-state-offline { color: var(--muted-foreground); } .ds-state-error { color: var(--destructive); }"
+    },
+    {
+      "name": "Ruled Project Table",
+      "kind": "custom",
+      "refersTo": "table-row",
+      "description": "Projects as ruled rows: name, folder in mono, revised date, state mark.",
+      "html": "<div class=\"ds-table-wrap\"><table class=\"ds-table\"><thead><tr><th scope=\"col\">Project</th><th scope=\"col\">Folder</th><th scope=\"col\">Revised</th><th scope=\"col\">State</th></tr></thead><tbody><tr><td><a href=\"#\" class=\"ds-table-name\">Payments architecture</a><p>System map and notes</p></td><td class=\"ds-table-datum\">projects/payments-architecture</td><td class=\"ds-table-muted\">12 Nov 2026</td><td><span class=\"ds-state ds-state-synced\"><svg viewBox=\"0 0 12 12\" aria-hidden=\"true\" width=\"12\" height=\"12\"><circle cx=\"6\" cy=\"6\" r=\"5\" fill=\"currentColor\"/></svg><span>Synced</span></span></td></tr><tr><td><a href=\"#\" class=\"ds-table-name\">Lesson board</a></td><td class=\"ds-table-datum\">projects/lesson-board</td><td class=\"ds-table-muted\">9 Nov 2026</td><td><span class=\"ds-state ds-state-local\"><svg viewBox=\"0 0 12 12\" aria-hidden=\"true\" width=\"12\" height=\"12\"><circle cx=\"6\" cy=\"6\" r=\"4.25\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/></svg><span>Local only</span></span></td></tr></tbody></table></div>",
+      "css": ".ds-table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--card); } .ds-table { width: 100%; border-collapse: collapse; font-family: var(--font-sans); font-size: 0.875rem; color: var(--foreground); } .ds-table thead tr { background: var(--muted); border-bottom: 1px solid var(--rule); text-align: left; } .ds-table th { padding: 8px 12px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); } .ds-table td { padding: 10px 12px; vertical-align: top; } .ds-table tbody tr { border-bottom: 1px solid var(--rule); } .ds-table tbody tr:last-child { border-bottom: 0; } .ds-table tbody tr:hover { background: color-mix(in srgb, var(--muted) 60%, transparent); } .ds-table-name { font-weight: 600; color: var(--foreground); text-decoration: none; text-underline-offset: 4px; } .ds-table-name:hover { color: var(--water); text-decoration: underline; } .ds-table-name:focus-visible { outline: 2px solid var(--grid); outline-offset: 2px; } .ds-table td p { margin: 2px 0 0; font-size: 0.8125rem; color: var(--muted-foreground); } .ds-table-datum { font-family: var(--font-mono); font-size: 0.8125rem; letter-spacing: -0.01em; color: var(--muted-foreground); } .ds-table-muted { color: var(--muted-foreground); white-space: nowrap; } .ds-state { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500; white-space: nowrap; } .ds-state svg { flex-shrink: 0; } .ds-state-synced { color: var(--wood); } .ds-state-draft { color: var(--contour); } .ds-state-local, .ds-state-offline { color: var(--muted-foreground); } .ds-state-error { color: var(--destructive); }"
+    },
+    {
+      "name": "Side Rail Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Lowland rail; the current item is a paper chip with an inset hairline and a magenta icon.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Work\"><p class=\"ds-nav-label\">Work</p><a href=\"#\" class=\"ds-nav-item\" aria-current=\"page\"><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\"/></svg><span>Projects</span></a><a href=\"#\" class=\"ds-nav-item\"><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 6v6l4 2\"/></svg><span>Recent</span></a></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; width: 14rem; padding: 8px; background: var(--lowland); border-right: 1px solid var(--rule); font-family: var(--font-sans); } .ds-nav-label { margin: 0; height: 28px; display: flex; align-items: center; padding: 0 4px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); } .ds-nav-item { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; border-radius: 4px; font-size: 0.875rem; font-weight: 500; text-decoration: none; color: color-mix(in srgb, var(--foreground) 80%, transparent); transition: color 160ms cubic-bezier(0.16,1,0.3,1), background-color 160ms cubic-bezier(0.16,1,0.3,1); } .ds-nav-item:hover { background: var(--sidebar-accent); color: var(--foreground); } .ds-nav-item[aria-current=page] { background: var(--card); color: var(--foreground); font-weight: 600; box-shadow: inset 0 0 0 1px var(--rule); } .ds-nav-item[aria-current=page] svg { color: var(--grid); } .ds-nav-item:focus-visible { outline: 2px solid var(--grid); outline-offset: 2px; }"
+    },
+    {
+      "name": "Revision Ladder",
+      "kind": "custom",
+      "refersTo": "revision-selected",
+      "description": "History on a scale bar: one dot per commit, newest in wood, the previewed one in grid magenta.",
+      "html": "<ol class=\"ds-ladder\"><li><span class=\"ds-ladder-dot ds-ladder-latest\" aria-hidden=\"true\"></span><div class=\"ds-ladder-cell\"><p class=\"ds-ladder-msg\">Add queue between API and worker</p><p class=\"ds-ladder-meta\"><span class=\"ds-ladder-sha\">3c8d4e2</span><span>12 Nov, 14:02</span><span class=\"ds-ladder-tag\">Latest</span></p></div></li><li><span class=\"ds-ladder-dot ds-ladder-selected\" aria-hidden=\"true\"></span><div class=\"ds-ladder-cell ds-ladder-cell-selected\"><p class=\"ds-ladder-msg\">First system map</p><p class=\"ds-ladder-meta\"><span class=\"ds-ladder-sha\">b5e1a04</span><span>9 Nov, 10:15</span></p></div></li></ol>",
+      "css": ".ds-ladder { list-style: none; margin: 0 0 0 6px; padding: 0; position: relative; font-family: var(--font-sans); background-image: linear-gradient(to bottom, var(--rule) 50%, transparent 50%); background-size: 1px 8px; background-repeat: repeat-y; } .ds-ladder li { position: relative; padding: 0 0 16px 20px; } .ds-ladder li:last-child { padding-bottom: 4px; } .ds-ladder-dot { position: absolute; top: 6px; left: -5px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--card); box-sizing: border-box; background: color-mix(in srgb, var(--muted-foreground) 60%, transparent); } .ds-ladder-latest { background: var(--wood); } .ds-ladder-selected { background: var(--grid); } .ds-ladder-cell { padding: 8px 10px; border: 1px solid transparent; border-radius: 4px; } .ds-ladder-cell:hover { border-color: var(--rule); background: color-mix(in srgb, var(--muted) 60%, transparent); } .ds-ladder-cell-selected, .ds-ladder-cell-selected:hover { border-color: color-mix(in srgb, var(--grid) 60%, transparent); background: var(--grid-tint); } .ds-ladder-msg { margin: 0; font-size: 0.875rem; font-weight: 500; color: var(--foreground); } .ds-ladder-meta { margin: 2px 0 0; display: flex; flex-wrap: wrap; column-gap: 8px; font-size: 0.75rem; color: var(--muted-foreground); } .ds-ladder-sha { font-family: var(--font-mono); font-size: 0.8125rem; letter-spacing: -0.01em; } .ds-ladder-tag { font-weight: 500; color: var(--wood); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Survey Sheet",
+    "overview": "A Sketchflow workspace is a surveyed map sheet. The page is cool white paper, the text is green-black ink, structure is drawn with hairline rules, and four map inks each do exactly one job. Every project carries the equivalent of a sheet's title block: where its files live, when it was last revised, and what state it is in. The system exists so a person always knows whether a change is only in this browser or committed to their GitHub repository.\n\nThe interface is dense, calm and flat. Surfaces are told apart by tint and by ruled lines, not by shadow. Corners are tight (3 to 8px). One humanist sans built for legibility carries all UI and headings; its mono companion carries paths, branch names and SHAs, so machine values always look like machine values. The dark theme is the same sheet at night: the same roles, the same inks lightened for a dark ground, nothing re-assigned.\n\nState is never carried by colour alone. Each sync state has its own legend shape (filled disc, half disc, ring, barred ring, filled square) and a plain-language label, so the sheet reads in greyscale and for colour-blind users.",
+    "keyCharacteristics": [
+      "Cool white paper, green-black ink, hairline rules; flat, with tint and rule doing the work of depth.",
+      "Four map inks with fixed jobs: water blue acts, contour orange marks unsaved drafts, woodland green marks synced, grid magenta marks selection, current location and keyboard focus.",
+      "State is a shape plus a label plus an ink, never an ink alone.",
+      "Paths, branches and SHAs are always set in the mono face.",
+      "Tight radii (3, 4, 6, 8px) and compact controls (28, 32, 36, 44px high).",
+      "Day sheet and night sheet share every role; only values change."
+    ],
+    "rules": [
+      {
+        "name": "The One Job Rule",
+        "body": "Each map ink has one meaning. Water acts, contour is unsaved, wood is synced, grid is where you are. Never borrow an ink for decoration, and never use two inks for the same meaning.",
+        "section": "colors"
+      },
+      {
+        "name": "The Shape And Ink Rule",
+        "body": "State is always carried by shape as well as colour. Use `StateMark` or `StateGlyph` (synced filled disc, draft half disc, local ring, offline barred ring, error filled square) with its text label; a coloured dot or coloured text on its own is not a state indicator.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tint Pair Rule",
+        "body": "An ink on a fill sits on its own tint (`water` on `water-tint`, `contour` on `contour-tint`, `wood` on `wood-tint`, `grid` on `grid-tint`). Every pair clears 5:1 in both themes. Do not put one ink on another ink's tint.",
+        "section": "colors"
+      },
+      {
+        "name": "The Same Sheet Rule",
+        "body": "The night sheet re-values tokens and re-assigns nothing. Build with tokens only and both themes follow; a literal hex or `rgb()` in a component breaks the night sheet.",
+        "section": "colors"
+      },
+      {
+        "name": "The Datum Rule",
+        "body": "Anything a person could paste into a terminal or a URL is set in the mono face with `datum`. Prose never is.",
+        "section": "typography"
+      },
+      {
+        "name": "The Marginalia Rule",
+        "body": "`legend-label` names a field, a column or a group of controls. It is map marginalia, not a kicker: do not place it above a heading as an eyebrow.",
+        "section": "typography"
+      },
+      {
+        "name": "The Ruled Not Raised Rule",
+        "body": "A surface that sits in the layout gets a hairline border and no shadow. Only a surface that overlaps other content may be lifted, with the one soft shadow above.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do build from the tokens in `src/app/globals.css` (`bg-card`, `border-rule`, `text-water`, `bg-contour-tint`) so the night sheet follows automatically.",
+      "Do show state with `StateMark` or `StateGlyph`: shape, label and ink together, using the five existing states and their wording (Synced, Unsaved draft, Local only, Sync paused, Sync failed).",
+      "Do keep each ink to its job: water for the primary action and links, contour for unsaved drafts, wood for synced, grid magenta for selection, current location and focus.",
+      "Do set paths, `owner/repo`, branch names and SHAs in `datum`, and shorten SHAs to 7 characters.",
+      "Do describe a single piece of work with a `TitleBlock` (location, revision, state) and list many with the ruled table.",
+      "Do separate surfaces with a 1px `rule` hairline and a tint step (lowland, sheet, paper, margin) rather than a shadow.",
+      "Do use `border-input` for the edge of anything interactive; `rule` is too faint to bound a control.",
+      "Do use the radius scale as assigned: 3px badges, 4px controls, 6px containers, 8px dialogs.",
+      "Do keep the single focus treatment (2px grid-magenta outline, 2px offset) and leave it visible on every interactive element.",
+      "Do give every icon-only button an `aria-label` and a `title`, and use lucide-react icons at 16px (14px in small controls).",
+      "Do write empty states that say what belongs here and how to put it there, with the action attached.",
+      "Do cap running text at 52 to 60ch and leave tables and panels full width."
+    ],
+    "donts": [
+      "Don't signal state with colour alone: no bare coloured dots, no coloured text without a glyph and a label.",
+      "Don't use an ink outside its job: no orange for warnings in general, no green for generic success, no magenta as a brand accent, no blue on things that are not actions or links.",
+      "Don't write literal colours in components. A hex or `rgb()` value does not change with the theme.",
+      "Don't add shadows to surfaces that sit in the layout, and don't stack shadows on top of borders for decoration.",
+      "Don't use pills, fully rounded buttons or radii above 8px.",
+      "Don't use `legend-label` as an eyebrow above a heading; it names fields, columns and groups.",
+      "Don't set prose or UI labels in the mono face, or data in the sans.",
+      "Don't lay projects or lists out as a grid of identical cards; this system rules its lists.",
+      "Don't add gradients, glass or blur, or a second typeface.",
+      "Don't restyle the insides of Excalidraw or BlockNote beyond the token overrides already in `globals.css`.",
+      "Don't add motion beyond the 160ms state transitions, skeleton pulse and spinner, and never without honouring `prefers-reduced-motion`."
+    ]
+  }
+}
