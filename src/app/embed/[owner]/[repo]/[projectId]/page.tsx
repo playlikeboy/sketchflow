@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PublicSketchViewer } from "@/components/public-sketch-viewer";
-import { Badge } from "@/components/ui/badge";
+import { SheetMark } from "@/components/brand-mark";
 import { loadPublicProjectView } from "@/server/public-github";
 
 type PageProps = {
@@ -43,26 +43,24 @@ export default async function EmbedProjectPage({
 	const { project, scene } = view;
 
 	return (
-		<main className="h-screen w-screen bg-background p-4 overflow-hidden">
-			<div className="flex h-full w-full flex-col rounded-xl border bg-card p-4">
-				<div className="mb-4 flex items-center justify-between gap-3">
-					<div>
-						<div className="text-sm font-semibold">{project?.title || projectId}</div>
-						<div className="text-xs text-muted-foreground">
-							{owner}/{repo}
-						</div>
-					</div>
-					<Badge variant="secondary" className="font-normal">
-						Sketchflow
-					</Badge>
-				</div>
-				<div className="min-h-0 flex-1">
-					<PublicSketchViewer scene={scene} className="h-full w-full" />
-				</div>
-				<Link className="mt-3 inline-flex text-xs text-primary" href={`/share/${owner}/${repo}/${projectId}`} target="_blank">
-					Open share page
-				</Link>
+		<main className="flex h-screen w-screen flex-col overflow-hidden bg-background">
+			<div className="min-h-0 flex-1">
+				<PublicSketchViewer scene={scene} className="h-full w-full rounded-none border-0" />
 			</div>
+			<footer className="flex h-9 shrink-0 items-center justify-between gap-3 border-t border-border bg-card px-3 text-xs">
+				<span className="min-w-0 truncate">
+					<span className="font-semibold text-foreground">{project?.title || projectId}</span>
+					<span className="datum ml-2 text-muted-foreground">{owner}/{repo}</span>
+				</span>
+				<Link
+					className="inline-flex shrink-0 items-center gap-1.5 font-medium text-primary underline"
+					href={`/share/${owner}/${repo}/${projectId}${ref ? `?ref=${encodeURIComponent(ref)}` : ""}`}
+					target="_blank"
+				>
+					<SheetMark className="size-4" />
+					Open in Sketchflow
+				</Link>
+			</footer>
 		</main>
 	);
 }

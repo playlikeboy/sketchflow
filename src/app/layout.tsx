@@ -5,17 +5,8 @@ import { stackServerApp } from "@/stack/server";
 import { PwaRegister } from "@/components/pwa-register";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SKETCHFLOW_APP_URL } from "@/lib/config";
-import "@fontsource/nunito/400.css";
-import "@fontsource/nunito/500.css";
-import "@fontsource/nunito/600.css";
-import "@fontsource/nunito/700.css";
-import "@fontsource/nunito/800.css";
-import "@fontsource/nunito/900.css";
-import "@fontsource/nunito-sans/400.css";
-import "@fontsource/nunito-sans/500.css";
-import "@fontsource/nunito-sans/600.css";
-import "@fontsource/nunito-sans/700.css";
-import "@fontsource/nunito-sans/800.css";
+import "@fontsource-variable/atkinson-hyperlegible-next/wght.css";
+import "@fontsource-variable/atkinson-hyperlegible-mono/wght.css";
 import "./globals.css";
 import "@excalidraw/excalidraw/index.css";
 
@@ -27,7 +18,7 @@ export const metadata: Metadata = {
     template: "%s - Sketchflow",
   },
   description:
-    "Sketchflow is a GitHub-native visual workspace for sketches, diagrams, docs, project memory, public pages, and AI-ready builder workflows.",
+    "Sketchflow is a canvas with a notes editor beside it. Every save is a Git commit to a GitHub repository you own.",
   keywords: [
     "Sketchflow",
     "GitHub whiteboard",
@@ -50,7 +41,7 @@ export const metadata: Metadata = {
     siteName: "Sketchflow",
     title: "Sketchflow - GitHub-native visual workspace",
     description:
-      "Sketch, document, publish, and keep project memory in a GitHub repo you own.",
+      "A canvas and a notes editor that save to a GitHub repository you own, as plain files.",
     images: [
       {
         url: "/og-image.png",
@@ -64,7 +55,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "Sketchflow - GitHub-native visual workspace",
     description:
-      "Sketch, document, publish, and keep project memory in a GitHub repo you own.",
+      "A canvas and a notes editor that save to a GitHub repository you own, as plain files.",
     images: ["/og-image.png"],
   },
   robots: {
@@ -82,7 +73,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Sketchflow",
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
   },
 };
 
@@ -97,7 +88,7 @@ export default function RootLayout({
       <body className="antialiased">
         <ThemeProvider
           attribute="class"
-          defaultTheme="dark"
+          defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >

@@ -5,20 +5,18 @@ import { Slot } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "group/badge inline-flex h-6 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-[999px] border border-transparent px-3 py-0.5 text-xs font-extrabold whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
+  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-sm border border-transparent px-1.5 text-[0.6875rem] font-semibold tracking-wide whitespace-nowrap uppercase [&>svg]:pointer-events-none [&>svg]:size-3!",
   {
     variants: {
       variant: {
-        default: "bg-[#58CC02] text-white",
-        secondary:
-          "bg-secondary text-secondary-foreground",
-        destructive:
-          "bg-[#FF4B4B]/10 text-[#FF4B4B] dark:bg-[#FF4B4B]/20",
-        outline:
-          "border-border text-foreground",
-        ghost:
-          "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
-        link: "text-[#1CB0F6] underline-offset-4 hover:underline",
+        default: "bg-water-tint text-water",
+        secondary: "bg-secondary text-secondary-foreground",
+        destructive: "bg-destructive/10 text-destructive",
+        outline: "border-border text-muted-foreground",
+        draft: "bg-contour-tint text-contour",
+        synced: "bg-wood-tint text-wood",
+        ghost: "text-muted-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
       },
     },
     defaultVariants: {

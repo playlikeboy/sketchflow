@@ -3,32 +3,13 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useStackApp } from "@stackframe/stack";
-import {
-	ArrowRight,
-	Code2,
-	FileText,
-	FolderOpen,
-	GitCommit,
-	Globe,
-	KeyRound,
-	Loader2,
-	Plus,
-	RefreshCw,
-	SlidersHorizontal,
-} from "lucide-react";
+import { FolderOpen, GitCommit, Loader2, Plus, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { GithubAccessCard } from "@/components/github-access-card";
-import { Badge } from "@/components/ui/badge";
+import { EmptyPanel, Notice, ProjectList, ProjectListSkeleton } from "@/components/project-list";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
 	syncWorkspaceProjectsMetadata,
@@ -39,14 +20,7 @@ import type { WorkspaceProject } from "@/lib/project-metadata";
 import { slugify, draftKey, humanizeSlug } from "@/lib/sketchflow";
 import { saveLocalProject, setDraft } from "@/lib/indexeddb";
 import { queueCreateProject } from "@/lib/sync-manager";
-import {
-	DEFAULT_SKETCH_ID,
-	embedHref,
-	repoFileHref,
-	repoFolderHref,
-	shareHref,
-	sketchHref,
-} from "@/lib/workspace-routes";
+import { DEFAULT_SKETCH_ID, repoFolderHref, sketchHref } from "@/lib/workspace-routes";
 import {
 	useAuthMe,
 	useGithubStatus,
@@ -66,19 +40,6 @@ function friendlyError(message: string) {
 	}
 
 	return message;
-}
-
-function firstSketchId(project: WorkspaceProject) {
-	return project.defaultSketchId || project.sketches[0]?.id || DEFAULT_SKETCH_ID;
-}
-
-function formatDate(value: string) {
-	const date = new Date(value);
-	return Number.isNaN(date.getTime()) ? "Recently" : date.toLocaleDateString();
-}
-
-function projectDescription(project: WorkspaceProject) {
-	return project.description || `${project.sketches.length} sketch${project.sketches.length === 1 ? "" : "es"}`;
 }
 
 function errorCopy(error: unknown) {
@@ -113,7 +74,8 @@ export function ProjectsHomeClient() {
 	const appRef = useRef(app);
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+	// A link can name the workspace to open (the workspace list and the editor breadcrumb do).
+	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(() => searchParams.get("workspace"));
 	const [syncingIndex, setSyncingIndex] = useState(false);
 	const [newProjectTitle, setNewProjectTitle] = useState("");
 	const [newProjectDescription, setNewProjectDescription] = useState("");
@@ -344,43 +306,21 @@ export function ProjectsHomeClient() {
 	return (
 		<AppShell
 			title="Projects"
-			subtitle={
-				selectedWorkspace
-					? `${selectedWorkspace.repoOwner}/${selectedWorkspace.repoName}`
-					: "Choose a workspace to see projects"
-			}
-			syncLabel={selectedWorkspace ? `Synced ${shortSha(selectedWorkspace.latestCommitSha)}` : undefined}
+			subtitle={selectedWorkspace ? `${selectedWorkspace.repoOwner}/${selectedWorkspace.repoName}` : undefined}
+			syncLabel={selectedWorkspace ? `${selectedWorkspace.defaultBranch} @ ${shortSha(selectedWorkspace.latestCommitSha)}` : undefined}
 			workspaces={workspaces}
 			selectedWorkspaceId={selectedWorkspace?.id ?? null}
 			onWorkspaceChange={setSelectedWorkspaceId}
 			searchValue={projectSearch}
 			onSearchChange={setProjectSearch}
-			searchPlaceholder="Search projects, sketches, docs"
+			searchPlaceholder="Search projects"
 			action={
-				<div className="flex items-center gap-2">
-					<Button
-						variant="ghost"
-						size="icon"
-						onClick={() => void refresh()}
-						aria-label="Refresh projects"
-					>
-						{syncingIndex ? (
-							<Loader2 className="size-4 animate-spin text-[#58CC02]" />
-						) : (
-							<RefreshCw className="size-4" />
-						)}
-					</Button>
-					<Link
-						href="/app/workspace"
-						className="btn-3d btn-3d--secondary h-9 px-3.5 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
-					>
-						<SlidersHorizontal className="size-4" />
-						Workspace
-					</Link>
-				</div>
+				<Button variant="ghost" size="icon-sm" onClick={() => void refresh()} aria-label="Refresh projects" title="Refresh">
+					<RefreshCw />
+				</Button>
 			}
 		>
-			<div className="mx-auto flex max-w-7xl flex-col gap-5">
+			<div className="mx-auto flex max-w-6xl flex-col gap-5">
 				{pageError ? (
 					pageError.toLowerCase().includes("github") ? (
 						<GithubAccessCard
@@ -390,220 +330,129 @@ export function ProjectsHomeClient() {
 							}}
 						/>
 					) : (
-						<div className="rounded-[16px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-							{pageError}
-						</div>
+						<Notice>{pageError}</Notice>
 					)
 				) : null}
 
 				{selectedWorkspace ? (
-					<section className="space-y-4">
-						<div className="flex flex-wrap items-center justify-between gap-3">
-							<div className="flex min-w-0 flex-wrap items-center gap-2">
-								<Badge variant="secondary">
-									{filteredProjects.length} project{filteredProjects.length === 1 ? "" : "s"}
-								</Badge>
-								<Badge variant="outline">{selectedWorkspace.visibility}</Badge>
-								<Badge variant="outline">{selectedWorkspace.defaultBranch}</Badge>
-								<Badge variant={metadataPresent ? "secondary" : "outline"}>
-									{metadataPresent ? "Indexed" : "Index pending"}
-								</Badge>
-							</div>
-							<div className="flex flex-wrap items-center gap-2">
-								<Button variant="outline" size="sm" asChild>
-									<Link href={repoFolderHref(selectedWorkspace, "projects")} target="_blank">
-										<FolderOpen className="size-4" />
-										Repo
-									</Link>
-								</Button>
-								<button
-									className="btn-3d btn-3d--secondary h-9 px-3.5 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
-									disabled={syncingIndex}
-									onClick={handleSyncProjectIndex}
-								>
-									{syncingIndex ? (
-										<Loader2 className="size-4 animate-spin text-[#58CC02]" />
-									) : (
-										<GitCommit className="size-4" />
-									)}
-									Sync
-								</button>
-							</div>
-						</div>
-
-						{projectError && !projectError.toLowerCase().includes("github") ? (
-							<div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-								<span className="inline-flex items-center gap-2">
-									<KeyRound className="size-4" />
-									{projectError}
-								</span>
-							</div>
-						) : null}
-
-						<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-							<Card className="min-h-[260px] border-dashed bg-muted/30">
-								<CardHeader>
-									<div className="flex items-center justify-between gap-3">
-										<div>
-											<CardTitle>Create project</CardTitle>
-											<CardDescription>
-												Instant local canvas, auto-synced to GitHub.
-											</CardDescription>
-										</div>
-										<div className="grid size-10 place-items-center rounded-[14px] bg-primary/10 text-primary">
-											<Plus className="size-5" />
-										</div>
-									</div>
-								</CardHeader>
-								<CardContent className="flex flex-1 flex-col gap-3">
+					<>
+						<form
+							className="rounded-lg border border-rule bg-card p-3 sm:p-4"
+							onSubmit={(event) => {
+								event.preventDefault();
+								void handleCreateProject();
+							}}
+						>
+							<h2 className="text-sm font-bold">New project</h2>
+							<div className="mt-2.5 grid gap-2.5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]">
+								<div>
+									<label htmlFor="new-project-title" className="legend-label mb-1 block">Title</label>
 									<Input
+										id="new-project-title"
 										value={newProjectTitle}
 										onChange={(event) => setNewProjectTitle(event.target.value)}
-										aria-label="Project title"
-										placeholder="Project title"
+										placeholder="Payments architecture"
+										autoComplete="off"
 									/>
+								</div>
+								<div>
+									<label htmlFor="new-project-description" className="legend-label mb-1 block">
+										Description <span className="font-normal normal-case tracking-normal">(optional)</span>
+									</label>
 									<Input
+										id="new-project-description"
 										value={newProjectDescription}
 										onChange={(event) => setNewProjectDescription(event.target.value)}
-										aria-label="Project description"
-										placeholder="Short description (optional)"
+										placeholder="What this sketch explains"
+										autoComplete="off"
 									/>
-									<div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-2">
-										<span className="truncate text-xs font-semibold text-muted-foreground">
-											projects/{newProjectSlug}
-										</span>
-										<button
-											className="btn-3d btn-3d--primary h-10 px-4 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
-											disabled={creatingProject}
-											onClick={handleCreateProject}
-										>
-											{creatingProject ? (
-												<Loader2 className="size-4 animate-spin" />
-											) : (
-												<Plus className="size-4" />
-											)}
-											Create
-										</button>
-									</div>
-								</CardContent>
-							</Card>
-
-							{filteredProjects.map((project) => (
-								<Card key={project.id} className="min-h-[260px] transition-colors hover:border-primary/60">
-									<CardHeader>
-										<div className="flex items-start justify-between gap-3">
-											<div className="min-w-0">
-												<div className="flex items-center gap-2">
-													<CardTitle className="truncate">{project.title}</CardTitle>
-													{project.isLocalOnly && (
-														<span className="relative flex h-2 w-2 shrink-0" title="Offline (Saved Locally)">
-															<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-															<span className="relative inline-flex rounded-full h-2 w-2 bg-[#58CC02]"></span>
-														</span>
-													)}
-												</div>
-												<CardDescription className="line-clamp-2">
-													{projectDescription(project)}
-												</CardDescription>
-											</div>
-											<div className="flex flex-col items-end gap-1.5 shrink-0">
-												<Badge variant={project.visibility === "public" ? "default" : "outline"}>
-													{project.visibility}
-												</Badge>
-												{project.isLocalOnly && (
-													<Badge variant="outline" className="text-[#58CC02] border-[#58CC02] text-[9px] py-0.5 px-1.5 font-extrabold uppercase tracking-wide">
-														Local
-													</Badge>
-												)}
-											</div>
-										</div>
-									</CardHeader>
-									<CardContent className="flex flex-1 flex-col gap-4">
-										<div className="grid gap-2 rounded-[14px] border bg-muted/40 p-3 text-xs font-semibold text-muted-foreground">
-											<div className="flex items-center justify-between gap-3">
-												<span>Folder</span>
-												<span className="truncate font-mono text-foreground">projects/{project.id}</span>
-											</div>
-											<div className="flex items-center justify-between gap-3">
-												<span>Updated</span>
-												<span className="text-foreground">{formatDate(project.updatedAt)}</span>
-											</div>
-										</div>
-										<div className="mt-auto flex flex-wrap items-center gap-2">
-											<Link
-												href={sketchHref(selectedWorkspace.id, project.id, firstSketchId(project))}
-												className="btn-3d btn-3d--primary h-9 px-3.5 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
-											>
-												<ArrowRight className="size-4" />
-												Open
-											</Link>
-											<Button variant="outline" size="icon-sm" asChild>
-												<Link
-													href={repoFolderHref(selectedWorkspace, `projects/${project.id}`)}
-													target="_blank"
-													aria-label={`Open ${project.title} files on GitHub`}
-												>
-													<FolderOpen className="size-4" />
-												</Link>
-											</Button>
-											<Button variant="outline" size="icon-sm" asChild>
-												<Link
-													href={repoFileHref(selectedWorkspace, project.notesFile)}
-													target="_blank"
-													aria-label={`Open ${project.title} notes on GitHub`}
-												>
-													<FileText className="size-4" />
-												</Link>
-											</Button>
-											{project.visibility === "public" && selectedWorkspace.visibility === "public" ? (
-												<>
-													<Button variant="outline" size="icon-sm" asChild>
-														<Link href={shareHref(selectedWorkspace, project.id)} target="_blank" aria-label={`Share ${project.title}`}>
-															<Globe className="size-4" />
-														</Link>
-													</Button>
-													<Button variant="outline" size="icon-sm" asChild>
-														<Link href={embedHref(selectedWorkspace, project.id)} target="_blank" aria-label={`Embed ${project.title}`}>
-															<Code2 className="size-4" />
-														</Link>
-													</Button>
-												</>
-											) : null}
-										</div>
-									</CardContent>
-								</Card>
-							))}
-						</div>
-
-						{filteredProjects.length === 0 ? (
-							<div className="rounded-[16px] border bg-muted/40 px-4 py-3 text-sm font-semibold text-muted-foreground">
-								No projects match that search. Clear the search or create a new project above.
-							</div>
-						) : null}
-					</section>
-				) : isInitialLoading ? (
-					<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-						{[0, 1, 2].map((item) => (
-							<div key={item} className="min-h-[260px] animate-pulse rounded-[16px] bg-muted" />
-						))}
-					</section>
-				) : (
-					<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-						<Card className="md:col-span-2 xl:col-span-1">
-							<CardHeader>
-								<CardTitle>Create your first workspace</CardTitle>
-								<CardDescription>Connect GitHub to create your project repository.</CardDescription>
-							</CardHeader>
-							<CardContent className="flex flex-wrap gap-2">
-								<Button asChild>
-									<Link href="/app/workspace">
-										<Plus className="size-4" />
-										New workspace
-									</Link>
+								</div>
+								<Button type="submit" disabled={creatingProject} className="self-end">
+									{creatingProject ? <Loader2 className="animate-spin" /> : <Plus />}
+									Create project
 								</Button>
-							</CardContent>
-						</Card>
-					</section>
+							</div>
+							<p className="mt-2.5 text-xs text-muted-foreground">
+								Opens straight away in this browser, then commits to{" "}
+								<span className="datum text-foreground">projects/{newProjectSlug}</span> in your repository.
+							</p>
+						</form>
+
+						<section aria-labelledby="projects-heading" className="space-y-3">
+							<div className="flex flex-wrap items-end justify-between gap-3">
+								<div>
+									<h2 id="projects-heading" className="text-sm font-bold">
+										{filteredProjects.length} {filteredProjects.length === 1 ? "project" : "projects"}
+										{projectSearch.trim() ? ` matching "${projectSearch.trim()}"` : ""}
+									</h2>
+									<p className="mt-0.5 text-xs text-muted-foreground">
+										{selectedWorkspace.visibility === "public" ? "Public" : "Private"} repository on{" "}
+										<span className="datum">{selectedWorkspace.defaultBranch}</span>
+										{metadataPresent ? "" : " · project index not written yet"}
+									</p>
+								</div>
+								<div className="flex flex-wrap items-center gap-2">
+									<Button variant="outline" size="sm" asChild>
+										<Link href={repoFolderHref(selectedWorkspace, "projects")} target="_blank" rel="noopener noreferrer">
+											<FolderOpen />
+											Open on GitHub
+										</Link>
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										disabled={syncingIndex}
+										onClick={handleSyncProjectIndex}
+										title="Rewrite projects/projects-metadata.json from the project folders in the repository"
+									>
+										{syncingIndex ? <Loader2 className="animate-spin" /> : <GitCommit />}
+										Rebuild index
+									</Button>
+								</div>
+							</div>
+
+							{projectError && !projectError.toLowerCase().includes("github") ? <Notice>{projectError}</Notice> : null}
+
+							{projectsLoading && projects.length === 0 ? (
+								<ProjectListSkeleton />
+							) : filteredProjects.length > 0 ? (
+								<ProjectList projects={filteredProjects} workspace={selectedWorkspace} />
+							) : projectSearch.trim() ? (
+								<EmptyPanel
+									title="No projects match that search"
+									action={
+										<Button variant="outline" size="sm" onClick={() => setProjectSearch("")}>
+											Clear search
+										</Button>
+									}
+								>
+									Search looks at project titles, descriptions, folder names and sketch names.
+								</EmptyPanel>
+							) : (
+								<EmptyPanel title="No projects yet">
+									A project is a folder in your repository holding one sketch and its notes. Give the first one a
+									title above and it opens in the editor.
+								</EmptyPanel>
+							)}
+						</section>
+					</>
+				) : isInitialLoading || loading ? (
+					<ProjectListSkeleton />
+				) : (
+					<EmptyPanel
+						title="Connect a repository to start"
+						action={
+							<Button asChild>
+								<Link href="/app/workspace?new=1">
+									<Plus />
+									Set up a workspace
+								</Link>
+							</Button>
+						}
+					>
+						A workspace is one GitHub repository that you own. Sketchflow saves every sketch and note there as plain
+						files, so your work stays yours.
+					</EmptyPanel>
 				)}
 			</div>
 		</AppShell>

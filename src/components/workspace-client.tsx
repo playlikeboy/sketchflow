@@ -2,32 +2,18 @@
 
 import Link from "next/link";
 import { useStackApp } from "@stackframe/stack";
-import {
-	ArrowRight,
-	FolderOpen,
-	Loader2,
-	Plus,
-	RefreshCw,
-	Settings,
-	ShieldCheck,
-} from "lucide-react";
+import { ArrowRight, FolderOpen, Loader2, Plus, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { GithubAccessCard } from "@/components/github-access-card";
-import { Badge } from "@/components/ui/badge";
+import { EmptyPanel, Notice, ProjectListSkeleton } from "@/components/project-list";
+import { StateMark } from "@/components/state-mark";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { WorkspaceAdvancedOptions } from "@/components/workspace-advanced-options";
 import { bootstrapWorkspace } from "@/lib/api";
-import { sketchHref, repoHref, repoFolderHref } from "@/lib/workspace-routes";
+import { repoHref } from "@/lib/workspace-routes";
 import {
 	useAuthMe,
 	useGithubStatus,
@@ -126,70 +112,66 @@ export function WorkspaceClient() {
 
 	return (
 		<AppShell
-			title="Workspace"
-			subtitle={selectedWorkspace ? `${selectedWorkspace.repoOwner}/${selectedWorkspace.repoName}` : "Create or connect a repo"}
-			syncLabel={selectedWorkspace ? `Synced ${shortSha(selectedWorkspace.latestCommitSha)}` : undefined}
+			title="Workspaces"
+			subtitle={selectedWorkspace ? `${selectedWorkspace.repoOwner}/${selectedWorkspace.repoName}` : undefined}
 			workspaces={workspaces}
 			selectedWorkspaceId={selectedWorkspace?.id ?? null}
 			onWorkspaceChange={setSelectedWorkspaceId}
 			searchValue={search}
-			onSearchChange={setSearch}
+			onSearchChange={workspaces.length > 4 ? setSearch : undefined}
 			searchPlaceholder="Search workspaces"
 			action={
-				<Button variant="ghost" size="icon" onClick={() => void refresh()} aria-label="Refresh workspace">
-					{loading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+				<Button variant="ghost" size="icon-sm" onClick={() => void refresh()} aria-label="Refresh workspaces" title="Refresh">
+					{loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
 				</Button>
 			}
 		>
-			<div className="mx-auto max-w-6xl">
-				<section className="space-y-5">
-					{localError ? (
-						localError.toLowerCase().includes("github") ? (
+			<div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start">
+				<section aria-labelledby="new-workspace-heading" className="rounded-lg border border-rule bg-card p-4">
+					<h2 id="new-workspace-heading" className="text-base font-bold">Add a workspace</h2>
+					<p className="mt-1 text-sm text-muted-foreground">
+						A workspace is one GitHub repository. Sketchflow creates it if the name is new, or connects it if you
+						already own it, and never overwrites files that are already there.
+					</p>
+
+					<div className="mt-4 space-y-4">
+						{localError && !localError.toLowerCase().includes("github") ? <Notice>{localError}</Notice> : null}
+
+						{githubConnected ? (
+							<StateMark state="synced" label={`GitHub connected as ${githubStatus?.connected ? githubStatus.github.login : ""}`} />
+						) : githubLoading ? (
+							<div className="h-5 w-44 animate-pulse rounded-sm bg-muted" aria-label="Checking GitHub connection" />
+						) : (
 							<GithubAccessCard
+								compact
 								scopes={githubStatus?.scopes}
 								onRecovered={async () => {
 									await refresh();
 								}}
 							/>
-						) : (
-							<div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-								{localError}
-							</div>
-						)
-					) : null}
+						)}
 
-					<Card>
-						<CardHeader>
-							<CardTitle>Create workspace</CardTitle>
-							<CardDescription>Create a repo-backed workspace.</CardDescription>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							{githubConnected ? (
-								<div className="rounded-2xl border bg-muted/40 p-4">
-									<div className="flex items-center gap-2 text-sm font-extrabold">
-										<ShieldCheck className="size-4 text-primary" />
-										GitHub connected
-									</div>
-								</div>
-							) : (
-								<GithubAccessCard
-									scopes={githubStatus?.scopes}
-									onRecovered={async () => {
-										await refresh();
-									}}
-								/>
-							)}
-
-							<div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+						<form
+							className="space-y-3"
+							onSubmit={(event) => {
+								event.preventDefault();
+								void handleCreateWorkspace();
+							}}
+						>
+							<div>
+								<label htmlFor="workspace-repo-name" className="legend-label mb-1 block">Repository name</label>
 								<Input
+									id="workspace-repo-name"
 									value={repoName}
 									onChange={(event) => setRepoName(event.target.value)}
 									placeholder="sketchflow-workspace"
-									aria-label="Repository name"
+									autoComplete="off"
+									spellCheck={false}
+									className="datum"
 								/>
-								<Badge variant="outline" className="h-10 rounded-xl px-3">
-									Public by default
-								</Badge>
+								<p className="mt-1 text-xs text-muted-foreground">
+									{isPrivate ? "Private" : "Public"} repository. Letters, numbers, dots, dashes and underscores.
+								</p>
 							</div>
 							<WorkspaceAdvancedOptions
 								open={advancedOpen}
@@ -197,66 +179,71 @@ export function WorkspaceClient() {
 								isPrivate={isPrivate}
 								onPrivateChange={setIsPrivate}
 							/>
-							<button
-								className="btn-3d btn-3d--primary h-10 px-4 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
-								disabled={!githubConnected || bootstrapping}
-								onClick={handleCreateWorkspace}
-							>
-								{bootstrapping ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-								Create workspace
-							</button>
-						</CardContent>
-					</Card>
+							<Button type="submit" disabled={!githubConnected || bootstrapping || !repoName.trim()} className="w-full">
+								{bootstrapping ? <Loader2 className="animate-spin" /> : <Plus />}
+								{bootstrapping ? "Setting up repository" : "Add workspace"}
+							</Button>
+						</form>
+					</div>
+				</section>
 
-					<Card>
-						<CardHeader>
-							<CardTitle>Connected workspaces</CardTitle>
-							<CardDescription>Your repos connected to Sketchflow.</CardDescription>
-						</CardHeader>
-						<CardContent className="grid gap-3">
-							{filteredWorkspaces.length > 0 ? (
-								filteredWorkspaces.map((workspace) => (
-									<div key={workspace.id} className="rounded-2xl border bg-card p-4">
-										<div className="flex flex-wrap items-start justify-between gap-3">
-											<div>
-												<div className="text-sm font-extrabold">
-													{workspace.repoOwner}/{workspace.repoName}
-												</div>
-												<div className="mt-1 text-xs font-semibold text-muted-foreground">
-													{workspace.visibility} · {workspace.defaultBranch} · {shortSha(workspace.latestCommitSha)}
-												</div>
-											</div>
-											<div className="flex flex-wrap gap-2">
-												<Button variant="outline" size="sm" asChild>
-													<Link href={repoHref(workspace)} target="_blank">
-														<FolderOpen className="size-4" />
-														Repo
-													</Link>
-												</Button>
-												<Button variant="outline" size="sm" asChild>
-													<Link href={repoFolderHref(workspace, "projects")} target="_blank">
-														<Settings className="size-4" />
-														Files
-													</Link>
-												</Button>
-												<Link
-													href={sketchHref(workspace.id)}
-													className="btn-3d btn-3d--primary h-9 px-3.5 text-xs font-extrabold cursor-pointer flex items-center justify-center gap-1.5"
-												>
-													Open canvas
-													<ArrowRight className="size-4" />
-												</Link>
-											</div>
+				<section aria-labelledby="workspaces-heading" className="space-y-3">
+					<h2 id="workspaces-heading" className="text-sm font-bold">
+						{workspaces.length} connected {workspaces.length === 1 ? "workspace" : "workspaces"}
+					</h2>
+					{workspacesLoading && workspaces.length === 0 ? (
+						<ProjectListSkeleton rows={2} />
+					) : filteredWorkspaces.length > 0 ? (
+						<ul className="overflow-hidden rounded-lg border border-rule bg-card">
+							{filteredWorkspaces.map((workspace) => (
+								<li
+									key={workspace.id}
+									className="flex flex-wrap items-center justify-between gap-3 border-b border-rule px-3 py-3 last:border-b-0"
+								>
+									<div className="min-w-0">
+										<div className="datum truncate font-semibold text-foreground">
+											{workspace.repoOwner}/{workspace.repoName}
+										</div>
+										<div className="mt-0.5 text-xs text-muted-foreground">
+											{workspace.visibility === "public" ? "Public" : "Private"} · branch{" "}
+											<span className="datum">{workspace.defaultBranch}</span> · last commit{" "}
+											<span className="datum">{shortSha(workspace.latestCommitSha)}</span>
 										</div>
 									</div>
-								))
-							) : (
-								<div className="rounded-2xl border bg-muted/40 px-4 py-3 text-sm font-semibold text-muted-foreground">
-									No workspaces match that search.
-								</div>
-							)}
-						</CardContent>
-					</Card>
+									<div className="flex flex-wrap items-center gap-2">
+										<Button variant="ghost" size="sm" asChild>
+											<Link href={repoHref(workspace)} target="_blank" rel="noopener noreferrer">
+												<FolderOpen />
+												GitHub
+											</Link>
+										</Button>
+										<Button variant="outline" size="sm" asChild>
+											<Link href={`/app?workspace=${workspace.id}`}>
+												Open projects
+												<ArrowRight />
+											</Link>
+										</Button>
+									</div>
+								</li>
+							))}
+						</ul>
+					) : workspaces.length > 0 ? (
+						<EmptyPanel
+							title="No workspaces match that search"
+							action={
+								<Button variant="outline" size="sm" onClick={() => setSearch("")}>
+									Clear search
+								</Button>
+							}
+						>
+							Search looks at the repository owner, name, branch and visibility.
+						</EmptyPanel>
+					) : (
+						<EmptyPanel title="No workspaces yet">
+							Add one on the left. You will be able to open the repository on GitHub at any time and see exactly
+							what Sketchflow wrote.
+						</EmptyPanel>
+					)}
 				</section>
 			</div>
 		</AppShell>

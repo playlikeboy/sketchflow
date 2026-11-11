@@ -27,22 +27,22 @@ export function WorkspaceAdvancedOptions({
   return (
     <Collapsible open={open} onOpenChange={onOpenChange} className={className}>
       <CollapsibleTrigger asChild>
-        <Button variant="ghost" size="sm" className="px-0 text-muted-foreground font-bold">
+        <Button variant="ghost" size="sm" className="-ml-2">
           <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
-          Advanced
+          More options
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="rounded-[16px] border-2 border-border bg-muted p-4 shadow-[0_2px_0_var(--border)]">
-        <label className="flex items-start gap-3 font-bold">
+      <CollapsibleContent className="mt-2 rounded-md border border-rule bg-muted p-3">
+        <label className="flex cursor-pointer items-start gap-3 text-sm">
           <Checkbox
             checked={isPrivate}
             onCheckedChange={(checked) => onPrivateChange(checked === true)}
             className="mt-0.5"
           />
           <span>
-            <span className="block font-extrabold text-foreground">Create as a private repo</span>
-            <span className="text-muted-foreground font-semibold">
-              Use for internal diagrams. Secret scanning and access controls stay in GitHub.
+            <span className="block font-semibold text-foreground">Create as a private repo</span>
+            <span className="text-muted-foreground">
+              Only people you give access to on GitHub can see it. Private workspaces have no share or embed pages.
             </span>
           </span>
         </label>

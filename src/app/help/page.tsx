@@ -1,162 +1,205 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import {
-	ArrowRight,
-	GitBranch,
-	History,
-	KeyRound,
-	Layers3,
-	RefreshCw,
-	RotateCcw,
-	ShieldCheck,
-	WifiOff,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { BrandMark } from "@/components/brand-mark";
+import { StateMark, type WorkState } from "@/components/state-mark";
 import { Button } from "@/components/ui/button";
 import { GITHUB_TOKEN_SETUP_URL } from "@/lib/github-token";
 
-const sections = [
-	{
-		icon: Layers3,
-		title: "Workspace",
-		copy: "A workspace is one GitHub repo. Projects are folders inside /projects.",
-	},
-	{
-		icon: ShieldCheck,
-		title: "Storage",
-		copy: "Sketches, docs, assets, and metadata stay in GitHub. Postgres stores only app metadata.",
-	},
-	{
-		icon: RefreshCw,
-		title: "Sync",
-		copy: "Drafts save locally first. Use Save to create a GitHub commit.",
-	},
-	{
-		icon: KeyRound,
-		title: "Access",
-		copy: "Reconnect GitHub from the app, or paste a local token when OAuth needs a refresh.",
-	},
+export const metadata: Metadata = {
+	title: "Help",
+	description: "How Sketchflow saves your sketches and notes to your own GitHub repository.",
+};
+
+const topics = [
+	{ id: "basics", title: "The basics" },
+	{ id: "saving", title: "Saving your work" },
+	{ id: "states", title: "What the state marks mean" },
+	{ id: "history", title: "History and restore" },
+	{ id: "sharing", title: "Sharing and embedding" },
+	{ id: "offline", title: "Working offline" },
+	{ id: "github", title: "If GitHub access stops working" },
+	{ id: "privacy", title: "What Sketchflow stores" },
 ];
 
-const roadmap = [
-	{
-		icon: History,
-		title: "Project history",
-		copy: "Sketchflow will list commits that touched the selected project folder and let you preview each version.",
-	},
-	{
-		icon: RotateCcw,
-		title: "Project restore",
-		copy: "Restores will copy only that project from an older commit into a new commit, keeping the workspace history intact.",
-	},
-	{
-		icon: WifiOff,
-		title: "Offline work",
-		copy: "Connected workspaces can pause sync, and pure offline workspaces can stay in IndexedDB until you choose GitHub sync.",
-	},
+const states: { state: WorkState; meaning: string }[] = [
+	{ state: "synced", meaning: "Committed to your repository. What you see is what GitHub has." },
+	{ state: "draft", meaning: "You have changes that are kept in this browser but not yet committed." },
+	{ state: "local", meaning: "The project exists only in this browser. It has not reached GitHub yet." },
+	{ state: "offline", meaning: "You paused sync. Nothing is sent to GitHub until you turn it back on." },
+	{ state: "error", meaning: "The last save did not reach GitHub. Your work is still in this browser; retry from the top bar." },
 ];
+
+function Topic({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+	return (
+		<section id={id} aria-labelledby={`${id}-heading`} className="scroll-mt-20 border-t border-rule pt-8 pb-10">
+			<h2 id={`${id}-heading`} className="text-xl font-bold">{title}</h2>
+			<div className="mt-3 max-w-[68ch] space-y-3 text-base leading-7 text-foreground/90">{children}</div>
+		</section>
+	);
+}
 
 export default function HelpPage() {
 	return (
-		<main className="min-h-screen bg-background text-foreground">
-			<header className="border-b bg-background/90 backdrop-blur">
-				<div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
+		<div className="min-h-screen bg-background text-foreground">
+			<header className="sticky top-0 z-20 border-b border-border bg-background">
+				<div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
 					<BrandMark href="/" subtitle="Help" />
-					<div className="flex items-center gap-2">
-						<Button variant="outline" size="sm" asChild>
-							<Link href="https://github.com/playlikeboy/sketchflow" target="_blank">
-								<GitBranch className="size-4" />
-								GitHub
-							</Link>
-						</Button>
-						<Button size="sm" asChild>
-							<Link href="/app">
-								Open app
-								<ArrowRight className="size-4" />
-							</Link>
-						</Button>
-					</div>
+					<Button size="sm" asChild>
+						<Link href="/app">
+							Open the app
+							<ArrowRight />
+						</Link>
+					</Button>
 				</div>
 			</header>
 
-			<section className="mx-auto max-w-6xl px-5 py-12">
-				<div className="max-w-3xl">
-					<h1 className="text-4xl font-black tracking-tight">Sketchflow help</h1>
-					<p className="mt-4 text-base font-semibold leading-7 text-muted-foreground">
-						Sketchflow is a GitHub-native canvas for projects, diagrams, and docs.
-					</p>
-				</div>
+			<div className="mx-auto grid max-w-6xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
+				<nav aria-label="Help topics" className="lg:sticky lg:top-24 lg:self-start">
+					<p className="legend-label">On this page</p>
+					<ul className="mt-2 space-y-0.5 text-sm">
+						{topics.map((topic) => (
+							<li key={topic.id}>
+								<a href={`#${topic.id}`} className="block rounded-sm py-1 text-muted-foreground hover:text-foreground">
+									{topic.title}
+								</a>
+							</li>
+						))}
+					</ul>
+				</nav>
 
-				<div className="mt-8 grid gap-4 md:grid-cols-2">
-					{sections.map((section) => {
-						const Icon = section.icon;
-						return (
-							<div key={section.title} className="rounded-[18px] border bg-card p-5">
-								<div className="flex items-center gap-2 text-sm font-extrabold">
-									<Icon className="size-4 text-primary" />
-									{section.title}
+				<main>
+					<h1 className="text-4xl font-extrabold tracking-tight">How Sketchflow works</h1>
+					<p className="mt-3 mb-8 max-w-[60ch] text-lg text-muted-foreground">
+						Sketchflow is a canvas with a notes editor beside it. It saves both as files in a GitHub repository that
+						belongs to you.
+					</p>
+
+					<Topic id="basics" title="The basics">
+						<p>
+							A <strong>workspace</strong> is one GitHub repository. A <strong>project</strong> is a folder inside
+							it, under <code className="datum">projects/</code>, holding a sketch and its notes.
+						</p>
+						<p>
+							The sketch is saved as an <code className="datum">.excalidraw.json</code> file, which opens in
+							Excalidraw. The notes are saved as <code className="datum">docs/notes.md</code>, plain Markdown that
+							opens in any editor.
+						</p>
+					</Topic>
+
+					<Topic id="saving" title="Saving your work">
+						<p>
+							As you draw and type, every change is kept in your browser straight away. You do not need to save to
+							avoid losing work if you close the tab.
+						</p>
+						<p>
+							Pressing <strong>Save</strong> in the editor writes the sketch, the notes and the project record to
+							your repository as a single Git commit.
+						</p>
+						<p>
+							If the branch changed since you started, for example because you saved from another device, the save
+							is refused and you are told. Your changes stay in the browser. Reload to pick up the newer version
+							before saving again.
+						</p>
+					</Topic>
+
+					<Topic id="states" title="What the state marks mean">
+						<p>The same five marks are used everywhere to say where a piece of work lives.</p>
+						<dl className="overflow-hidden rounded-lg border border-rule bg-card text-[0.9375rem] leading-6">
+							{states.map((entry) => (
+								<div key={entry.state} className="grid gap-x-4 gap-y-0.5 border-b border-rule px-3 py-2.5 last:border-b-0 sm:grid-cols-[9.5rem_minmax(0,1fr)]">
+									<dt><StateMark state={entry.state} className="text-sm" /></dt>
+									<dd className="text-muted-foreground">{entry.meaning}</dd>
 								</div>
-								<p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">{section.copy}</p>
-							</div>
-						);
-					})}
-				</div>
+							))}
+						</dl>
+					</Topic>
 
-				<div className="mt-8 rounded-[18px] border bg-card p-5">
-					<h2 className="text-lg font-black">GitHub token fallback</h2>
-					<p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
-						If GitHub OAuth needs a refresh, reconnect from Sketchflow first. If that still fails, create a
-						local token with repo access and paste it into the recovery card. The token stays in this browser.
-					</p>
-					<div className="mt-4 flex flex-wrap gap-2">
-						<Button asChild>
-							<Link href={GITHUB_TOKEN_SETUP_URL} target="_blank">
-								Create token
-								<ArrowRight className="size-4" />
-							</Link>
-						</Button>
-						<Button variant="outline" asChild>
-							<Link href="/app/workspace">Reconnect GitHub</Link>
-						</Button>
-					</div>
-				</div>
+					<Topic id="history" title="History and restore">
+						<p>
+							Open <strong>History</strong> in the editor to see the commits that touched the project. You can
+							preview any of them without changing anything.
+						</p>
+						<p>
+							<strong>Restore</strong> copies that version of the project into a new commit. Nothing is deleted:
+							the versions in between stay in the history, and other projects in the workspace are not affected.
+						</p>
+					</Topic>
 
-				<div className="mt-8 rounded-[18px] border bg-card p-5">
-					<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-						<div>
-							<h2 className="text-lg font-black">Versioning and offline plan</h2>
-							<p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
-								History and offline mode are designed around user-owned repos without forcing full workspace
-								rollbacks.
-							</p>
-						</div>
-						<Button variant="outline" asChild>
+					<Topic id="sharing" title="Sharing and embedding">
+						<p>
+							A project in a <strong>public</strong> repository has a read-only share page and an embed view that
+							you can put in an iframe. Visitors can pan and zoom but cannot change the sketch.
+						</p>
+						<p>
+							Projects in private repositories are never shared. To stop sharing one project in a public
+							repository, set <code className="datum">sharing.enabled</code> to{" "}
+							<code className="datum">false</code> in its <code className="datum">project.json</code>. Bear in mind
+							that the files themselves are still public on GitHub.
+						</p>
+					</Topic>
+
+					<Topic id="offline" title="Working offline">
+						<p>
+							The editor keeps working without a connection. Changes stay in your browser and are committed when
+							you save once you are back online.
+						</p>
+						<p>
+							You can also pause sync on purpose with the <strong>Sync on</strong> button in the top bar. While it
+							is paused, nothing is sent to GitHub.
+						</p>
+						<p>
+							Work that has not been committed lives only in the browser you made it in. Clearing that
+							browser&apos;s site data removes it.
+						</p>
+					</Topic>
+
+					<Topic id="github" title="If GitHub access stops working">
+						<p>
+							Sketchflow reaches GitHub through the connection you approved when you signed in. If that expires,
+							you will see a notice with a <strong>Reconnect GitHub</strong> button. Use that first.
+						</p>
+						<p>
+							If reconnecting does not work, you can paste a personal access token with repository access. It is
+							kept in the current browser tab&apos;s session and is not stored by Sketchflow.
+						</p>
+						<p className="flex flex-wrap gap-2 pt-1">
+							<Button variant="outline" size="sm" asChild>
+								<Link href="/app/workspace">Go to workspaces</Link>
+							</Button>
+							<Button variant="outline" size="sm" asChild>
+								<Link href={GITHUB_TOKEN_SETUP_URL} target="_blank" rel="noopener noreferrer">
+									Create a token on GitHub
+								</Link>
+							</Button>
+						</p>
+					</Topic>
+
+					<Topic id="privacy" title="What Sketchflow stores">
+						<p>
+							Your sketches, notes and project files are stored in your repository and nowhere else on our side.
+						</p>
+						<p>
+							Sketchflow&apos;s own database holds your account details, your GitHub login, which repositories you
+							connected, and a log of sync events such as the ID of each commit it made. It does not hold GitHub
+							tokens or the contents of your work.
+						</p>
+						<p>
+							The source code is public, so you can check this for yourself.{" "}
 							<Link
-								href="https://github.com/playlikeboy/sketchflow/blob/main/docs/project-versioning-offline-plan.md"
+								href="https://github.com/playlikeboy/sketchflow"
 								target="_blank"
+								rel="noopener noreferrer"
+								className="text-primary underline"
 							>
-								Read plan
-								<ArrowRight className="size-4" />
+								Read it on GitHub
 							</Link>
-						</Button>
-					</div>
-
-					<div className="mt-5 grid gap-3 md:grid-cols-3">
-						{roadmap.map((item) => {
-							const Icon = item.icon;
-							return (
-								<div key={item.title} className="rounded-2xl border bg-background p-4">
-									<div className="flex items-center gap-2 text-sm font-extrabold">
-										<Icon className="size-4 text-primary" />
-										{item.title}
-									</div>
-									<p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">{item.copy}</p>
-								</div>
-							);
-						})}
-					</div>
-				</div>
-			</section>
-		</main>
+							.
+						</p>
+					</Topic>
+				</main>
+			</div>
+		</div>
 	);
 }

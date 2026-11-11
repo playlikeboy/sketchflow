@@ -1,27 +1,10 @@
 "use client";
 
-import {
-	BookOpen,
-	Boxes,
-	Building2,
-	Check,
-	Code2,
-	Download,
-	GraduationCap,
-	Loader2,
-	RefreshCw,
-	Search,
-	Sparkles,
-	X,
-} from "lucide-react";
-import type { ComponentType } from "react";
+import { Boxes, Check, Download, Loader2, RefreshCw, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
 	libraryAudiences,
 	type ExcalidrawLibrary,
@@ -35,20 +18,6 @@ type LibraryPanelProps = {
 	installingSource: string | null;
 	onInstall: (library: ExcalidrawLibrary) => Promise<void>;
 	onClose?: () => void;
-};
-
-const audienceIcons = {
-	all: Boxes,
-	architects: Building2,
-	devs: Code2,
-	teachers: GraduationCap,
-} satisfies Record<LibraryAudience, ComponentType<{ className?: string }>>;
-
-const audienceCopy: Record<LibraryAudience, string[]> = {
-	all: ["Search all public packs", "Import once, reuse from the Excalidraw library drawer"],
-	architects: ["Floor plans, furniture, spaces, wiring, site maps", "Good for client reviews and early spatial thinking"],
-	devs: ["Cloud, UML, ERD, C4, networks, systems", "Good for architecture reviews and technical docs"],
-	teachers: ["Math, science, slides, sticky notes, classroom visuals", "Good for lesson boards and visual explanations"],
 };
 
 function matchesLibrary(library: ExcalidrawLibrary, query: string) {
@@ -65,19 +34,22 @@ function LibraryPreview({ library }: { library: ExcalidrawLibrary }) {
 
 	if (!library.previewUrl || failed) {
 		return (
-			<div className="grid h-24 place-items-center rounded-lg border bg-muted text-muted-foreground">
-				<Boxes className="size-6" />
+			<div className="grid size-14 shrink-0 place-items-center rounded-md border border-rule bg-muted text-muted-foreground">
+				<Boxes className="size-5" />
 			</div>
 		);
 	}
 
 	return (
+		// eslint-disable-next-line @next/next/no-img-element -- remote community previews of unknown size
 		<img
 			src={library.previewUrl}
 			alt=""
 			loading="lazy"
+			width={56}
+			height={56}
 			onError={() => setFailed(true)}
-			className="h-24 w-full rounded-lg border bg-white object-contain p-2 dark:bg-white"
+			className="size-14 shrink-0 rounded-md border border-rule bg-white object-contain p-1"
 		/>
 	);
 }
@@ -109,158 +81,121 @@ export function ExcalidrawLibraryPanel({
 				return left.name.localeCompare(right.name);
 			});
 	}, [audience, data?.libraries, installed, query]);
-	const activeAudience = libraryAudiences.find((item) => item.id === audience) ?? libraryAudiences[0];
-	const ActiveIcon = audienceIcons[audience];
-
 	return (
-		<aside className="flex h-full min-h-0 flex-col border-l bg-background">
-			<div className="shrink-0 border-b px-4 py-3">
-				<div className="flex items-start justify-between gap-3">
-					<div className="min-w-0">
-						<div className="flex items-center gap-2">
-							<Sparkles className="size-4 text-[#CE82FF]" />
-							<h2 className="text-sm font-bold text-foreground">Libraries</h2>
-						</div>
-						<p className="mt-1 text-xs font-medium text-muted-foreground">
-							{data?.total ?? 0} public Excalidraw packs, curated for real work.
-						</p>
-					</div>
-					<div className="flex items-center gap-1">
-						<Button variant="ghost" size="icon-xs" onClick={() => void mutate()} aria-label="Refresh libraries" className="size-7">
-							<RefreshCw className="size-3.5" />
+		<aside className="flex h-full min-h-0 flex-col border-l border-border bg-card" aria-label="Shape libraries">
+			<div className="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-border px-3">
+				<div className="flex min-w-0 items-baseline gap-2">
+					<h2 className="text-sm font-bold text-foreground">Libraries</h2>
+					<span className="truncate text-xs text-muted-foreground">
+						{data ? `${data.total} community shape packs` : "Community shape packs"}
+					</span>
+				</div>
+				<div className="flex shrink-0 items-center gap-0.5">
+					<Button variant="ghost" size="icon-xs" onClick={() => void mutate()} aria-label="Reload the library list" title="Reload">
+						<RefreshCw />
+					</Button>
+					{onClose ? (
+						<Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close libraries">
+							<X />
 						</Button>
-						{onClose && (
-							<Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close panel" className="size-7 text-muted-foreground hover:text-foreground">
-								<X className="size-3.5" />
-							</Button>
-						)}
-					</div>
-				</div>
-
-				<Tabs value={audience} onValueChange={(value) => setAudience(value as LibraryAudience)} className="mt-3">
-					<TabsList className="grid h-auto w-full grid-cols-4 rounded-xl bg-muted p-1">
-						{libraryAudiences.map((item) => {
-							const Icon = audienceIcons[item.id];
-
-							return (
-								<TabsTrigger key={item.id} value={item.id} className="h-9 gap-1 px-2 text-xs">
-									<Icon className="size-3.5" />
-									<span className="hidden sm:inline">{item.label}</span>
-								</TabsTrigger>
-							);
-						})}
-					</TabsList>
-				</Tabs>
-
-				<div className="mt-3 rounded-lg border bg-card p-3">
-					<div className="flex items-center gap-2">
-						<ActiveIcon className="size-4 text-[#1CB0F6]" />
-						<div className="text-xs font-bold uppercase text-muted-foreground">{activeAudience.label}</div>
-					</div>
-					<div className="mt-2 space-y-1">
-						{audienceCopy[audience].map((line) => (
-							<div key={line} className="flex gap-2 text-xs font-medium text-muted-foreground">
-								<Check className="mt-0.5 size-3 shrink-0 text-[#58CC02]" />
-								<span>{line}</span>
-							</div>
-						))}
-					</div>
-				</div>
-
-				<div className="relative mt-3">
-					<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						value={query}
-						onChange={(event) => setQuery(event.target.value)}
-						placeholder="Search AWS, UML, floor plan, math..."
-						className="h-10 rounded-xl pl-9 text-sm"
-					/>
+					) : null}
 				</div>
 			</div>
 
-			<ScrollArea className="min-h-0 flex-1">
-				<div className="space-y-3 p-4">
-					{isLoading ? (
-						<div className="grid h-48 place-items-center text-sm font-bold text-muted-foreground">
-							<div className="flex items-center gap-2">
-								<Loader2 className="size-4 animate-spin text-[#58CC02]" />
-								Loading library catalog
+			<div className="shrink-0 space-y-2 border-b border-border p-3">
+				<div className="relative">
+					<Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+					<Input
+						type="search"
+						value={query}
+						onChange={(event) => setQuery(event.target.value)}
+						placeholder="Search, for example UML or floor plan"
+						aria-label="Search libraries"
+						className="h-8 pl-8"
+					/>
+				</div>
+				<div role="group" aria-label="Filter by subject" className="flex flex-wrap gap-1">
+					{libraryAudiences.map((item) => (
+						<button
+							key={item.id}
+							type="button"
+							aria-pressed={audience === item.id}
+							onClick={() => setAudience(item.id)}
+							className={cn(
+								"h-6 cursor-pointer rounded-sm border border-input px-2 text-xs font-medium text-muted-foreground hover:text-foreground",
+								audience === item.id && "border-grid/60 bg-grid-tint font-semibold text-foreground",
+							)}
+						>
+							{item.label}
+						</button>
+					))}
+				</div>
+			</div>
+
+			<div className="min-h-0 flex-1 overflow-y-auto">
+				{isLoading ? (
+					<div aria-busy="true" aria-label="Loading libraries">
+						{[0, 1, 2, 3].map((item) => (
+							<div key={item} className="flex gap-3 border-b border-rule p-3">
+								<div className="size-14 shrink-0 animate-pulse rounded-md bg-muted" />
+								<div className="flex-1 space-y-2 pt-1">
+									<div className="h-3.5 w-2/3 animate-pulse rounded-sm bg-accent" />
+									<div className="h-3 w-full animate-pulse rounded-sm bg-muted" />
+								</div>
 							</div>
-						</div>
-					) : error ? (
-						<div className="rounded-xl border border-[#FF4B4B]/30 bg-[#FF4B4B]/10 p-3 text-sm font-bold text-[#FF4B4B]">
-							Library catalog could not be loaded.
-						</div>
-					) : filteredLibraries.length === 0 ? (
-						<div className="rounded-xl border bg-background p-4 text-sm font-semibold text-muted-foreground">
-							No packs match this search yet. Try cloud, UML, floor plan, math, presentation, or icons.
-						</div>
-					) : (
-						filteredLibraries.map((library) => {
+						))}
+					</div>
+				) : error ? (
+					<div className="p-3">
+						<p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+							The library list could not be loaded. Check your connection and reload.
+						</p>
+						<Button variant="outline" size="sm" className="mt-2" onClick={() => void mutate()}>
+							<RefreshCw />
+							Reload
+						</Button>
+					</div>
+				) : filteredLibraries.length === 0 ? (
+					<p className="p-4 text-sm text-muted-foreground">
+						No libraries match. Try a broader word such as cloud, UML, icons or math.
+					</p>
+				) : (
+					<ul>
+						{filteredLibraries.map((library) => {
 							const isInstalled = installed.has(library.source);
 							const isInstalling = installingSource === library.source;
 
 							return (
-								<div
-									key={library.source}
-									className={cn(
-										"rounded-lg border bg-card p-3 transition-colors hover:border-foreground/30",
-										isInstalled && "border-[#58CC02]/50 bg-[#58CC02]/5",
-									)}
-								>
+								<li key={library.source} className="flex gap-3 border-b border-rule p-3 last:border-b-0">
 									<LibraryPreview library={library} />
-									<div className="mt-3 flex items-start justify-between gap-3">
-										<div className="min-w-0">
-											<div className="truncate text-sm font-bold text-foreground">{library.name}</div>
-											<p className="mt-1 line-clamp-2 text-xs font-medium text-muted-foreground">
-												{library.description || "Ready-to-use Excalidraw library pack."}
-											</p>
-										</div>
-										<Badge variant={isInstalled ? "default" : "secondary"}>
-											{isInstalled ? "Added" : `${library.audiences.length || 1} fit`}
-										</Badge>
-									</div>
-
-									<div className="mt-3 flex flex-wrap gap-1.5">
-										{library.audiences.length > 0 ? (
-											library.audiences.map((item) => (
-												<Badge key={item} variant="outline" className="h-5 px-2 text-[10px]">
-													{libraryAudiences.find((audienceItem) => audienceItem.id === item)?.label ?? item}
-												</Badge>
-											))
-										) : (
-											<Badge variant="outline" className="h-5 px-2 text-[10px]">
-												General
-											</Badge>
-										)}
-									</div>
-
-									<div className="mt-3 flex items-center justify-between gap-2">
-										<div className="min-w-0 truncate text-[11px] font-medium text-muted-foreground">
-											{library.authors[0]?.name ?? "Excalidraw community"}
-										</div>
-										<Button
-											size="sm"
-											variant={isInstalled ? "secondary" : "default"}
-											disabled={isInstalling || isInstalled}
-											onClick={() => void onInstall(library)}
-										>
-											{isInstalling ? (
-												<Loader2 className="size-4 animate-spin" />
-											) : isInstalled ? (
-												<BookOpen className="size-4" />
+									<div className="min-w-0 flex-1">
+										<h3 className="truncate text-sm font-semibold text-foreground">{library.name}</h3>
+										{library.description ? (
+											<p className="mt-0.5 line-clamp-2 text-[0.8125rem] text-muted-foreground">{library.description}</p>
+										) : null}
+										<div className="mt-1.5 flex items-center justify-between gap-2">
+											<span className="min-w-0 truncate text-xs text-muted-foreground">
+												{library.authors[0]?.name ?? "Excalidraw community"}
+											</span>
+											{isInstalled ? (
+												<span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-wood">
+													<Check className="size-3.5" />
+													Added
+												</span>
 											) : (
-												<Download className="size-4" />
+												<Button size="xs" variant="outline" disabled={isInstalling} onClick={() => void onInstall(library)}>
+													{isInstalling ? <Loader2 className="animate-spin" /> : <Download />}
+													{isInstalling ? "Adding" : "Add"}
+												</Button>
 											)}
-											{isInstalled ? "Added" : "Import"}
-										</Button>
+										</div>
 									</div>
-								</div>
+								</li>
 							);
-						})
-					)}
-				</div>
-			</ScrollArea>
+						})}
+					</ul>
+				)}
+			</div>
 		</aside>
 	);
 }

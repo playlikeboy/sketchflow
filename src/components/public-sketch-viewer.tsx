@@ -13,9 +13,9 @@ import { cn } from "@/lib/utils";
 const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
   ssr: false,
   loading: () => (
-    <div className="grid h-full place-items-center text-sm font-bold text-muted-foreground">
+    <div className="grid h-full place-items-center text-sm text-muted-foreground">
       <div className="flex items-center gap-2">
-        <Loader2 className="size-4 animate-spin text-[#58CC02]" />
+        <Loader2 className="size-4 animate-spin" />
         Loading canvas
       </div>
     </div>
@@ -126,9 +126,9 @@ export function PublicSketchViewer({
 
   if (!mounted) {
     return (
-      <div className={cn("grid place-items-center text-sm font-bold text-muted-foreground border-2 border-border rounded-[16px] bg-card", className)}>
+      <div className={cn("grid place-items-center rounded-lg border border-rule bg-card text-sm text-muted-foreground", className)}>
         <div className="flex items-center gap-2">
-          <Loader2 className="size-4 animate-spin text-[#58CC02]" />
+          <Loader2 className="size-4 animate-spin" />
           Loading canvas
         </div>
       </div>
@@ -136,7 +136,7 @@ export function PublicSketchViewer({
   }
 
   return (
-    <div className={cn("overflow-hidden rounded-[16px] border-2 border-border bg-card shadow-[0_2px_0_var(--border)]", className)}>
+    <div className={cn("overflow-hidden rounded-lg border border-rule bg-card", className)}>
       <Excalidraw 
         initialData={initialData} 
         viewModeEnabled 

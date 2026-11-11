@@ -6,12 +6,12 @@ export default function manifest(): MetadataRoute.Manifest {
 	return {
 		name: "Sketchflow",
 		short_name: "Sketchflow",
-		description: "GitHub-native visual workspace for sketches, docs, diagrams, and project memory.",
+		description: "A canvas and a notes editor that save to a GitHub repository you own.",
 		start_url: "/app",
 		scope: "/",
 		display: "standalone",
-		background_color: "#111111",
-		theme_color: "#52e000",
+		background_color: "#fafbf8",
+		theme_color: "#1558a8",
 		id: SKETCHFLOW_APP_URL,
 		icons: [
 			{

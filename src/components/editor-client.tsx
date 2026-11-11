@@ -16,33 +16,32 @@ import {
 	Clock,
 	FileText,
 	GitBranch,
+	GitFork,
 	Loader2,
 	Maximize2,
 	PanelsTopLeft,
 	Save,
-	SquarePen,
-	WifiOff,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "next-themes";
-
-import {
-	Breadcrumb,
-	BreadcrumbItem,
-	BreadcrumbLink,
-	BreadcrumbList,
-	BreadcrumbPage,
-	BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 
 import { ExcalidrawLibraryPanel } from "@/components/excalidraw-library-panel";
 import { GithubAccessCard } from "@/components/github-access-card";
 import { HistoryPanel } from "@/components/history-panel";
 import { ProjectDocEditor } from "@/components/project-doc-editor";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Badge } from "@/components/ui/badge";
+import { StateGlyph, StateMark } from "@/components/state-mark";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 import { ApiError, commitWorkspaceFiles, restoreProjectVersion, type SketchLoadResponse, type SketchScene } from "@/lib/api";
 import type { ExcalidrawLibrary } from "@/lib/excalidraw-libraries";
@@ -55,10 +54,10 @@ import { cn } from "@/lib/utils";
 const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
 	ssr: false,
 	loading: () => (
-		<div className="grid h-full place-items-center text-sm font-bold text-muted-foreground">
+		<div className="grid h-full place-items-center text-sm text-muted-foreground">
 			<div className="flex items-center gap-2">
-				<Loader2 className="size-4 animate-spin text-[#58CC02]" />
-				Loading editor
+				<Loader2 className="size-4 animate-spin" />
+				Loading canvas
 			</div>
 		</div>
 	),
@@ -597,6 +596,12 @@ export function EditorClient({
 				const isLocalFallback = !nextData && (localSceneDraft !== null || localNotesDraft !== null || localStateDraft !== null);
 
 				if (!nextData && !isLocalFallback) {
+					// Still waiting on GitHub with nothing local to show: keep the loading state
+					// instead of flashing "not found" before the first response arrives.
+					if (sketchLoading && !sketchError) {
+						hydrateRef.current = false;
+						return;
+					}
 					setLoadError(sketchError instanceof Error ? sketchError.message : "Project not found locally or on GitHub.");
 					return;
 				}
@@ -1177,18 +1182,16 @@ export function EditorClient({
 		previewInitialData ? (
 			<div className="relative h-full min-h-0">
 				{snapshotLoading ? (
-					<div className="absolute inset-0 z-30 grid place-items-center bg-background/50 backdrop-blur-sm">
-						<Loader2 className="size-6 animate-spin text-primary" />
+					<div className="absolute inset-0 z-30 grid place-items-center bg-background/70">
+						<Loader2 className="size-5 animate-spin text-muted-foreground" />
 					</div>
 				) : null}
-				<div className="absolute left-1/2 top-4 z-20 flex items-center gap-3 rounded-full border bg-card px-4 py-2 text-xs font-bold shadow-md">
-					<span className="inline-flex items-center gap-1.5 text-[#CE82FF]">
-						<GitBranch className="size-3.5" />
-						Viewing preview ({selectedPreviewSha.slice(0, 7)})
+				<div className="absolute top-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-md border border-grid/50 bg-grid-tint py-1 pr-1 pl-3 text-xs font-medium text-foreground">
+					<span>
+						Previewing <span className="datum">{selectedPreviewSha.slice(0, 7)}</span>, read-only
 					</span>
-					<Button variant="ghost" size="xs" className="h-6 px-2 hover:bg-muted" onClick={() => setSelectedPreviewSha(null)}>
-						<X className="size-3" />
-						Close Preview
+					<Button variant="outline" size="xs" onClick={() => setSelectedPreviewSha(null)}>
+						Back to current
 					</Button>
 				</div>
 				<Excalidraw
@@ -1204,10 +1207,10 @@ export function EditorClient({
 				/>
 			</div>
 		) : (
-			<div className="grid h-full place-items-center text-sm font-bold text-muted-foreground">
+			<div className="grid h-full place-items-center text-sm text-muted-foreground">
 				<div className="flex items-center gap-2">
-					<Loader2 className="size-4 animate-spin text-[#CE82FF]" />
-					Loading preview
+					<Loader2 className="size-4 animate-spin" />
+					Loading that version
 				</div>
 			</div>
 		)
@@ -1262,31 +1265,19 @@ export function EditorClient({
 		</div>
 	) : null;
 	const docsPanel = selectedPreviewSha ? (
-		<div className="flex h-full min-h-0 flex-col border-l bg-card p-4 overflow-y-auto">
-			<div className="text-sm font-extrabold text-foreground mb-3 flex items-center justify-between gap-3 border-b pb-2">
-				<span className="text-[#CE82FF]">Project docs (Preview)</span>
-				<Badge variant="outline">Read-Only</Badge>
-			</div>
-			<div className="prose dark:prose-invert text-xs whitespace-pre-wrap font-mono rounded-lg border p-3 bg-muted/20">
-				{snapshotData?.notes || "No notes saved for this version"}
+		<div className="flex h-full min-h-0 flex-col border-l border-border bg-card">
+			<PanelHeader title="Notes" detail={`as of ${selectedPreviewSha.slice(0, 7)}, read-only`} />
+			<div className="min-h-0 flex-1 overflow-y-auto p-4">
+				<pre className="datum whitespace-pre-wrap text-foreground">
+					{snapshotData?.notes || "This version has no notes."}
+				</pre>
 			</div>
 		</div>
 	) : (
-		<div className="flex h-full min-h-0 flex-col border-l bg-card">
-			<div className="flex h-12 shrink-0 items-center justify-between border-b px-4">
-				<div className="flex min-w-0 items-center gap-2">
-					<SquarePen className="size-4 text-[#1CB0F6]" />
-					<div className="min-w-0">
-						<div className="truncate text-sm font-extrabold text-foreground">Project docs</div>
-						<div className="truncate text-xs font-semibold text-muted-foreground">
-							{notesFilePath(projectId)}
-						</div>
-					</div>
-				</div>
-				<Badge variant={notesDirty ? "default" : "secondary"}>
-					{notesDirty ? "Draft" : "Saved"}
-				</Badge>
-			</div>
+		<div className="flex h-full min-h-0 flex-col border-l border-border bg-card">
+			<PanelHeader title="Notes" detail={notesFilePath(projectId)}>
+				<StateMark state={notesDirty ? "draft" : "synced"} label={notesDirty ? "Unsaved" : "Saved"} />
+			</PanelHeader>
 			<ProjectDocEditor
 				documentKey={currentNotesDraftKey}
 				markdown={notes}
@@ -1296,126 +1287,93 @@ export function EditorClient({
 		</div>
 	);
 
-	const sourceControlPanel = (
-		<div className="flex h-full min-h-0 flex-col border-l bg-card">
-			<div className="flex h-12 shrink-0 items-center justify-between border-b px-4">
-				<div className="flex min-w-0 items-center gap-2">
-					<GitBranch className="size-4 text-[#58CC02]" />
-					<div className="min-w-0">
-						<div className="truncate text-sm font-extrabold text-foreground">Source Control</div>
-						<div className="truncate text-xs font-semibold text-muted-foreground">
-							{activeWorkspace?.repoOwner}/{activeWorkspace?.repoName}
-						</div>
-					</div>
-				</div>
-				<div className="flex items-center gap-2">
-					<Badge variant={isOnline ? "default" : "secondary"}>
-						{isOnline ? "Online" : "Offline"}
-					</Badge>
-					{offlineCommits.length > 0 && isOnline && (
-						<Button 
-							size="xs" 
-							className="h-6 bg-[#58CC02] hover:bg-[#46a302] text-white rounded-md font-bold px-2 flex items-center gap-1 shadow-sm"
-							onClick={handleSyncOfflineCommits}
-							disabled={syncingOffline}
-						>
-							{syncingOffline ? (
-								<Loader2 className="size-3 animate-spin" />
-							) : (
-								<GitBranch className="size-3" />
-							)}
-							Sync ({offlineCommits.length})
-						</Button>
-					)}
-					<Button
-						variant="ghost"
-						size="icon-xs"
-						onClick={() => setEditorMode(lastPrimaryModeRef.current)}
-						className="size-7 text-muted-foreground hover:text-foreground"
-						title="Close panel"
-					>
-						<X className="size-4" />
-					</Button>
-				</div>
-			</div>
+	const changedFiles = [
+		...(sceneDirty ? [`projects/${projectId}/sketches/${sketchId}.excalidraw.json`] : []),
+		...(notesDirty ? [`projects/${projectId}/docs/notes.md`] : []),
+	];
 
-			<div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
-				{/* Commit Box */}
-				<div className="rounded-xl border border-border/80 bg-muted/10 p-3 space-y-3">
-					<div className="text-xs font-bold text-foreground">Commit Changes</div>
+	const sourceControlPanel = (
+		<div className="flex h-full min-h-0 flex-col border-l border-border bg-card">
+			<PanelHeader
+				title="Commits"
+				detail={`${activeWorkspace?.repoOwner ?? ""}/${activeWorkspace?.repoName ?? ""}`}
+				onClose={() => setEditorMode(lastPrimaryModeRef.current)}
+			>
+				<StateMark state={isOnline ? "synced" : "offline"} label={isOnline ? "Online" : "Offline"} />
+			</PanelHeader>
+
+			<div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-3">
+				<form
+					className="space-y-2"
+					onSubmit={(event) => {
+						event.preventDefault();
+						void handleOfflineCommit();
+					}}
+				>
+					<label htmlFor="commit-message" className="legend-label block">Commit message</label>
 					<textarea
-						className="w-full h-16 rounded-lg border border-input bg-background px-3 py-2 text-xs font-semibold shadow-inner focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-						placeholder="Message (staged changes will be committed)"
+						id="commit-message"
+						className="h-16 w-full resize-none rounded-md border border-input bg-card px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-grid"
+						placeholder="What changed in this version"
 						value={commitMessage}
 						onChange={(e) => setCommitMessage(e.target.value)}
 					/>
-					<Button 
-						disabled={(!sceneDirty && !notesDirty) || !commitMessage.trim()}
-						onClick={handleOfflineCommit}
-						size="sm"
-						className="w-full rounded-lg font-bold"
-					>
-						Commit {isOnline ? "(Local)" : "(Offline)"}
+					<Button type="submit" disabled={changedFiles.length === 0 || !commitMessage.trim()} size="sm" className="w-full">
+						Queue commit
 					</Button>
-				</div>
+					<p className="text-xs text-muted-foreground">
+						Queued commits stay in this browser until you push them. Use Save in the top bar to commit straight
+						to GitHub instead.
+					</p>
+				</form>
 
-				{/* Staged Changes List */}
-				<div className="space-y-2">
-					<div className="text-xs font-bold text-muted-foreground flex justify-between">
-						<span>CHANGES</span>
-						<span>{((sceneDirty ? 1 : 0) + (notesDirty ? 1 : 0))}</span>
-					</div>
-					<div className="space-y-1">
-						{sceneDirty && (
-							<div className="flex items-center justify-between text-xs font-semibold px-2 py-1.5 rounded-lg hover:bg-muted/30">
-								<span className="truncate text-foreground max-w-[80%] font-mono">
-									projects/{projectId}/sketches/{sketchId}.excalidraw.json
-								</span>
-								<Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] font-bold">M</Badge>
-							</div>
-						)}
-						{notesDirty && (
-							<div className="flex items-center justify-between text-xs font-semibold px-2 py-1.5 rounded-lg hover:bg-muted/30">
-								<span className="truncate text-foreground max-w-[80%] font-mono">
-									projects/{projectId}/docs/notes.md
-								</span>
-								<Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] font-bold">M</Badge>
-							</div>
-						)}
-						{!sceneDirty && !notesDirty && (
-							<div className="text-xs font-semibold text-muted-foreground text-center py-2 italic">
-								No unstaged modifications
-							</div>
-						)}
-					</div>
-				</div>
+				<section aria-labelledby="changed-files-heading">
+					<h3 id="changed-files-heading" className="legend-label flex justify-between">
+						<span>Changed files</span>
+						<span>{changedFiles.length}</span>
+					</h3>
+					{changedFiles.length > 0 ? (
+						<ul className="mt-1.5 overflow-hidden rounded-md border border-rule">
+							{changedFiles.map((file) => (
+								<li key={file} className="flex items-center gap-2 border-b border-rule px-2.5 py-1.5 last:border-b-0">
+									<StateGlyph state="draft" />
+									<span className="datum min-w-0 truncate" title={file}>{file}</span>
+								</li>
+							))}
+						</ul>
+					) : (
+						<p className="mt-1.5 text-[0.8125rem] text-muted-foreground">Nothing has changed since the last save.</p>
+					)}
+				</section>
 
-				{/* Sync Queue (Commits pending push) */}
-				<div className="space-y-2 pt-2 border-t">
-					<div className="text-xs font-bold text-muted-foreground flex justify-between">
-						<span>PENDING SYNC QUEUE</span>
-						<span>{offlineCommits.length}</span>
+				<section aria-labelledby="queued-commits-heading">
+					<div className="flex items-center justify-between gap-2">
+						<h3 id="queued-commits-heading" className="legend-label">
+							Waiting to push · {offlineCommits.length}
+						</h3>
+						{offlineCommits.length > 0 && isOnline ? (
+							<Button size="xs" onClick={handleSyncOfflineCommits} disabled={syncingOffline}>
+								{syncingOffline ? <Loader2 className="animate-spin" /> : <GitBranch />}
+								Push {offlineCommits.length}
+							</Button>
+						) : null}
 					</div>
-					<div className="space-y-2">
-						{offlineCommits.map((commit, i) => (
-							<div key={commit.id} className="rounded-lg border bg-muted/20 p-2.5 space-y-1.5 text-xs font-semibold">
-								<div className="flex items-start justify-between gap-2">
-									<div className="text-foreground font-bold truncate">{commit.message}</div>
-									<div className="text-[10px] text-muted-foreground shrink-0 select-none">#{i + 1}</div>
-								</div>
-								<div className="flex justify-between items-center text-[10px] text-muted-foreground">
-									<span>{commit.author}</span>
-									<span>{new Date(commit.timestamp).toLocaleTimeString()}</span>
-								</div>
-							</div>
-						))}
-						{offlineCommits.length === 0 && (
-							<div className="text-xs font-semibold text-muted-foreground text-center py-2 italic">
-								Sync queue is empty
-							</div>
-						)}
-					</div>
-				</div>
+					{offlineCommits.length > 0 ? (
+						<ol className="mt-1.5 overflow-hidden rounded-md border border-rule">
+							{offlineCommits.map((commit) => (
+								<li key={commit.id} className="border-b border-rule px-2.5 py-2 last:border-b-0">
+									<div className="truncate text-sm font-medium text-foreground">{commit.message}</div>
+									<div className="mt-0.5 flex justify-between gap-2 text-xs text-muted-foreground">
+										<span className="truncate">{commit.author}</span>
+										<span className="shrink-0">{new Date(commit.timestamp).toLocaleTimeString()}</span>
+									</div>
+								</li>
+							))}
+						</ol>
+					) : (
+						<p className="mt-1.5 text-[0.8125rem] text-muted-foreground">No commits are waiting.</p>
+					)}
+				</section>
 			</div>
 		</div>
 	);
@@ -1441,209 +1399,97 @@ export function EditorClient({
 		/>
 	);
 
-	return (
-		<main className="flex h-screen min-h-screen flex-col bg-background relative">
-			{isResizing && (
-				<div 
-					className="fixed inset-0 z-50 cursor-col-resize select-none bg-transparent" 
-					style={{ pointerEvents: "auto" }}
-				/>
-			)}
-			<div className="h-1 w-full bg-gradient-to-r from-[#58CC02] via-[#1CB0F6] to-[#CE82FF]" />
+	const viewModes = [
+		{ id: "canvas", label: "Canvas", icon: Maximize2 },
+		{ id: "split", label: "Split", icon: PanelsTopLeft },
+		{ id: "docs", label: "Notes", icon: FileText },
+	] as const;
+	const repoName = data?.workspace?.repoName ?? workspace?.repoName ?? "Workspace";
+	const workState = dirty ? "draft" : !data || status.includes("Offline") ? "local" : "synced";
 
-			<header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-3 sm:px-4">
-				{/* Left: Navigation & Breadcrumb */}
-				<div className="flex min-w-0 items-center gap-2">
-					<Button variant="ghost" size="icon-xs" asChild className="size-7 text-muted-foreground hover:text-foreground shrink-0">
-						<Link href="/app" aria-label="Back to projects">
-							<ArrowLeft className="size-4" />
+	return (
+		<main className="relative flex h-screen min-h-screen flex-col bg-background">
+			{isResizing && <div className="fixed inset-0 z-50 cursor-col-resize select-none" />}
+
+			<header className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-border bg-lowland px-2 sm:px-3">
+				<div className="flex min-w-0 items-center gap-1">
+					<Button variant="ghost" size="icon-sm" asChild>
+						<Link href={`/app?workspace=${workspaceId}`} aria-label="Back to projects" title="Back to projects">
+							<ArrowLeft />
 						</Link>
 					</Button>
-					<Breadcrumb className="text-xs font-semibold select-none">
-						<BreadcrumbList className="flex-nowrap gap-1">
-							<BreadcrumbItem className="hidden sm:inline-flex max-w-[120px] truncate">
-								<BreadcrumbLink asChild>
-									<Link href="/app" className="text-muted-foreground/70 hover:text-foreground">
-										{data?.workspace?.repoName ?? workspace?.repoName ?? "Workspace"}
-									</Link>
-								</BreadcrumbLink>
-							</BreadcrumbItem>
-							<BreadcrumbSeparator className="hidden sm:inline-flex text-muted-foreground/30" />
-							<BreadcrumbItem className="max-w-[120px] truncate">
-								<BreadcrumbLink asChild>
-									<Link href={`/app?workspace=${workspaceId}`} className="text-muted-foreground/70 hover:text-foreground">
-										{projectId}
-									</Link>
-								</BreadcrumbLink>
-							</BreadcrumbItem>
-							<BreadcrumbSeparator className="text-muted-foreground/30" />
-							<BreadcrumbItem className="font-bold text-foreground truncate max-w-[160px]">
-								<BreadcrumbPage>{title}</BreadcrumbPage>
-							</BreadcrumbItem>
-						</BreadcrumbList>
-					</Breadcrumb>
+					<nav aria-label="Location" className="flex min-w-0 items-baseline gap-1.5 text-sm">
+						<Link
+							href={`/app?workspace=${workspaceId}`}
+							className="datum hidden max-w-40 truncate rounded-sm text-muted-foreground hover:text-foreground md:inline"
+						>
+							{repoName}
+						</Link>
+						<span className="hidden text-muted-foreground/60 md:inline" aria-hidden="true">/</span>
+						<span className="max-w-56 truncate font-semibold text-foreground" aria-current="page">{title}</span>
+					</nav>
 				</div>
 
-				{/* Center: Primary View Modes (Canvas | Split | Docs) */}
-				<div className="flex items-center rounded-lg border border-border/70 bg-muted/30 p-0.5 shadow-xs">
-					<Button
-						variant="ghost"
-						size="xs"
-						onClick={() => setEditorMode("canvas")}
-						className={cn(
-							"h-7 gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-all",
-							mode === "canvas"
-								? "bg-card text-foreground shadow-xs border border-border/50"
-								: "text-muted-foreground hover:text-foreground hover:bg-transparent"
-						)}
-						title="Full Canvas"
-					>
-						<Maximize2 className="size-3.5" />
-						<span className="hidden md:inline">Canvas</span>
-					</Button>
-					<Button
-						variant="ghost"
-						size="xs"
-						onClick={() => setEditorMode("split")}
-						className={cn(
-							"h-7 gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-all",
-							mode === "split"
-								? "bg-card text-foreground shadow-xs border border-border/50"
-								: "text-muted-foreground hover:text-foreground hover:bg-transparent"
-						)}
-						title="Canvas & Docs Split"
-					>
-						<PanelsTopLeft className="size-3.5" />
-						<span className="hidden md:inline">Split</span>
-					</Button>
-					<Button
-						variant="ghost"
-						size="xs"
-						onClick={() => setEditorMode("docs")}
-						className={cn(
-							"h-7 gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-all",
-							mode === "docs"
-								? "bg-card text-foreground shadow-xs border border-border/50"
-								: "text-muted-foreground hover:text-foreground hover:bg-transparent"
-						)}
-						title="Full Docs"
-					>
-						<FileText className="size-3.5" />
-						<span className="hidden md:inline">Docs</span>
-					</Button>
+				<div role="group" aria-label="Layout" className="flex items-center rounded-md border border-input bg-card p-0.5">
+					{viewModes.map((view) => (
+						<button
+							key={view.id}
+							type="button"
+							onClick={() => setEditorMode(view.id)}
+							aria-pressed={mode === view.id}
+							title={view.label}
+							className={cn(
+								"inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-sm px-2 text-xs font-medium text-muted-foreground hover:text-foreground",
+								mode === view.id && "bg-grid-tint font-semibold text-foreground",
+							)}
+						>
+							<view.icon className="size-3.5" />
+							<span className="hidden md:inline">{view.label}</span>
+						</button>
+					))}
 				</div>
 
-				{/* Right: Drawer Actions, Theme Toggle, Status & Save */}
-				<div className="flex min-w-0 items-center gap-2">
-					{/* Drawer side-panel toggles */}
-					<div className="flex items-center gap-0.5">
-						<Button
-							variant="ghost"
-							size="icon-xs"
-							onClick={() => toggleDrawer("libraries")}
-							className={cn(
-								"size-7 rounded-md transition-colors",
-								mode === "libraries"
-									? "bg-primary/10 text-primary border border-primary/20"
-									: "text-muted-foreground hover:text-foreground hover:bg-muted"
-							)}
-							title="Component Libraries"
-						>
-							<BookOpen className="size-3.5" />
-						</Button>
-						<Button
-							variant="ghost"
-							size="icon-xs"
-							onClick={() => toggleDrawer("history")}
-							className={cn(
-								"size-7 rounded-md transition-colors",
-								mode === "history"
-									? "bg-primary/10 text-primary border border-primary/20"
-									: "text-muted-foreground hover:text-foreground hover:bg-muted"
-							)}
-							title="Commit History & Restores"
-						>
-							<Clock className="size-3.5" />
-						</Button>
-						{isOwner && (
-							<Button
-								variant="ghost"
-								size="icon-xs"
-								onClick={() => toggleDrawer("source-control")}
-								className={cn(
-									"size-7 rounded-md transition-colors relative",
-									mode === "source-control"
-										? "bg-primary/10 text-primary border border-primary/20"
-										: "text-muted-foreground hover:text-foreground hover:bg-muted"
-								)}
-								title="Git Source Control"
-							>
-								<GitBranch className="size-3.5" />
-								{dirty && (
-									<span className="absolute top-1 right-1 size-1.5 rounded-full bg-amber-500" />
-								)}
-							</Button>
-						)}
-					</div>
+				<div className="flex min-w-0 items-center gap-1">
+					<PanelToggle label="Libraries" icon={BookOpen} active={mode === "libraries"} onClick={() => toggleDrawer("libraries")} />
+					<PanelToggle label="History" icon={Clock} active={mode === "history"} onClick={() => toggleDrawer("history")} />
+					{isOwner ? (
+						<PanelToggle
+							label="Commits"
+							icon={GitBranch}
+							active={mode === "source-control"}
+							onClick={() => toggleDrawer("source-control")}
+						/>
+					) : null}
 
-					<div className="h-4 w-px bg-border/80" />
+					<span className="mx-1 hidden h-4 w-px bg-input sm:block" aria-hidden="true" />
 
-					{/* Calm status indicator */}
-					<div className="hidden items-center gap-1.5 text-xs font-medium text-muted-foreground sm:flex">
+					<span className="hidden px-1 sm:inline-flex" aria-live="polite">
 						{saving ? (
-							<span className="flex items-center gap-1.5">
-								<Loader2 className="size-3 animate-spin text-primary" />
-								<span>Saving</span>
+							<span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+								<Loader2 className="size-3 animate-spin" />
+								Saving
 							</span>
-						) : dirty ? (
-							<span className="flex items-center gap-1.5 text-amber-500 font-semibold">
-								<span className="size-1.5 rounded-full bg-amber-500" />
-								<span>Draft</span>
-							</span>
-						) : !data || (status && status.includes("Offline")) ? (
-							<span className="flex items-center gap-1 text-muted-foreground">
-								<WifiOff className="size-3 text-muted-foreground/70" />
-								<span>Local</span>
-							</span>
-						) : (
-							<span className="flex items-center gap-1.5 text-emerald-500/90 font-semibold">
-								<span className="size-1.5 rounded-full bg-emerald-500" />
-								<span>Synced</span>
-							</span>
-						)}
-					</div>
+						) : initialData ? (
+							<StateMark state={workState} label={workState === "local" ? "In this browser" : undefined} />
+						) : null}
+					</span>
 
-					{/* Working Theme Toggle */}
-					<ThemeToggle className="size-7" />
+					<ThemeToggle />
 
-					{/* Save / Fork Action */}
 					{isOwner ? (
 						<Button
 							disabled={!hasScene || saving || (!dirty && !!data)}
 							onClick={handleManualSave}
-							size="xs"
-							className={cn(
-								"h-7 px-3 rounded-lg font-bold text-xs transition-all shadow-xs gap-1.5",
-								dirty
-									? "bg-primary text-primary-foreground hover:bg-primary/90"
-									: "bg-muted text-muted-foreground hover:text-foreground"
-							)}
+							size="sm"
+							title="Commit the sketch and notes to GitHub"
 						>
-							{saving ? (
-								<Loader2 className="size-3 animate-spin" />
-							) : (
-								<Save className="size-3" />
-							)}
-							<span>Save</span>
+							{saving ? <Loader2 className="animate-spin" /> : <Save />}
+							Save
 						</Button>
 					) : (
-						<Button
-							onClick={handleForkClick}
-							size="xs"
-							className="h-7 px-3 rounded-lg font-bold text-xs transition-all bg-[#CE82FF] hover:bg-[#b86ce6] text-white shadow-xs flex items-center gap-1.5 border-none"
-						>
-							<GitBranch className="size-3 rotate-180" />
-							<span>Fork</span>
+						<Button onClick={handleForkClick} size="sm" title="Copy this project into one of your workspaces">
+							<GitFork />
+							Fork
 						</Button>
 					)}
 				</div>
@@ -1651,35 +1497,45 @@ export function EditorClient({
 
 			<section className="min-h-0 flex-1 bg-background">
 				{authLoading ? (
-					<div className="grid h-full place-items-center text-sm font-bold text-muted-foreground">
+					<div className="grid h-full place-items-center text-sm text-muted-foreground">
 						<div className="flex items-center gap-2">
-							<Loader2 className="size-4 animate-spin text-[#58CC02]" />
-							Opening visual doc
+							<Loader2 className="size-4 animate-spin" />
+							Opening project
 						</div>
 					</div>
-				) : error ? (
+				) : !initialData && !error ? (
+					<div className="grid h-full place-items-center text-sm text-muted-foreground">
+						<div className="flex items-center gap-2">
+							<Loader2 className="size-4 animate-spin" />
+							Opening project
+						</div>
+					</div>
+				) : error && !initialData ? (
 					<div className="grid h-full place-items-center p-6">
-						<div className="max-w-md rounded-[16px] border-2 border-border bg-card p-5 text-sm font-bold text-muted-foreground shadow-[0_2px_0_var(--border)]">
-							{error}
+						<div className="max-w-md rounded-lg border border-rule bg-card p-5">
+							<h2 className="text-base font-bold">This project could not be opened</h2>
+							<p className="mt-1.5 text-sm text-muted-foreground">{error}</p>
+							<Button variant="outline" size="sm" className="mt-4" asChild>
+								<Link href="/app">Back to projects</Link>
+							</Button>
 						</div>
 					</div>
 				) : initialData ? (
 					<div className="relative h-full min-h-0 overflow-hidden">
 						{saveError ? (
-							<div className="absolute left-1/2 top-4 z-20 w-[min(520px,calc(100%-2rem))] -translate-x-1/2 rounded-xl border bg-card px-4 py-3 text-sm shadow-lg">
+							<div
+								role="alert"
+								className="absolute top-3 left-1/2 z-20 w-[min(520px,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-contour/50 bg-card p-3 text-sm shadow-[0_12px_28px_-16px_rgb(24_33_29/0.5)]"
+							>
 								<div className="flex items-start justify-between gap-3">
 									<div>
-										<div className="font-extrabold text-foreground">Cloud sync paused</div>
-										<div className="mt-1 font-semibold text-muted-foreground">{saveError}</div>
+										<h2 className="font-bold text-foreground">Not saved to GitHub</h2>
+										<p className="mt-0.5 text-muted-foreground">
+											{saveError} Your changes are still in this browser.
+										</p>
 									</div>
-									<Button
-										variant="ghost"
-										size="icon-xs"
-										onClick={() => setSaveError(null)}
-										aria-label="Dismiss error"
-										className="shrink-0 text-muted-foreground hover:text-foreground"
-									>
-										<X className="size-3.5" />
+									<Button variant="ghost" size="icon-xs" onClick={() => setSaveError(null)} aria-label="Dismiss">
+										<X />
 									</Button>
 								</div>
 								{saveError.toLowerCase().includes("github") ? (
@@ -1699,26 +1555,25 @@ export function EditorClient({
 						{mode === "canvas" ? (
 							canvasEditor
 						) : mode === "docs" ? (
-							<div className="h-full min-h-0">{docsPanel}</div>
+							<div className="mx-auto h-full min-h-0 max-w-4xl">{docsPanel}</div>
 						) : (
-							<div ref={containerRef} className="flex h-full w-full min-h-0 relative select-none">
-								<div 
+							<div ref={containerRef} className="relative flex h-full min-h-0 w-full select-none">
+								<div
 									style={{ width: `${mode === "split" ? splitPanelSizes[0] : sidePanelSizes[0]}%` }}
 									className="h-full min-h-0 overflow-hidden"
 								>
 									{canvasEditor}
 								</div>
-								
-								{/* Raw Resizable Handle */}
-								<div
-									onMouseDown={handleMouseDown}
-									className="group relative w-1 hover:w-1.5 transition-all bg-border hover:bg-primary/50 cursor-col-resize flex items-center justify-center select-none"
-									style={{ zIndex: 10 }}
-								>
-									<div className="z-10 flex h-6 w-1 shrink-0 rounded-lg bg-muted-foreground/30 group-hover:bg-primary" />
-								</div>
 
-								<div 
+								<div
+									role="separator"
+									aria-orientation="vertical"
+									aria-label="Resize panels"
+									onMouseDown={handleMouseDown}
+									className="group relative z-10 w-1 cursor-col-resize bg-border hover:bg-grid"
+								/>
+
+								<div
 									style={{ width: `${mode === "split" ? splitPanelSizes[1] : sidePanelSizes[1]}%` }}
 									className="h-full min-h-0 overflow-hidden"
 								>
@@ -1730,74 +1585,126 @@ export function EditorClient({
 				) : null}
 			</section>
 
-			{/* Fork Modal */}
-			{showForkModal && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200" onClick={() => setShowForkModal(false)}>
-					<div className="relative w-full max-w-md rounded-2xl border-2 border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
-						<Button 
-							variant="ghost" 
-							size="icon-xs" 
-							className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"
-							onClick={() => setShowForkModal(false)}
-						>
-							<X className="size-4" />
-						</Button>
-						<div className="flex items-center gap-2 mb-4">
-							<GitBranch className="size-5 text-[#CE82FF]" />
-							<h2 className="text-lg font-extrabold text-foreground">Fork Project</h2>
+			<Dialog open={showForkModal} onOpenChange={setShowForkModal}>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Fork this project</DialogTitle>
+						<DialogDescription>
+							Copies the sketch and notes into one of your workspaces as a new commit. The original is not changed.
+						</DialogDescription>
+					</DialogHeader>
+					<form
+						className="space-y-4"
+						onSubmit={(event) => {
+							event.preventDefault();
+							void handleForkSubmit();
+						}}
+					>
+						<div>
+							<label htmlFor="fork-workspace" className="legend-label mb-1 block">Destination workspace</label>
+							<select
+								id="fork-workspace"
+								className="datum h-9 w-full rounded-md border border-input bg-card px-2.5 outline-none focus-visible:border-grid"
+								value={targetWorkspaceId}
+								onChange={(e) => setTargetWorkspaceId(e.target.value)}
+							>
+								<option value="">Choose a workspace</option>
+								{workspacesData?.workspaces?.map((ws) => (
+									<option key={ws.id} value={ws.id}>
+										{ws.repoOwner}/{ws.repoName} ({ws.visibility})
+									</option>
+								))}
+							</select>
 						</div>
-						<p className="text-xs font-semibold text-muted-foreground mb-4">
-							Copy this public project docs and drawing board into one of your workspaces.
-						</p>
-						<div className="space-y-4">
-							<div>
-								<label className="block text-xs font-bold text-foreground mb-1.5">Destination Workspace</label>
-								<select 
-									className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
-									value={targetWorkspaceId}
-									onChange={(e) => setTargetWorkspaceId(e.target.value)}
-								>
-									<option value="">Select a workspace...</option>
-									{workspacesData?.workspaces?.map((ws) => (
-										<option key={ws.id} value={ws.id}>
-											{ws.repoOwner}/{ws.repoName} ({ws.visibility})
-										</option>
-									))}
-								</select>
-							</div>
-							<div>
-								<label className="block text-xs font-bold text-foreground mb-1.5">Project Name / Slug</label>
-								<input 
-									type="text"
-									className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
-									value={targetProjectSlug}
-									onChange={(e) => setTargetProjectSlug(slugify(e.target.value))}
-									placeholder="e.g. system-map"
-								/>
-							</div>
-							{forkError && (
-								<div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
-									{forkError}
-								</div>
-							)}
-							<div className="flex justify-end gap-2 pt-2">
-								<Button variant="ghost" size="sm" onClick={() => setShowForkModal(false)}>
-									Cancel
-								</Button>
-								<Button 
-									disabled={forking || !targetWorkspaceId || !targetProjectSlug}
-									onClick={handleForkSubmit} 
-									size="sm" 
-									className="bg-[#CE82FF] hover:bg-[#b86ce6] text-white font-bold"
-								>
-									{forking ? <Loader2 className="size-4 animate-spin mr-1.5" /> : null}
-									Fork Project
-								</Button>
-							</div>
+						<div>
+							<label htmlFor="fork-slug" className="legend-label mb-1 block">Folder name</label>
+							<Input
+								id="fork-slug"
+								className="datum"
+								value={targetProjectSlug}
+								onChange={(e) => setTargetProjectSlug(slugify(e.target.value))}
+								placeholder="system-map"
+								autoComplete="off"
+								spellCheck={false}
+							/>
+							<p className="mt-1 text-xs text-muted-foreground">
+								Saved to <span className="datum">projects/{targetProjectSlug || "folder-name"}</span>.
+							</p>
 						</div>
-					</div>
-				</div>
-			)}
+						{forkError ? (
+							<p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+								{forkError}
+							</p>
+						) : null}
+						<DialogFooter>
+							<Button type="button" variant="ghost" size="sm" onClick={() => setShowForkModal(false)}>
+								Cancel
+							</Button>
+							<Button type="submit" size="sm" disabled={forking || !targetWorkspaceId || !targetProjectSlug}>
+								{forking ? <Loader2 className="animate-spin" /> : <GitFork />}
+								Fork project
+							</Button>
+						</DialogFooter>
+					</form>
+				</DialogContent>
+			</Dialog>
 		</main>
+	);
+}
+
+function PanelHeader({
+	title,
+	detail,
+	onClose,
+	children,
+}: {
+	title: string;
+	detail?: string;
+	onClose?: () => void;
+	children?: React.ReactNode;
+}) {
+	return (
+		<div className="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-border px-3">
+			<div className="flex min-w-0 items-baseline gap-2">
+				<h2 className="text-sm font-bold text-foreground">{title}</h2>
+				{detail ? <span className="datum truncate text-muted-foreground">{detail}</span> : null}
+			</div>
+			<div className="flex shrink-0 items-center gap-2">
+				{children}
+				{onClose ? (
+					<Button variant="ghost" size="icon-xs" onClick={onClose} aria-label={`Close ${title.toLowerCase()}`}>
+						<X />
+					</Button>
+				) : null}
+			</div>
+		</div>
+	);
+}
+
+function PanelToggle({
+	label,
+	icon: Icon,
+	active,
+	onClick,
+}: {
+	label: string;
+	icon: React.ComponentType<{ className?: string }>;
+	active: boolean;
+	onClick: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			aria-pressed={active}
+			title={label}
+			className={cn(
+				"inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground",
+				active && "bg-grid-tint font-semibold text-foreground",
+			)}
+		>
+			<Icon className="size-3.5" />
+			<span className="hidden xl:inline">{label}</span>
+		</button>
 	);
 }

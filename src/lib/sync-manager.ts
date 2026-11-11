@@ -60,7 +60,6 @@ const MAX_BACKOFF_MS = 30_000;
 
 type Listener = () => void;
 
-let dbPromise: Promise<IDBDatabase> | null = null;
 let processing = false;
 let timer: ReturnType<typeof setInterval> | null = null;
 const listeners = new Set<Listener>();
@@ -69,21 +68,21 @@ function generateId(type: string) {
 	return type + ":" + Date.now() + ":" + (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 }
 
+// Every caller closes the connection when its transaction finishes, so each operation opens
+// its own. Caching the connection here made every call after the first fail with
+// "The database connection is closing".
 function openSyncDb() {
-	if (!dbPromise) {
-		dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
-			const request = indexedDB.open("sketchflow-sync", 1);
-			request.onupgradeneeded = () => {
-				const db = request.result;
-				if (!db.objectStoreNames.contains(SYNC_STORE)) {
-					db.createObjectStore(SYNC_STORE, { keyPath: "id" });
-				}
-			};
-			request.onsuccess = () => resolve(request.result);
-			request.onerror = () => reject(request.error);
-		});
-	}
-	return dbPromise;
+	return new Promise<IDBDatabase>((resolve, reject) => {
+		const request = indexedDB.open("sketchflow-sync", 1);
+		request.onupgradeneeded = () => {
+			const db = request.result;
+			if (!db.objectStoreNames.contains(SYNC_STORE)) {
+				db.createObjectStore(SYNC_STORE, { keyPath: "id" });
+			}
+		};
+		request.onsuccess = () => resolve(request.result);
+		request.onerror = () => reject(request.error);
+	});
 }
 
 async function withStore<T>(

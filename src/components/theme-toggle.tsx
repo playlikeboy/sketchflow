@@ -15,37 +15,19 @@ export function ThemeToggle({ className }: { className?: string }) {
     setMounted(true);
   }, []);
 
-  if (!mounted) {
-    return (
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="Toggle theme"
-        className={cn("size-8 rounded-lg text-muted-foreground", className)}
-      >
-        <Sun className="size-4" />
-      </Button>
-    );
-  }
-
-  const isDark = resolvedTheme === "dark";
+  const isDark = mounted && resolvedTheme === "dark";
+  const label = isDark ? "Switch to light theme" : "Switch to dark theme";
 
   return (
     <Button
       variant="ghost"
-      size="icon-xs"
+      size="icon-sm"
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      className={cn(
-        "size-7 rounded-lg transition-colors",
-        isDark
-          ? "text-amber-400 hover:bg-white/10 hover:text-amber-300"
-          : "text-muted-foreground hover:text-foreground hover:bg-black/5",
-        className,
-      )}
-      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+      aria-label={label}
+      title={label}
+      className={cn(className)}
     >
-      {isDark ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+      {isDark ? <Sun /> : <Moon />}
     </Button>
   );
 }

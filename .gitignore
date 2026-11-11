@@ -54,3 +54,7 @@ next-env.d.ts
 # local agent tool config
 .openclaude/
 .commandcode/
+
+# Impeccable engine binary: the launcher downloads and verifies it on first run
+.claude/skills/impeccable/scripts/bin/
+.impeccable/config.local.json

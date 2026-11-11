@@ -5,19 +5,18 @@ import { usePathname, useRouter } from "next/navigation";
 import { useStackApp } from "@stackframe/stack";
 import { useSWRConfig } from "swr";
 import {
-  Boxes,
+  CircleHelp,
+  CircleUser,
   Clock3,
   FileText,
   Folder,
   GitBranch,
   Globe,
-  LayoutDashboard,
+  LayoutTemplate,
   LogOut,
   Plus,
   Search,
-  Settings,
-  Wifi,
-  WifiOff,
+  SlidersHorizontal,
 } from "lucide-react";
 import { type ReactNode, useState, useEffect } from "react";
 import {
@@ -38,7 +37,7 @@ import {
 import { useAuthMe } from "@/lib/swr-hooks";
 
 import { BrandMark } from "@/components/brand-mark";
-import { Badge } from "@/components/ui/badge";
+import { StateGlyph, StateMark } from "@/components/state-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -63,20 +62,29 @@ import {
   SidebarMenuItem,
   SidebarInset,
   SidebarTrigger,
-  SidebarSeparator,
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import type { Workspace } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const navItems = [
-  { label: "Projects", href: "/app", icon: Folder },
-  { label: "Workspace", href: "/app/workspace", icon: LayoutDashboard },
-  { label: "Recent", href: "/app/recent", icon: Clock3 },
-  { label: "Docs", href: "/app/docs", icon: FileText },
-  { label: "Public", href: "/app/public", icon: Globe },
-  { label: "Templates", href: "/app/templates", icon: Boxes },
-  { label: "Help", href: "/help", icon: FileText },
+const navGroups = [
+  {
+    label: "Work",
+    items: [
+      { label: "Projects", href: "/app", icon: Folder },
+      { label: "Recent", href: "/app/recent", icon: Clock3 },
+      { label: "Notes", href: "/app/docs", icon: FileText },
+      { label: "Shared", href: "/app/public", icon: Globe },
+    ],
+  },
+  {
+    label: "Set up",
+    items: [
+      { label: "Workspaces", href: "/app/workspace", icon: SlidersHorizontal },
+      { label: "Templates", href: "/app/templates", icon: LayoutTemplate },
+      { label: "Help", href: "/help", icon: CircleHelp },
+    ],
+  },
 ];
 
 const CREATE_WORKSPACE_VALUE = "__create_workspace__";
@@ -121,30 +129,23 @@ function AppSidebar({
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r-2 border-sidebar-border">
-      <SidebarHeader className="p-3">
-        <BrandMark
-          href="/app"
-          subtitle="GitHub-native canvas"
-          collapseText
-          className="group-data-[collapsible=icon]:justify-center"
-        />
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+      <SidebarHeader className="h-12 justify-center border-b border-sidebar-border px-3 py-0">
+        <BrandMark href="/app" collapseText className="group-data-[collapsible=icon]:justify-center" />
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-          <SidebarGroupLabel className="font-extrabold uppercase tracking-[0.8px] text-sidebar-foreground/60">
-            Workspace
-          </SidebarGroupLabel>
+          <SidebarGroupLabel className="legend-label h-7 px-1">Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
             {workspaces.length > 0 && selectedWorkspaceId && onWorkspaceChange ? (
               <Select value={selectedWorkspaceId} onValueChange={handleWorkspaceValue}>
-                <SelectTrigger className="h-10 w-full rounded-xl border-2 bg-sidebar px-2 text-xs font-bold">
+                <SelectTrigger className="datum h-9 w-full rounded-md border-input bg-card px-2.5" aria-label="Switch workspace">
                   <SelectValue placeholder="Select workspace" />
                 </SelectTrigger>
                 <SelectContent>
                   {workspaces.map((workspace) => (
-                    <SelectItem key={workspace.id} value={workspace.id}>
+                    <SelectItem key={workspace.id} value={workspace.id} className="datum">
                       {workspace.repoOwner}/{workspace.repoName}
                     </SelectItem>
                   ))}
@@ -156,9 +157,9 @@ function AppSidebar({
                 </SelectContent>
               </Select>
             ) : (
-              <Button variant="outline" size="sm" className="w-full justify-start rounded-xl" asChild>
+              <Button variant="outline" size="sm" className="w-full justify-start" asChild>
                 <Link href="/app/workspace?new=1">
-                  <Plus className="size-4" />
+                  <Plus />
                   New workspace
                 </Link>
               </Button>
@@ -166,49 +167,53 @@ function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator className="mx-2 w-auto" />
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="font-extrabold uppercase tracking-[0.8px] text-sidebar-foreground/60">
-            Navigation
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.label}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-sm font-bold text-sidebar-foreground/70 transition-colors duration-150 hover:bg-sidebar-accent hover:text-[#58CC02] group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
-                      pathname === item.href && "bg-sidebar-accent text-[#58CC02]",
-                    )}
-                    title={item.label}
-                  >
-                    <item.icon className="size-4" />
-                    <span className="truncate group-data-[collapsible=icon]:hidden">{item.label}</span>
-                    {item.label === "Projects" && hasUnsynced && (
-                      <span className="relative flex h-2 w-2 shrink-0 ml-auto group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:top-1 group-data-[collapsible=icon]:right-1" title="Offline projects require sync">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-[#58CC02]"></span>
-                      </span>
-                    )}
-                  </Link>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {navGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel className="legend-label h-7 px-1">{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-0.5">
+                {group.items.map((item) => {
+                  const current = pathname === item.href;
+                  return (
+                    <SidebarMenuItem key={item.label}>
+                      <Link
+                        href={item.href}
+                        aria-current={current ? "page" : undefined}
+                        title={item.label}
+                        className={cn(
+                          "relative flex h-8 w-full items-center gap-2.5 rounded-md px-2 text-sm font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+                          current && "bg-card font-semibold text-foreground shadow-[inset_0_0_0_1px_var(--rule)]",
+                        )}
+                      >
+                        <item.icon className={cn("size-4 shrink-0", current && "text-grid")} />
+                        <span className="truncate group-data-[collapsible=icon]:hidden">{item.label}</span>
+                        {item.label === "Projects" && hasUnsynced ? (
+                          <span
+                            className="ml-auto group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:top-0.5 group-data-[collapsible=icon]:right-0.5"
+                            title="Some projects exist only in this browser"
+                          >
+                            <StateGlyph state="local" className="text-contour" />
+                            <span className="sr-only">Some projects exist only in this browser</span>
+                          </span>
+                        ) : null}
+                      </Link>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
-      <SidebarFooter className="p-3 border-t-2 border-sidebar-border">
-        <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
-          <Button variant="ghost" size="icon" className="size-8 shrink-0 text-sidebar-foreground/60 hover:text-[#58CC02]" asChild>
-            <Link href="https://github.com/playlikeboy/sketchflow" target="_blank" aria-label="Contribute on GitHub">
-              <GitBranch className="size-4" />
+      <SidebarFooter className="border-t border-sidebar-border p-2">
+        <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col">
+          <Button variant="ghost" size="icon-sm" asChild>
+            <Link href="https://github.com/playlikeboy/sketchflow" target="_blank" rel="noopener noreferrer" aria-label="Sketchflow source on GitHub" title="Source on GitHub">
+              <GitBranch />
             </Link>
           </Button>
-          <div className="flex-1 group-data-[collapsible=icon]:hidden" />
-          <SidebarTrigger className="group-data-[collapsible=icon]:hidden" />
+          <ThemeToggle />
         </div>
       </SidebarFooter>
     </Sidebar>
@@ -301,6 +306,22 @@ export function AppShell({
     }
   }
 
+  function signOut() {
+    clearStoredGithubToken();
+    if (userId) {
+      void clearSyncQueueForUser(userId);
+      void purgeUserCache(userId);
+    }
+
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.removeItem("sketchflow:active-user-id");
+    }
+
+    void mutate(() => true, undefined, { revalidate: false }).then(() => {
+      void app.signOut({ redirectUrl: "/" });
+    });
+  }
+
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar
@@ -309,132 +330,88 @@ export function AppShell({
         onWorkspaceChange={onWorkspaceChange}
         userId={userId}
       />
-      <SidebarInset>
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b-2 border-border bg-background/95 px-4 backdrop-blur sm:px-6">
+      <SidebarInset className="min-w-0">
+        <header className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-border bg-background px-3 sm:px-5">
           <SidebarTrigger className="-ml-1 text-muted-foreground" />
-          <div className="flex flex-1 items-center justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="truncate text-lg font-extrabold text-foreground">{title}</h1>
-              {subtitle ? (
-                <p className="truncate text-sm font-semibold text-muted-foreground">{subtitle}</p>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative hidden h-9 w-64 items-center md:flex">
-                <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/50" />
+          <div className="flex min-w-0 items-baseline gap-2.5">
+            <h1 className="truncate text-base font-bold text-foreground">{title}</h1>
+            {subtitle ? <p className="datum hidden truncate text-muted-foreground sm:block">{subtitle}</p> : null}
+          </div>
+
+          <div className="ml-auto flex items-center gap-1.5">
+            {onSearchChange ? (
+              <div className="relative hidden w-60 md:block">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  type="search"
                   placeholder={searchPlaceholder}
+                  aria-label={searchPlaceholder}
                   value={searchValue ?? ""}
-                  onChange={(event) => onSearchChange?.(event.target.value)}
-                  disabled={!onSearchChange}
-                  className="h-9 w-full rounded-[14px] pl-8 text-sm font-bold placeholder:text-muted-foreground/50"
+                  onChange={(event) => onSearchChange(event.target.value)}
+                  className="h-8 pl-8"
                 />
               </div>
+            ) : null}
 
-              {/* Offline mode indicator & toggle */}
+            {syncFailures > 0 ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void retryFailedSyncActions(userId ?? undefined)}
+                className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                title="Retry the saves that failed"
+              >
+                <StateGlyph state="error" />
+                Retry {syncFailures} failed {syncFailures === 1 ? "save" : "saves"}
+              </Button>
+            ) : hasWorkspaceUnsynced && !isOfflineMode ? (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={toggleOfflineMode}
-                className={cn(
-                  "h-8 px-2.5 text-xs font-extrabold gap-1.5 rounded-xl transition-colors",
-                  isOfflineMode
-                    ? "text-amber-600 bg-amber-500/10 hover:bg-amber-500/20"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-                title={
-                  isOfflineMode
-                    ? "Offline Mode active (Git sync paused). Click to enable Auto-Sync."
-                    : "Auto-Sync active. Click to switch to pure Offline Mode."
-                }
+                onClick={() => void triggerSyncNow()}
+                className="text-contour hover:text-contour"
+                title="Some projects exist only in this browser. Sync them to GitHub now."
               >
-                {isOfflineMode ? (
-                  <>
-                    <WifiOff className="size-3.5 text-amber-600" />
-                    <span className="hidden sm:inline">Offline</span>
-                  </>
-                ) : (
-                  <>
-                    <Wifi className="size-3.5 text-emerald-600" />
-                    <span className="hidden sm:inline">Online</span>
-                  </>
-                )}
+                <StateGlyph state="local" className="text-contour" />
+                Sync local projects
               </Button>
+            ) : syncLabel ? (
+              <StateMark state="synced" label={syncLabel} className="datum hidden px-1.5 lg:inline-flex" />
+            ) : null}
 
-              <ThemeToggle />
+            <Button
+              variant={isOfflineMode ? "outline" : "ghost"}
+              size="sm"
+              onClick={toggleOfflineMode}
+              aria-pressed={isOfflineMode}
+              className={cn(isOfflineMode && "border-contour/50 bg-contour-tint text-contour hover:bg-contour-tint")}
+              title={
+                isOfflineMode
+                  ? "Sync is paused. Changes stay in this browser until you resume."
+                  : "Changes sync to GitHub in the background. Click to pause."
+              }
+            >
+              <StateGlyph state={isOfflineMode ? "offline" : "synced"} className={isOfflineMode ? "text-contour" : undefined} />
+              <span className="hidden sm:inline">{isOfflineMode ? "Sync paused" : "Sync on"}</span>
+            </Button>
 
-              {syncLabel ? (
-                <Badge variant="secondary" className="gap-1.5 text-xs font-extrabold">
-                  <GitBranch className="size-3" />
-                  {syncLabel}
-                </Badge>
-              ) : null}
+            {action}
 
-              {hasWorkspaceUnsynced && (
-                <Badge
-                  variant="outline"
-                  onClick={() => void triggerSyncNow()}
-                  className="text-[#58CC02] border-[#58CC02] bg-[#58CC02]/10 gap-1.5 text-xs font-extrabold py-1 px-2.5 rounded-full uppercase tracking-wider shrink-0 cursor-pointer"
-                  title="Local drafts exist. Click to sync to GitHub now."
-                >
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#58CC02]" />
-                  Local Drafts
-                </Badge>
-              )}
-
-              {syncFailures > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void retryFailedSyncActions(userId ?? undefined)}
-                  className="h-8 rounded-xl border-destructive/40 bg-destructive/5 px-2.5 text-xs font-extrabold text-destructive hover:bg-destructive/10"
-                  title="Retry failed background syncs"
-                >
-                  {syncFailures} sync {syncFailures === 1 ? "failure" : "failures"}
-                </Button>
-              )}
-
-              {action}
-
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => void app.redirectToAccountSettings()}
-                aria-label="Account settings"
-                className="text-muted-foreground hover:text-[#1CB0F6] hover:bg-[#EEF9FF] dark:hover:bg-[#1A3A4A]"
-              >
-                <Settings className="size-4" />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  if (userId) {
-                    clearStoredGithubToken();
-                    void clearSyncQueueForUser(userId);
-                    void purgeUserCache(userId);
-                  } else {
-                    clearStoredGithubToken();
-                  }
-
-                  if (typeof window !== "undefined" && window.localStorage) {
-                    window.localStorage.removeItem("sketchflow:active-user-id");
-                  }
-
-                  void mutate(() => true, undefined, { revalidate: false }).then(() => {
-                    void app.signOut({ redirectUrl: "/" });
-                  });
-                }}
-                aria-label="Sign out"
-                className="text-muted-foreground hover:text-[#FF4B4B] hover:bg-[#FFF0F0] dark:hover:bg-[#3A2020]"
-              >
-                <LogOut className="size-4" />
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => void app.redirectToAccountSettings()}
+              aria-label="Account settings"
+              title="Account settings"
+            >
+              <CircleUser />
+            </Button>
+            <Button variant="ghost" size="icon-sm" onClick={signOut} aria-label="Sign out" title="Sign out">
+              <LogOut />
+            </Button>
           </div>
         </header>
-        <main className="flex-1 px-4 py-5 sm:px-6">{children}</main>
+        <main className="min-w-0 flex-1 px-3 py-5 sm:px-5">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   );

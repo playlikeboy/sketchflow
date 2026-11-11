@@ -3,105 +3,228 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStackApp } from "@stackframe/stack";
-import {
-	ArrowRight,
-	BookOpen,
-	Boxes,
-	BrainCircuit,
-	CheckCircle2,
-	Code2,
-	FileText,
-	GitBranch,
-	Globe,
-	Layers3,
-	Loader2,
-	Moon,
-	Network,
-	PenTool,
-	RefreshCw,
-	ShieldCheck,
-	Sparkles,
-	Sun,
-	Users,
-	Zap,
-} from "lucide-react";
+import { ArrowRight, GitBranch, Loader2, Pencil, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useTheme } from "next-themes";
 
 import { BrandMark } from "@/components/brand-mark";
-import { Button } from "@/components/ui/button";
+import { StateGlyph, StateMark } from "@/components/state-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { SKETCHFLOW_APP_URL } from "@/lib/config";
+import { TitleBlock, TitleBlockRow } from "@/components/title-block";
+import { Button } from "@/components/ui/button";
 import { useAuthMe } from "@/lib/swr-hooks";
+import { cn } from "@/lib/utils";
 
-const repoFiles = [
-	"projects/day1/sketches/system-map.excalidraw.json",
-	"projects/day1/docs/notes.md",
-	"projects/projects-metadata.json",
-	".sketchflow/workspace.json",
-];
+const REPO_URL = "https://github.com/playlikeboy/sketchflow";
 
-const workflow = [
+const steps = [
 	{
-		icon: GitBranch,
-		title: "Connect your repo",
-		description: "Point to any existing GitHub repository or initialize a new workspace. Private or public, personal or org.",
+		title: "Connect a repository",
+		body: "Sign in, connect GitHub, and name a repository. Sketchflow creates it, or connects one you already own without touching the files in it.",
 	},
 	{
-		icon: PenTool,
-		title: "Sketch & write side-by-side",
-		description: "Infinite Excalidraw canvas on one side, rich Markdown documentation on the other. Zero context switching.",
+		title: "Draw and write side by side",
+		body: "Each project is an Excalidraw canvas next to a notes editor. Every change is kept in your browser as you work, so nothing waits on the network.",
 	},
 	{
-		icon: RefreshCw,
-		title: "Atomic snapshot commits",
-		description: "Local drafts save in 0ms to IndexedDB. One click pushes atomic Git commits to your repo tree.",
+		title: "Save a snapshot",
+		body: "Saving writes the sketch, the notes and the project record in a single Git commit. If someone else changed the branch first, you are told instead of overwritten.",
 	},
 	{
-		icon: Globe,
-		title: "Share & embed anywhere",
-		description: "Embed live diagrams in GitHub READMEs, share immutable public links, or inspect raw files in your IDE.",
+		title: "Go back, or share",
+		body: "List the commits that touched a project, preview an old version, and restore it as a new commit. Projects in public repositories get a read-only share page and an embed view.",
 	},
 ];
 
-const personas = [
+const repoTree = [
+	{ depth: 0, name: ".sketchflow/", note: "Workspace settings" },
+	{ depth: 0, name: "projects/", note: "One folder per project" },
+	{ depth: 1, name: "projects-metadata.json", note: "The project index" },
+	{ depth: 1, name: "payments-architecture/", note: "" },
+	{ depth: 2, name: "project.json", note: "Title, visibility, sharing" },
+	{ depth: 2, name: "sketches/system-map.excalidraw.json", note: "Opens in Excalidraw" },
+	{ depth: 2, name: "docs/notes.md", note: "Opens in any editor" },
+];
+
+const audiences = [
 	{
-		icon: Network,
-		title: "System Architects",
-		description: "Map distributed microservices, cloud topologies, and database schemas with visual clarity that stays linked to code.",
+		who: "Developers",
+		what: "Map a system and write the spec beside it. The diagram is reviewed, versioned and blamed like the code it describes.",
 	},
 	{
-		icon: Code2,
-		title: "Engineers & Tech Leads",
-		description: "Draft technical RFCs, system design specs, and PR architecture side-by-side with visual diagrams.",
+		who: "Students",
+		what: "Sketch a topic to understand it, keep the notes with the drawing, and hand in a link or the files themselves.",
 	},
 	{
-		icon: BookOpen,
-		title: "Open Source Maintainers",
-		description: "Deliver crystal-clear contributor onboarding, interactive architecture guides, and reproducible diagrams in your repo.",
+		who: "Teachers",
+		what: "Build a lesson board once, reuse it every term, and publish it as a page students can pan and zoom but not change.",
+	},
+	{
+		who: "Maintainers",
+		what: "Keep architecture guides in the repository they explain, and embed the live diagram in the documentation.",
 	},
 ];
 
-const features = [
-	{ icon: ShieldCheck, label: "Zero database lock-in" },
-	{ icon: FileText, label: "Markdown docs beside sketches" },
-	{ icon: Boxes, label: "Reusable Excalidraw libraries" },
-	{ icon: BrainCircuit, label: "AI-ready architecture context" },
-	{ icon: Users, label: "0ms offline-first drafts" },
-	{ icon: Layers3, label: "Multi-file atomic Git commits" },
+type DemoRevision = { sha: string; message: string };
+
+const initialRevisions: DemoRevision[] = [
+	{ sha: "3c8d4e2", message: "Add queue between API and worker" },
+	{ sha: "b5e1a04", message: "First system map" },
 ];
+
+const demoEdits: DemoRevision[] = [
+	{ sha: "7f2a1b9", message: "Add cache in front of the database" },
+	{ sha: "e41c7d0", message: "Mark the worker as retry-safe" },
+];
+
+/** A working miniature of the product: edit, see the draft state, save, see the commit land. */
+function SheetDemo() {
+	const [revisions, setRevisions] = useState(initialRevisions);
+	const [dirty, setDirty] = useState(false);
+	const editCount = revisions.length - initialRevisions.length;
+	const nextEdit = demoEdits[editCount];
+	const showCache = editCount > 0 || dirty;
+
+	return (
+		<div className="rounded-lg border border-rule bg-card shadow-[0_18px_40px_-24px_rgb(24_33_29/0.35)]">
+			<div className="flex items-center justify-between gap-3 border-b border-rule px-3 py-2">
+				<span className="datum truncate text-muted-foreground">projects/payments-architecture</span>
+				<span className="legend-label shrink-0">Example</span>
+			</div>
+
+			<div className="grid sm:grid-cols-[minmax(0,1fr)_15rem]">
+				<div className="border-b border-rule p-3 sm:border-r sm:border-b-0">
+					<svg viewBox="0 0 320 190" role="img" aria-label="A small system diagram: a client calls an API, which uses a database and a worker" className="h-auto w-full">
+						<g className="fill-none stroke-foreground" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+							<rect x="12" y="74" width="72" height="42" rx="4" />
+							<rect x="124" y="74" width="72" height="42" rx="4" />
+							<rect x="236" y="22" width="72" height="42" rx="4" />
+							<rect x="236" y="126" width="72" height="42" rx="4" />
+							<path d="M84 95h36m-7-5 7 5-7 5" />
+							<path d="M196 86c14-6 22-22 36-34m-9-1 9 1-2 9" />
+							<path d="M196 104c14 6 22 22 36 34m-2-9 2 9-9 1" />
+						</g>
+						<g className="fill-foreground text-[11px] font-semibold" textAnchor="middle">
+							<text x="48" y="99">Client</text>
+							<text x="160" y="99">API</text>
+							<text x="272" y="47">Database</text>
+							<text x="272" y="151">Worker</text>
+						</g>
+						<g className={cn("transition-opacity duration-300", showCache ? "opacity-100" : "opacity-0")}>
+							<rect
+								x="204"
+								y="2"
+								width="52"
+								height="24"
+								rx="4"
+								className={cn("fill-card", dirty ? "stroke-contour" : "stroke-foreground")}
+								strokeWidth="1.5"
+								strokeDasharray={dirty ? "4 3" : undefined}
+							/>
+							<text x="230" y="18" textAnchor="middle" className={cn("text-[10px] font-semibold", dirty ? "fill-contour" : "fill-foreground")}>
+								Cache
+							</text>
+						</g>
+					</svg>
+				</div>
+
+				<div className="flex flex-col gap-3 p-3">
+					<TitleBlock>
+						<TitleBlockRow label="Branch" mono>main</TitleBlockRow>
+						<TitleBlockRow label="Commit" mono>{revisions[0].sha}</TitleBlockRow>
+						<TitleBlockRow label="State">
+							<StateMark state={dirty ? "draft" : "synced"} />
+						</TitleBlockRow>
+					</TitleBlock>
+
+					<div className="flex gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							className="flex-1"
+							disabled={dirty || !nextEdit}
+							onClick={() => setDirty(true)}
+						>
+							<Pencil />
+							Edit
+						</Button>
+						<Button
+							size="sm"
+							className="flex-1"
+							disabled={!dirty || !nextEdit}
+							onClick={() => {
+								if (!nextEdit) return;
+								setRevisions((current) => [nextEdit, ...current]);
+								setDirty(false);
+							}}
+						>
+							Save
+						</Button>
+					</div>
+				</div>
+			</div>
+
+			<div className="border-t border-rule px-3 py-2.5">
+				<div className="flex items-center justify-between gap-3">
+					<span className="legend-label">Revisions</span>
+					{editCount > 0 || dirty ? (
+						<button
+							type="button"
+							className="inline-flex cursor-pointer items-center gap-1 rounded-sm text-xs text-muted-foreground underline hover:text-foreground"
+							onClick={() => {
+								setRevisions(initialRevisions);
+								setDirty(false);
+							}}
+						>
+							<RotateCcw className="size-3" />
+							Reset example
+						</button>
+					) : null}
+				</div>
+				<ol className="mt-1.5" aria-live="polite">
+					{dirty ? (
+						<li className="flex items-center gap-2.5 py-1 text-[0.8125rem]">
+							<StateGlyph state="draft" />
+							<span className="datum w-16 shrink-0 text-contour">unsaved</span>
+							<span className="truncate text-muted-foreground">{nextEdit?.message}</span>
+						</li>
+					) : null}
+					{revisions.map((revision) => (
+						<li key={revision.sha} className="flex items-center gap-2.5 py-1 text-[0.8125rem]">
+							<StateGlyph state="synced" />
+							<span className="datum w-16 shrink-0 text-muted-foreground">{revision.sha}</span>
+							<span className="truncate">{revision.message}</span>
+						</li>
+					))}
+				</ol>
+			</div>
+		</div>
+	);
+}
+
+function ContourField() {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 1200 600"
+			preserveAspectRatio="xMidYMid slice"
+			className="pointer-events-none absolute inset-0 h-full w-full fill-none stroke-rule"
+			strokeWidth="1"
+		>
+			<path d="M-40 420c160-90 300-20 430-110s210-190 390-170 260 130 470 60" />
+			<path d="M-40 470c170-80 310-10 440-100s220-180 390-160 250 120 460 70" />
+			<path d="M-40 525c180-70 320 0 450-90s230-170 390-150 240 110 450 80" />
+			<path d="M-40 365c150-100 290-30 420-120s200-200 390-180 270 140 480 50" />
+			<path d="M620 120c60-50 170-60 230-10s40 130-40 160-190 10-220-50 -10-70 30-100z" />
+			<path d="M670 140c40-34 110-40 150-8s28 86-26 106-126 6-146-34-6-44 22-64z" />
+			<path d="M716 160c22-18 58-20 80-4s14 46-14 56-66 4-78-18-4-24 12-34z" />
+		</svg>
+	);
+}
 
 export function HomeClient() {
 	const app = useStackApp();
 	const router = useRouter();
-	const { theme, setTheme } = useTheme();
-	const [mounted, setMounted] = useState(false);
-	const [activeDemoTab, setActiveDemoTab] = useState<"canvas" | "notes" | "git">("canvas");
 	const { data: auth, isLoading } = useAuthMe();
-
-	useEffect(() => {
-		setMounted(true);
-	}, []);
 
 	useEffect(() => {
 		if (auth?.authenticated) {
@@ -112,8 +235,8 @@ export function HomeClient() {
 	if (isLoading || auth?.authenticated) {
 		return (
 			<main className="grid min-h-screen place-items-center bg-background">
-				<div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-					<Loader2 className="size-4 animate-spin text-primary" />
+				<div className="flex items-center gap-2 text-sm text-muted-foreground">
+					<Loader2 className="size-4 animate-spin" />
 					Opening Sketchflow
 				</div>
 			</main>
@@ -121,346 +244,154 @@ export function HomeClient() {
 	}
 
 	return (
-		<main className="min-h-screen bg-background text-foreground">
-			<header className="sticky top-0 z-30 border-b bg-background/88 backdrop-blur-xl">
-				<div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
-					<Link href="/" aria-label="Sketchflow home">
-						<BrandMark subtitle="GitHub-native canvas" />
-					</Link>
-					<nav className="hidden items-center gap-5 text-sm font-bold text-muted-foreground md:flex">
-						<a href="#workflow" className="hover:text-foreground transition-colors">
-							Workflow
-						</a>
-						<a href="#use-cases" className="hover:text-foreground transition-colors">
-							Use cases
-						</a>
-						<a href="#ownership" className="hover:text-foreground transition-colors">
-							Manifesto
-						</a>
-						<Link href="/help" className="hover:text-foreground transition-colors">
-							Help
-						</Link>
+		<div className="min-h-screen bg-background text-foreground">
+			<header className="sticky top-0 z-30 border-b border-border bg-background">
+				<div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+					<BrandMark />
+					<nav aria-label="Page sections" className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
+						<a href="#how" className="rounded-sm hover:text-foreground">How it works</a>
+						<a href="#files" className="rounded-sm hover:text-foreground">Your files</a>
+						<a href="#who" className="rounded-sm hover:text-foreground">Who it&apos;s for</a>
+						<Link href="/help" className="rounded-sm hover:text-foreground">Help</Link>
 					</nav>
-					<div className="flex items-center gap-2">
-						<ThemeToggle className="size-9 rounded-xl border border-border/50" />
-						<button
-							className="btn-3d btn-3d--secondary h-9 px-4 text-xs font-extrabold cursor-pointer"
-							onClick={() => void app.redirectToSignIn()}
-						>
+					<div className="flex items-center gap-1.5">
+						<ThemeToggle />
+						<Button variant="ghost" size="sm" onClick={() => void app.redirectToSignIn()}>
 							Sign in
-						</button>
-						<Link
-							href="https://github.com/playlikeboy/sketchflow"
-							target="_blank"
-							className="btn-3d btn-3d--secondary size-9 p-0! cursor-pointer flex items-center justify-center"
-							aria-label="Sketchflow on GitHub"
-						>
-							<GitBranch className="size-4 shrink-0" />
-						</Link>
-						<button
-							className="btn-3d btn-3d--primary h-9 px-4 text-xs font-extrabold cursor-pointer"
-							onClick={() => void app.redirectToSignUp()}
-						>
-							Start free
-							<ArrowRight className="size-4" />
-						</button>
+						</Button>
+						<Button size="sm" onClick={() => void app.redirectToSignUp()}>
+							Get started
+						</Button>
 					</div>
 				</div>
 			</header>
 
-			<section className="mx-auto grid max-w-7xl gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:py-20">
-				<div>
-					<div className="inline-flex items-center gap-2 rounded-full border bg-muted/60 px-3.5 py-1 text-xs font-bold text-muted-foreground backdrop-blur-sm">
-						<Sparkles className="size-3.5 text-primary" />
-						Zero Vendor Lock-In · Git-Backed Visual Workspace
+			<main>
+				<section className="relative overflow-hidden border-b border-border bg-lowland">
+					<ContourField />
+					<div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:py-20">
+						<div>
+							<h1 className="text-[2.75rem] leading-[1.05] font-extrabold tracking-[-0.03em] sm:text-6xl">
+								Sketch it. Write it down. Keep the files.
+							</h1>
+							<p className="mt-5 max-w-[34rem] text-lg text-muted-foreground">
+								Sketchflow is a canvas with a notes editor beside it. Every save is a Git commit to a GitHub
+								repository you own, in file formats that open without us.
+							</p>
+							<div className="mt-7 flex flex-wrap items-center gap-3">
+								<Button size="lg" onClick={() => void app.redirectToSignUp()}>
+									Start with GitHub
+									<ArrowRight />
+								</Button>
+								<Button variant="outline" size="lg" asChild>
+									<Link href={REPO_URL} target="_blank" rel="noopener noreferrer">
+										<GitBranch />
+										Read the source
+									</Link>
+								</Button>
+							</div>
+							<p className="mt-4 text-sm text-muted-foreground">Open source under the MIT licence.</p>
+						</div>
+
+						<div>
+							<SheetDemo />
+							<p className="mt-2.5 text-xs text-muted-foreground">
+								Try it: press Edit, then Save. The commit IDs here are made up for the example.
+							</p>
+						</div>
 					</div>
-					<h1 className="mt-5 max-w-4xl text-4xl font-black leading-[1.02] tracking-tight sm:text-6xl">
-						Visual thinking meets <span className="text-primary">Git reality</span>.
-					</h1>
-					<p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-muted-foreground sm:text-lg">
-						Sketch architecture maps, draft technical specs side-by-side, and commit atomic .excalidraw and Markdown snapshots directly to your repository.
-					</p>
-					<div className="mt-8 flex flex-wrap gap-3">
-						<button
-							className="btn-3d btn-3d--primary h-12 px-6 text-sm font-extrabold cursor-pointer"
+				</section>
+
+				<section id="how" className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+					<h2 className="max-w-[24ch] text-3xl font-bold tracking-tight">From a blank canvas to a commit in four steps</h2>
+					<ol className="mt-8 border-t border-rule">
+						{steps.map((step, index) => (
+							<li key={step.title} className="grid gap-x-6 gap-y-1 border-b border-rule py-5 md:grid-cols-[3rem_minmax(0,18rem)_minmax(0,1fr)]">
+								<span className="datum text-muted-foreground" aria-hidden="true">{index + 1}</span>
+								<h3 className="text-lg font-bold">{step.title}</h3>
+								<p className="max-w-[60ch] text-muted-foreground">{step.body}</p>
+							</li>
+						))}
+					</ol>
+				</section>
+
+				<section id="files" className="border-y border-border bg-lowland">
+					<div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
+						<div>
+							<h2 className="text-3xl font-bold tracking-tight">This is everything Sketchflow writes</h2>
+							<p className="mt-4 max-w-[52ch] text-muted-foreground">
+								Your repository is the database. Sketchflow&apos;s own database holds your account, your GitHub
+								login, a pointer to each workspace repository, and a log of sync events. It holds no sketches and no notes.
+							</p>
+							<p className="mt-3 max-w-[52ch] text-muted-foreground">
+								If Sketchflow went away tomorrow, the sketch would still open in Excalidraw, the notes in any text
+								editor, and the history in Git.
+							</p>
+						</div>
+						<div className="overflow-hidden rounded-lg border border-rule bg-card">
+							<div className="border-b border-rule bg-muted px-3 py-2">
+								<span className="datum text-muted-foreground">your-name/sketchflow-workspace</span>
+							</div>
+							<ul>
+								{repoTree.map((entry) => (
+									<li
+										key={entry.name}
+										className="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-rule px-3 py-2 last:border-b-0"
+									>
+										<span className="datum" style={{ paddingLeft: `${entry.depth * 1.25}rem` }}>{entry.name}</span>
+										{entry.note ? <span className="text-[0.8125rem] text-muted-foreground">{entry.note}</span> : null}
+									</li>
+								))}
+							</ul>
+						</div>
+					</div>
+				</section>
+
+				<section id="who" className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+					<h2 className="max-w-[26ch] text-3xl font-bold tracking-tight">For anyone who explains things by drawing them</h2>
+					<dl className="mt-8 grid gap-x-10 border-t border-rule sm:grid-cols-2">
+						{audiences.map((audience) => (
+							<div key={audience.who} className="border-b border-rule py-5">
+								<dt className="text-lg font-bold">{audience.who}</dt>
+								<dd className="mt-1 max-w-[52ch] text-muted-foreground">{audience.what}</dd>
+							</div>
+						))}
+					</dl>
+				</section>
+
+				<section className="border-t border-border bg-primary text-primary-foreground">
+					<div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-6 px-4 py-12 sm:px-6">
+						<div>
+							<h2 className="text-3xl font-bold tracking-tight">Put your next diagram where your work already lives</h2>
+							<p className="mt-2 max-w-[56ch] opacity-90">
+								All you need is a GitHub account.
+							</p>
+						</div>
+						<Button
+							size="lg"
+							variant="outline"
+							className="border-transparent bg-card text-foreground hover:bg-card/90"
 							onClick={() => void app.redirectToSignUp()}
 						>
 							Start with GitHub
-							<ArrowRight className="size-4" />
-						</button>
-						<Link
-							href="/app"
-							className="btn-3d btn-3d--secondary h-12 px-6 text-sm font-extrabold cursor-pointer flex items-center justify-center"
-						>
-							Open workspace
-							<GitBranch className="size-4 ml-1.5" />
-						</Link>
+							<ArrowRight />
+						</Button>
 					</div>
-					<div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
-						{[
-							["GitHub", "Durable source of truth"],
-							["0ms Latency", "Offline-first local drafts"],
-							["Open Formats", "Standard .json & .md files"],
-						].map(([title, label]) => (
-							<div key={title} className="rounded-[16px] border bg-card px-4 py-3">
-								<div className="text-lg font-black">{title}</div>
-								<div className="text-xs font-bold text-muted-foreground">{label}</div>
-							</div>
-						))}
-					</div>
-				</div>
+				</section>
+			</main>
 
-				<div className="rounded-[24px] border bg-card p-4 shadow-md flex flex-col min-h-[360px]">
-					<div className="flex items-center justify-between border-b pb-2 mb-3">
-						<div className="flex gap-2">
-							<button 
-								onClick={() => setActiveDemoTab("canvas")}
-								className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-									activeDemoTab === "canvas" ? "bg-primary text-white shadow-[0_2px_0_var(--duo-feather-shadow)]" : "hover:bg-muted text-muted-foreground"
-								}`}
-							>
-								🗺️ Canvas
-							</button>
-							<button 
-								onClick={() => setActiveDemoTab("notes")}
-								className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-									activeDemoTab === "notes" ? "bg-primary text-white shadow-[0_2px_0_var(--duo-feather-shadow)]" : "hover:bg-muted text-muted-foreground"
-								}`}
-							>
-								📝 Notes
-							</button>
-							<button 
-								onClick={() => setActiveDemoTab("git")}
-								className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-									activeDemoTab === "git" ? "bg-primary text-white shadow-[0_2px_0_var(--duo-feather-shadow)]" : "hover:bg-muted text-muted-foreground"
-								}`}
-							>
-								📜 Git Log
-							</button>
-						</div>
-						<div className="text-[10px] font-extrabold text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
-							your-org / cloud-arch · main
-						</div>
-					</div>
-
-					<div className="flex-1 rounded-[18px] border bg-muted/30 p-4 flex flex-col justify-center min-h-[220px]">
-						{activeDemoTab === "canvas" && (
-							<div className="space-y-4 flex flex-col items-center justify-center h-full py-4">
-								<div className="flex items-center justify-center gap-6 w-full max-w-sm">
-									<div className="flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-card shadow-sm text-center w-24">
-										<Globe className="size-5 text-[#1CB0F6]" />
-										<span className="text-[10px] font-extrabold">Web Client</span>
-									</div>
-									<div className="text-muted-foreground font-bold">➔</div>
-									<div className="flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-card shadow-sm text-center w-24">
-										<Code2 className="size-5 text-[#58CC02]" />
-										<span className="text-[10px] font-extrabold">Edge Worker</span>
-									</div>
-									<div className="text-muted-foreground font-bold">➔</div>
-									<div className="flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-card shadow-sm text-center w-24">
-										<GitBranch className="size-5 text-[#CE82FF]" />
-										<span className="text-[10px] font-extrabold">GitHub Repo</span>
-									</div>
-								</div>
-								<div className="text-[11px] font-bold text-muted-foreground text-center max-w-xs mt-2 leading-relaxed">
-									Infinite Excalidraw canvas saved as clean, portable <code className="text-foreground bg-muted px-1 py-0.5 rounded text-[10px]">.excalidraw.json</code> files.
-								</div>
-							</div>
-						)}
-
-						{activeDemoTab === "notes" && (
-							<div className="font-sans space-y-2.5 text-left text-xs leading-relaxed text-foreground p-1">
-								<div className="text-sm font-extrabold text-primary mb-1"># System Architecture & RFC Spec</div>
-								<p className="text-muted-foreground font-semibold">Markdown documentation versioned right beside your visual diagrams in <code className="text-foreground bg-muted px-1 py-0.5 rounded text-[10px]">/docs/notes.md</code>:</p>
-								<ul className="space-y-2 mt-2">
-									<li className="flex items-center gap-2 font-bold"><span className="text-primary font-black">✔</span> Stored in your private or public GitHub repository</li>
-									<li className="flex items-center gap-2 font-bold"><span className="text-primary font-black">✔</span> Zero proprietary database silos or locked formats</li>
-									<li className="flex items-center gap-2 font-bold"><span className="text-primary font-black">✔</span> Fully readable and editable in VS Code, Obsidian, or Neovim</li>
-								</ul>
-							</div>
-						)}
-
-						{activeDemoTab === "git" && (
-							<div className="space-y-2.5 font-mono text-[10px] text-left w-full">
-								<div className="flex justify-between items-center p-2 rounded-lg bg-card border">
-									<div className="flex items-center gap-2">
-										<span className="w-1.5 h-1.5 rounded-full bg-primary" />
-										<span className="font-bold text-foreground">feat(arch): add edge worker & queue topology</span>
-									</div>
-									<span className="text-muted-foreground">7f2a1b9</span>
-								</div>
-								<div className="flex justify-between items-center p-2 rounded-lg bg-card border opacity-85">
-									<div className="flex items-center gap-2">
-										<span className="w-1.5 h-1.5 rounded-full bg-primary" />
-										<span className="font-bold text-foreground">docs(rfc): document failover & caching strategies</span>
-									</div>
-									<span className="text-muted-foreground">3c8d4e2</span>
-								</div>
-								<div className="flex justify-between items-center p-2 rounded-lg bg-card border opacity-70">
-									<div className="flex items-center gap-2">
-										<span className="w-1.5 h-1.5 rounded-full bg-primary" />
-										<span className="font-bold text-foreground">chore: sync multi-file snapshot from sketchflow</span>
-									</div>
-									<span className="text-muted-foreground">b5e1a04</span>
-								</div>
-							</div>
-						)}
-					</div>
-					<div className="mt-4 grid gap-3 sm:grid-cols-2">
-						<div className="rounded-[18px] border bg-background p-4 shadow-sm hover:border-primary/45 transition-colors">
-							<div className="flex items-center gap-2 text-sm font-black">
-								<Zap className="size-4 text-primary" />
-								0ms Local Drafts
-							</div>
-							<p className="mt-1.5 text-xs font-semibold text-muted-foreground leading-relaxed">
-								Autosaves locally to IndexedDB with zero latency. Push atomic Git snapshots to GitHub when you are ready.
-							</p>
-						</div>
-						<div className="rounded-[18px] border bg-background p-4 shadow-sm hover:border-primary/45 transition-colors">
-							<div className="flex items-center gap-2 text-sm font-black">
-								<ShieldCheck className="size-4 text-primary" />
-								Zero Lock-In Guarantee
-							</div>
-							<p className="mt-1.5 text-xs font-semibold text-muted-foreground leading-relaxed">
-								Every diagram is standard Excalidraw JSON; every note is standard Markdown. Your work stays yours forever.
-							</p>
-						</div>
-					</div>
-				</div>
-			</section>
-
-			<section id="workflow" className="border-y bg-muted/35">
-				<div className="mx-auto max-w-7xl px-5 py-14 sm:px-8">
-					<div className="max-w-2xl">
-						<h2 className="text-3xl font-black tracking-tight">A calmer, Git-native workflow for engineering teams.</h2>
-						<p className="mt-3 text-sm font-semibold leading-6 text-muted-foreground">
-							Stop losing diagrams across Slack threads and expired whiteboard subscriptions. Your codebase and your architecture evolve together.
-						</p>
-					</div>
-					<div className="mt-8 grid gap-4 md:grid-cols-4">
-						{workflow.map((step) => {
-							const Icon = step.icon;
-							return (
-								<div key={step.title} className="rounded-[20px] border bg-card p-5 shadow-sm hover:border-primary/40 transition-colors">
-									<div className="grid size-10 place-items-center rounded-[14px] bg-primary/10 text-primary">
-										<Icon className="size-5" />
-									</div>
-									<h3 className="mt-4 text-base font-black">{step.title}</h3>
-									<p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">{step.description}</p>
-								</div>
-							);
-						})}
-					</div>
-				</div>
-			</section>
-
-			<section id="use-cases" className="mx-auto max-w-7xl px-5 py-14 sm:px-8">
-				<div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
-					<div>
-						<h2 className="text-3xl font-black tracking-tight">Built for developers who explain complex systems.</h2>
-						<p className="mt-3 text-sm font-semibold leading-6 text-muted-foreground">
-							Architects, developers, technical writers, and teams get one unified workspace instead of scattered canvases, lost passwords, and abandoned tabs.
-						</p>
-					</div>
-					<div className="grid gap-4 md:grid-cols-3">
-						{personas.map((item) => {
-							const Icon = item.icon;
-							return (
-								<div key={item.title} className="rounded-[20px] border bg-card p-5 hover:border-primary/40 transition-colors">
-									<Icon className="size-5 text-primary" />
-									<h3 className="mt-4 text-base font-black">{item.title}</h3>
-									<p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">{item.description}</p>
-								</div>
-							);
-						})}
-					</div>
-				</div>
-				<div className="mt-8 flex flex-wrap gap-2">
-					{features.map((item) => {
-						const Icon = item.icon;
-						return (
-							<div
-								key={item.label}
-								className="inline-flex items-center gap-2 rounded-full border bg-muted px-3.5 py-2 text-xs font-bold text-muted-foreground"
-							>
-								<Icon className="size-4 text-primary" />
-								{item.label}
-							</div>
-						);
-					})}
-				</div>
-			</section>
-
-			<section id="ownership" className="mx-auto max-w-7xl px-5 pb-16 sm:px-8">
-				<div className="grid gap-4 lg:grid-cols-3">
-					<div className="rounded-[24px] border bg-card p-6 lg:col-span-2">
-						<div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-primary">
-							<CheckCircle2 className="size-4" />
-							The Anti-Lock-In Manifesto
-						</div>
-						<h2 className="mt-3 text-3xl font-black tracking-tight">Your drawings belong in Git, not our database.</h2>
-						<p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-muted-foreground">
-							Traditional visual tools trap your architectural thinking inside proprietary subscription silos. Sketchflow is built differently: our database only handles auth pointers. Your actual diagrams, documentation, metadata, and exports live safely inside your own GitHub repository.
-						</p>
-						<div className="mt-6 grid gap-3 md:grid-cols-3">
-							{[
-								{ title: "No DB Silos", desc: "Files live in your GitHub repo" },
-								{ title: "Atomic Git Commits", desc: "Canvas + docs update in 1 SHA" },
-								{ title: "100% Open Standards", desc: "Standard .json & .md formats" },
-							].map((item) => (
-								<div key={item.title} className="rounded-[16px] border bg-muted/45 px-4 py-3">
-									<div className="text-sm font-black">{item.title}</div>
-									<div className="text-xs font-semibold text-muted-foreground mt-0.5">{item.desc}</div>
-								</div>
-							))}
-						</div>
-					</div>
-					<div className="rounded-[24px] border bg-primary p-6 text-primary-foreground flex flex-col justify-between">
-						<div>
-							<h2 className="text-2xl font-black">Own your project blueprints.</h2>
-							<p className="mt-3 text-sm font-bold leading-6 opacity-85">
-								Connect your GitHub repo in seconds. Design systems, write specs, and commit atomic snapshots with zero subscription locks.
-							</p>
-						</div>
-						<button
-							className="btn-3d btn-3d--secondary mt-6 w-full h-12 text-xs font-extrabold cursor-pointer"
-							onClick={() => void app.redirectToSignUp()}
-						>
-							Create workspace
-							<ArrowRight className="size-4" />
-						</button>
-					</div>
-				</div>
-			</section>
-
-			<footer className="border-t">
-				<div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-xs font-bold text-muted-foreground sm:px-8">
-					<div className="flex items-center gap-3">
-						<span>Sketchflow · Open Source GitHub-Native Workspace</span>
-						<Link
-							href="https://github.com/playlikeboy/sketchflow"
-							target="_blank"
-							className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-extrabold text-amber-500 hover:bg-amber-500/20 transition-colors"
-						>
-							🎃 Hacktoberfest Ready
-						</Link>
-					</div>
-					<div className="flex items-center gap-4">
-						<a href={SKETCHFLOW_APP_URL} className="hover:text-foreground transition-colors">
-							sketchflow.space
-						</a>
-						<Link href="/app" className="hover:text-foreground transition-colors">
-							Open app
-						</Link>
-						<Link href="https://github.com/playlikeboy/sketchflow" target="_blank" className="hover:text-foreground transition-colors">
+			<footer className="border-t border-border">
+				<div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-muted-foreground sm:px-6">
+					<span>Sketchflow · MIT licence</span>
+					<nav aria-label="Footer" className="flex items-center gap-5">
+						<Link href="/help" className="rounded-sm hover:text-foreground">Help</Link>
+						<Link href="/app" className="rounded-sm hover:text-foreground">Open the app</Link>
+						<Link href={REPO_URL} target="_blank" rel="noopener noreferrer" className="rounded-sm hover:text-foreground">
 							GitHub
 						</Link>
-						<Link href="/help" className="hover:text-foreground transition-colors">
-							Docs & Guides
-						</Link>
-					</div>
+					</nav>
 				</div>
 			</footer>
-		</main>
+		</div>
 	);
 }

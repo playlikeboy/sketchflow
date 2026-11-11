@@ -5,9 +5,8 @@ import { ExternalLink, GitBranch } from "lucide-react";
 
 import { BrandMark } from "@/components/brand-mark";
 import { PublicSketchViewer } from "@/components/public-sketch-viewer";
-import { Badge } from "@/components/ui/badge";
+import { TitleBlock, TitleBlockRow } from "@/components/title-block";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { loadPublicProjectView } from "@/server/public-github";
 
 type PageProps = {
@@ -46,45 +45,61 @@ export default async function ShareProjectPage({
 	const { branch, project, scene } = view;
 	const title = project?.title || projectId;
 
+	const revised = project?.updatedAt ? new Date(project.updatedAt) : null;
+	const revisedLabel =
+		revised && !Number.isNaN(revised.getTime())
+			? revised.toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+			: null;
+
 	return (
-		<main className="min-h-screen bg-background px-5 py-10">
-			<div className="mx-auto max-w-5xl">
-				<div className="mb-6 flex items-center justify-between gap-3">
+		<div className="min-h-screen bg-background">
+			<header className="border-b border-border">
+				<div className="mx-auto flex h-12 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
 					<BrandMark />
-					<Badge variant="secondary" className="font-normal">
-						Public project
-					</Badge>
+					<Button variant="outline" size="sm" asChild>
+						<Link href="/">What is Sketchflow?</Link>
+					</Button>
+				</div>
+			</header>
+
+			<main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+				<div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-end">
+					<div>
+						<h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+						<p className="mt-2 max-w-[60ch] text-sm text-muted-foreground">
+							A read-only view of a sketch that lives in a public GitHub repository. Pan and zoom freely; nothing
+							you do here changes the original.
+						</p>
+					</div>
+					<TitleBlock>
+						<TitleBlockRow label="Repository" mono>{owner}/{repo}</TitleBlockRow>
+						<TitleBlockRow label="Folder" mono>projects/{projectId}</TitleBlockRow>
+						<TitleBlockRow label="Version" mono>{branch.length === 40 ? branch.slice(0, 7) : branch}</TitleBlockRow>
+						{revisedLabel ? <TitleBlockRow label="Revised">{revisedLabel}</TitleBlockRow> : null}
+					</TitleBlock>
 				</div>
 
-				<Card>
-					<CardHeader>
-						<CardTitle className="text-2xl">{title}</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<p className="text-sm text-muted-foreground">
-							This project is served from the owner&apos;s GitHub workspace repo.
-						</p>
-						<div className="rounded-lg border bg-muted/20 p-3 font-mono text-xs text-muted-foreground">
-							{owner}/{repo}/projects/{projectId}
-						</div>
-						<PublicSketchViewer scene={scene} />
-						<div className="flex flex-wrap gap-2">
-							<Button asChild>
-								<Link href={`https://github.com/${owner}/${repo}/tree/${branch}/projects/${projectId}`} target="_blank">
-									<GitBranch className="size-4" />
-									View source
-								</Link>
-							</Button>
-							<Button variant="outline" asChild>
-								<Link href={`/embed/${owner}/${repo}/${projectId}`} target="_blank">
-									<ExternalLink className="size-4" />
-									Embed view
-								</Link>
-							</Button>
-						</div>
-					</CardContent>
-				</Card>
-			</div>
-		</main>
+				<PublicSketchViewer scene={scene} className="mt-6 h-[min(70vh,44rem)] w-full" />
+
+				<div className="mt-4 flex flex-wrap gap-2">
+					<Button asChild>
+						<Link
+							href={`https://github.com/${owner}/${repo}/tree/${branch}/projects/${projectId}`}
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							<GitBranch />
+							View files on GitHub
+						</Link>
+					</Button>
+					<Button variant="outline" asChild>
+						<Link href={`/embed/${owner}/${repo}/${projectId}${ref ? `?ref=${encodeURIComponent(ref)}` : ""}`} target="_blank">
+							<ExternalLink />
+							Open embed view
+						</Link>
+					</Button>
+				</div>
+			</main>
+		</div>
 	);
 }
