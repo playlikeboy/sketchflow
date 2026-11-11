@@ -1,6 +1,9 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import type { SketchflowUser } from "@/server/auth";
+import { workspaceConflictUpdate, type WorkspaceInput, type WorkspaceVisibility } from "@/server/db/workspace-upsert";
+
+export type { WorkspaceInput, WorkspaceVisibility };
 import { getDb } from "@/server/db/client";
 import {
 	sketchflowGithubConnections,
@@ -10,7 +13,6 @@ import {
 	type WorkspaceRow,
 } from "@/server/db/schema";
 
-export type WorkspaceVisibility = "private" | "public";
 
 export type WorkspaceRecord = {
 	id: string;
@@ -22,14 +24,6 @@ export type WorkspaceRecord = {
 	latestCommitSha: string | null;
 	createdAt: string;
 	updatedAt: string;
-};
-
-export type WorkspaceInput = {
-	repoOwner: string;
-	repoName: string;
-	defaultBranch?: string;
-	visibility?: WorkspaceVisibility;
-	latestCommitSha?: string | null;
 };
 
 export type SyncEventInput = {
@@ -138,15 +132,6 @@ export async function getWorkspacePublic(workspaceId: string) {
 		.limit(1);
 
 	return row ? mapWorkspace(row) : null;
-}
-
-// Only overwrite columns the caller actually provided, so partial updates (e.g. a visibility
-// sync) never reset an existing workspace's branch back to the insert default.
-export function workspaceConflictUpdate(input: WorkspaceInput) {
-	return {
-		...(input.defaultBranch ? { defaultBranch: input.defaultBranch } : {}),
-		...(input.visibility ? { visibility: input.visibility } : {}),
-	};
 }
 
 export async function upsertWorkspace(stackUserId: string, input: WorkspaceInput) {

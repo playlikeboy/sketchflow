@@ -1,9 +1,31 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PublicSketchViewer } from "@/components/public-sketch-viewer";
 import { Badge } from "@/components/ui/badge";
 import { loadPublicProjectView } from "@/server/public-github";
+
+type PageProps = {
+	params: Promise<{ owner: string; repo: string; projectId: string }>;
+	searchParams: Promise<{ ref?: string }>;
+};
+
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
+	const { owner, repo, projectId } = await params;
+	const { ref } = await searchParams;
+	const view = await loadPublicProjectView(owner, repo, projectId, ref, "embed");
+	if (!view) {
+		return { title: "Project not found", robots: { index: false } };
+	}
+
+	const title = view.project?.title || projectId;
+	return {
+		title,
+		description: `${title} — a public Sketchflow project from ${owner}/${repo}.`,
+		robots: { index: false },
+	};
+}
 
 export default async function EmbedProjectPage({
 	params,
@@ -14,7 +36,7 @@ export default async function EmbedProjectPage({
 }) {
 	const { owner, repo, projectId } = await params;
 	const { ref } = await searchParams;
-	const view = await loadPublicProjectView({ owner, repo, projectId, ref, mode: "embed" });
+	const view = await loadPublicProjectView(owner, repo, projectId, ref, "embed");
 	if (!view) {
 		notFound();
 	}

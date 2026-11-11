@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import type { SketchScene } from "@/lib/api";
 import { GITHUB_REST_API_VERSION } from "@/lib/config";
 import { encodeGithubBranch } from "@/server/github-validation";
@@ -32,25 +34,33 @@ function safeGithubPath(value: string) {
 	return value;
 }
 
+// Returns null when GitHub will not answer (unauthenticated calls are limited to 60 per hour
+// per egress IP), so callers can fall back to probing common branch names instead.
 export async function getPublicRepoDefaultBranch(owner: string, repo: string) {
-	const response = await fetch(
-		`https://api.github.com/repos/${safeGithubSegment(owner)}/${safeGithubSegment(repo)}`,
-		{
-			headers: {
-				Accept: "application/vnd.github+json",
-				"X-GitHub-Api-Version": GITHUB_REST_API_VERSION,
+	try {
+		const response = await fetch(
+			`https://api.github.com/repos/${safeGithubSegment(owner)}/${safeGithubSegment(repo)}`,
+			{
+				headers: {
+					Accept: "application/vnd.github+json",
+					"X-GitHub-Api-Version": GITHUB_REST_API_VERSION,
+				},
+				next: { revalidate: 3600 },
 			},
-			next: { revalidate: 300 },
-		},
-	);
+		);
 
-	if (!response.ok) {
-		return "main";
+		if (!response.ok) {
+			return null;
+		}
+
+		const repository = (await response.json()) as PublicRepo;
+		return repository.default_branch || null;
+	} catch {
+		return null;
 	}
-
-	const repository = (await response.json()) as PublicRepo;
-	return repository.default_branch || "main";
 }
+
+const FALLBACK_BRANCHES = ["main", "master"];
 
 export async function readPublicJson<T>(input: {
 	owner: string;
@@ -122,7 +132,7 @@ export type PublicProjectView = {
 
 // Shared loader for the share and embed pages. Returns null (render a 404) when the URL is
 // malformed or the owner has turned sharing off for the project.
-export async function loadPublicProjectView(input: {
+async function loadPublicProjectViewUncached(input: {
 	owner: string;
 	repo: string;
 	projectId: string;
@@ -133,27 +143,39 @@ export async function loadPublicProjectView(input: {
 		safeGithubSegment(input.owner);
 		safeGithubSegment(input.repo);
 		safeGithubSegment(input.projectId);
-		const branch = input.ref ? input.ref : await getPublicRepoDefaultBranch(input.owner, input.repo);
-		encodeGithubBranch(branch);
+		// raw.githubusercontent.com is not subject to the API rate limit, so when the default
+		// branch is unknown we probe the common names there.
+		const knownBranch = input.ref || (await getPublicRepoDefaultBranch(input.owner, input.repo));
+		const candidates = knownBranch ? [knownBranch] : FALLBACK_BRANCHES;
 
-		const base = { owner: input.owner, repo: input.repo, branch, projectId: input.projectId };
-		const project = await readPublicProject(base).catch(() => null);
+		for (const branch of candidates) {
+			encodeGithubBranch(branch);
 
-		if (project) {
-			const sharingOff = project.sharing?.enabled === false || project.visibility === "private";
-			const embedOff = input.mode === "embed" && project.sharing?.embed === false;
-			if (sharingOff || embedOff) {
-				return null;
+			const base = { owner: input.owner, repo: input.repo, branch, projectId: input.projectId };
+			const project = await readPublicProject(base).catch(() => null);
+
+			if (project) {
+				const sharingOff = project.sharing?.enabled === false || project.visibility === "private";
+				const embedOff = input.mode === "embed" && project.sharing?.embed === false;
+				if (sharingOff || embedOff) {
+					return null;
+				}
+			}
+
+			const scene = await readPublicSketch({ ...base, project }).catch(() => null);
+			if (project || scene) {
+				return { branch, project, scene };
 			}
 		}
 
-		const scene = await readPublicSketch({ ...base, project }).catch(() => null);
-		if (!project && !scene) {
-			return null;
-		}
-
-		return { branch, project, scene };
+		return null;
 	} catch {
 		return null;
 	}
 }
+
+// Deduplicates the load between generateMetadata and the page render of one request.
+export const loadPublicProjectView = cache(
+	(owner: string, repo: string, projectId: string, ref: string | undefined, mode: "share" | "embed") =>
+		loadPublicProjectViewUncached({ owner, repo, projectId, ref, mode }),
+);

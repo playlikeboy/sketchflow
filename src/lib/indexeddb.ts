@@ -1,3 +1,13 @@
+import {
+	legacyUnscopedKey,
+	localProjectsKey,
+	offlineCommitsKey,
+	projectDraftPrefix,
+	projectsCacheKey,
+	scopePrefixes,
+	workspacesKey,
+} from "@/lib/storage-keys";
+
 const DB_NAME = "sketchflow";
 const DB_VERSION = 1;
 const STORE_NAME = "drafts";
@@ -48,7 +58,25 @@ export async function getDraft<T>(key: string) {
 	}
 
 	const record = await withDraftStore<DraftRecord<T> | undefined>("readonly", (store) => store.get(key));
-	return record ?? null;
+	if (record) {
+		return record;
+	}
+
+	// One-time move of signed-out data written by older builds under unscoped keys.
+	const legacyKey = legacyUnscopedKey(key);
+	if (!legacyKey) {
+		return null;
+	}
+
+	const legacy = await withDraftStore<DraftRecord<T> | undefined>("readonly", (store) => store.get(legacyKey));
+	if (!legacy) {
+		return null;
+	}
+
+	const migrated: DraftRecord<T> = { ...legacy, key };
+	await withDraftStore<IDBValidKey>("readwrite", (store) => store.put(migrated));
+	await withDraftStore<undefined>("readwrite", (store) => store.delete(legacyKey));
+	return migrated;
 }
 
 export async function setDraft<T>(key: string, value: T) {
@@ -72,18 +100,6 @@ export async function deleteDraft(key: string) {
 	}
 
 	await withDraftStore<undefined>("readwrite", (store) => store.delete(key));
-}
-
-function localProjectsKey(workspaceId: string, userId?: string | null) {
-	return userId ? `local-projects:${userId}:${workspaceId}` : `local-projects:${workspaceId}`;
-}
-
-function workspacesKey(userId?: string | null) {
-	return userId ? `workspaces:${userId}` : "workspaces:default";
-}
-
-function projectsCacheKey(workspaceId: string, userId?: string | null) {
-	return userId ? `projects-cache:${userId}:${workspaceId}` : `projects-cache:${workspaceId}`;
 }
 
 export async function getLocalProjects(workspaceId: string, userId?: string | null): Promise<any[]> {
@@ -137,7 +153,7 @@ export async function hasAnyLocalProjects(userId?: string | null): Promise<boole
 	}
 	try {
 		const db = await openSketchflowDb();
-		const prefix = userId ? `local-projects:${userId}:` : "local-projects:";
+		const prefix = localProjectsKey("", userId);
 		return new Promise<boolean>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readonly");
 			const store = transaction.objectStore(STORE_NAME);
@@ -173,7 +189,8 @@ export async function purgeProjectDrafts(workspaceId: string, projectId: string,
 
 	try {
 		const db = await openSketchflowDb();
-		const prefix = "sketch:" + workspaceId + ":" + projectId + ":";
+		// Scoped to one user (or the signed-out "local" scope): never touches other accounts' drafts.
+		const prefix = projectDraftPrefix(workspaceId, projectId, userId);
 		await new Promise<void>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readwrite");
 			const store = transaction.objectStore(STORE_NAME);
@@ -182,10 +199,7 @@ export async function purgeProjectDrafts(workspaceId: string, projectId: string,
 				const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
 				if (!cursor) return;
 				const key = typeof cursor.key === "string" ? cursor.key : "";
-				const segments = key.split(":");
-				const matchesUser =
-					!userId || segments.at(-1) === userId || segments.at(-2) === userId;
-				if (key.startsWith(prefix) && matchesUser) cursor.delete();
+				if (key.startsWith(prefix)) cursor.delete();
 				cursor.continue();
 			};
 			request.onerror = () => reject(request.error);
@@ -199,12 +213,8 @@ export async function purgeProjectDrafts(workspaceId: string, projectId: string,
 
 export async function purgeUserCache(userId: string) {
 	if (typeof indexedDB === "undefined" || !userId) return;
-	const exactPrefixes = [
-		"local-projects:" + userId + ":",
-		"projects-cache:" + userId + ":",
-		"offline-commits:" + userId + ":",
-		"workspaces:" + userId,
-	];
+	const prefixes = scopePrefixes(userId);
+	const userWorkspacesKey = workspacesKey(userId);
 	try {
 		const db = await openSketchflowDb();
 		await new Promise<void>((resolve, reject) => {
@@ -215,14 +225,7 @@ export async function purgeUserCache(userId: string) {
 				const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
 				if (!cursor) return;
 				const key = typeof cursor.key === "string" ? cursor.key : "";
-				const knownUserKey = exactPrefixes.some((prefix) =>
-					prefix === "workspaces:" + userId ? key === prefix : key.startsWith(prefix),
-				);
-				const segments = key.split(":");
-				const sketchUserKey =
-					segments[0] === "sketch" &&
-					(segments.at(-1) === userId || segments.at(-2) === userId);
-				if (knownUserKey || sketchUserKey) cursor.delete();
+				if (key === userWorkspacesKey || prefixes.some((prefix) => key.startsWith(prefix))) cursor.delete();
 				cursor.continue();
 			};
 			request.onerror = () => reject(request.error);
@@ -246,24 +249,13 @@ export type OfflineCommit = {
 	}[];
 };
 
-function offlineCommitsKey(workspaceId: string, projectId: string, userId?: string | null) {
-	return userId
-		? "offline-commits:" + userId + ":" + workspaceId + ":" + projectId
-		: "offline-commits:" + workspaceId + ":" + projectId;
-}
-
 export async function getOfflineCommits(
 	workspaceId: string,
 	projectId: string,
 	userId?: string | null,
 ): Promise<OfflineCommit[]> {
-	const scoped = await getDraft<OfflineCommit[]>(offlineCommitsKey(workspaceId, projectId, userId));
-	if (scoped?.value) return scoped.value;
-	if (userId) {
-		const legacy = await getDraft<OfflineCommit[]>(offlineCommitsKey(workspaceId, projectId));
-		return legacy?.value ?? [];
-	}
-	return [];
+	const record = await getDraft<OfflineCommit[]>(offlineCommitsKey(workspaceId, projectId, userId));
+	return record?.value ?? [];
 }
 
 export async function saveOfflineCommit(
@@ -274,7 +266,6 @@ export async function saveOfflineCommit(
 ) {
 	const existing = await getOfflineCommits(workspaceId, projectId, userId);
 	await setDraft(offlineCommitsKey(workspaceId, projectId, userId), [...existing, commit]);
-	if (userId) await deleteDraft(offlineCommitsKey(workspaceId, projectId));
 }
 
 export async function clearOfflineCommits(
@@ -282,8 +273,5 @@ export async function clearOfflineCommits(
 	projectId: string,
 	userId?: string | null,
 ) {
-	await Promise.all([
-		deleteDraft(offlineCommitsKey(workspaceId, projectId, userId)),
-		deleteDraft(offlineCommitsKey(workspaceId, projectId)),
-	]);
+	await deleteDraft(offlineCommitsKey(workspaceId, projectId, userId));
 }

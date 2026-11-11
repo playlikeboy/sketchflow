@@ -19,7 +19,8 @@ import {
 	validateGithubPathSegment,
 	validateGithubRepoName,
 } from "@/server/github";
-import { BadRequestError, jsonError, jsonOk, assertSameOrigin } from "@/server/http";
+import { BadRequestError, jsonError, jsonOk, assertSameOrigin, assertRateLimit } from "@/server/http";
+import { RATE_LIMITS } from "@/server/rate-limit";
 import { isJsonObject, optionalBoolean, optionalString } from "@/server/validation";
 
 function parseVisibility(isPrivate: boolean): WorkspaceVisibility {
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
 		assertSameOrigin(request);
 		const stackUser = await requireUser();
 		const user = normalizeStackUser(stackUser);
+		assertRateLimit("bootstrap", user.id, RATE_LIMITS.bootstrap);
 		const scopes = getGithubOAuthScopes();
 		const { accessToken } = await requireGithubAccessToken(scopes, request);
 

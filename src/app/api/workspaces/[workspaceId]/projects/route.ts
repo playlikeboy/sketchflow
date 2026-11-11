@@ -24,7 +24,8 @@ import {
 	readGithubFileText,
 	validateGithubPathSegment,
 } from "@/server/github";
-import { BadRequestError, jsonError, jsonOk, NotFoundError, assertSameOrigin } from "@/server/http";
+import { BadRequestError, jsonError, jsonOk, NotFoundError, assertSameOrigin, assertRateLimit } from "@/server/http";
+import { RATE_LIMITS } from "@/server/rate-limit";
 import { isJsonObject, optionalString } from "@/server/validation";
 import { humanizeSlug, notesFilePath, projectFilePath, sketchFilePath, slugify } from "@/lib/sketchflow";
 
@@ -373,6 +374,7 @@ export async function POST(
 		const { workspaceId } = await params;
 		const scopes = getGithubOAuthScopes();
 		const { accessToken, user } = await requireGithubAccessToken(scopes, request);
+		assertRateLimit("project-write", user.id, RATE_LIMITS.projectWrite);
 		const workspace = await getWorkspace(user.id, workspaceId);
 
 		if (!workspace) {

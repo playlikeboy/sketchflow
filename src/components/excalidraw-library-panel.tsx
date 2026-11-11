@@ -92,8 +92,8 @@ export function ExcalidrawLibraryPanel({
 	const [query, setQuery] = useState("");
 	const { data, error, isLoading, mutate } = useExcalidrawLibraries();
 	const installed = useMemo(() => new Set(installedSources), [installedSources]);
-	const libraries: ExcalidrawLibrary[] = data?.libraries ?? [];
 	const filteredLibraries = useMemo(() => {
+		const libraries: ExcalidrawLibrary[] = data?.libraries ?? [];
 		return libraries
 			.filter((library) => audience === "all" || library.audiences.includes(audience))
 			.filter((library) => matchesLibrary(library, query))
@@ -108,7 +108,7 @@ export function ExcalidrawLibraryPanel({
 
 				return left.name.localeCompare(right.name);
 			});
-	}, [audience, installed, libraries, query]);
+	}, [audience, data?.libraries, installed, query]);
 	const activeAudience = libraryAudiences.find((item) => item.id === audience) ?? libraryAudiences[0];
 	const ActiveIcon = audienceIcons[audience];
 

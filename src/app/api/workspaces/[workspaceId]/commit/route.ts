@@ -2,7 +2,8 @@ import { requireGithubAccessToken } from "@/server/auth";
 import { getWorkspace, recordSyncEvent, updateWorkspaceCommit } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
 import { createCommitOnBranch, jsDelivrBaseUrl, validateGithubFileChange, type GithubFileChange } from "@/server/github";
-import { BadRequestError, jsonError, jsonOk, NotFoundError, assertSameOrigin } from "@/server/http";
+import { BadRequestError, jsonError, jsonOk, NotFoundError, assertSameOrigin, assertRateLimit } from "@/server/http";
+import { RATE_LIMITS } from "@/server/rate-limit";
 import { isJsonObject, optionalString } from "@/server/validation";
 
 function parseFiles(value: unknown) {
@@ -28,6 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ wor
 		const { workspaceId } = await params;
 		const scopes = getGithubOAuthScopes();
 		const { accessToken, user } = await requireGithubAccessToken(scopes, request);
+		assertRateLimit("commit", user.id, RATE_LIMITS.commit);
 		const workspace = await getWorkspace(user.id, workspaceId);
 
 		if (!workspace) {

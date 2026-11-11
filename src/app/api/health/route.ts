@@ -1,16 +1,18 @@
 import { pingDatabase } from "@/server/db/client";
-import { jsonError, jsonOk } from "@/server/http";
+import { jsonOk } from "@/server/http";
 
-export async function GET() {
-	try {
-		const database = await pingDatabase();
+// Liveness by default: no database round trip and nothing internal in the response.
+// `?deep=1` also checks the database and reports only whether it answered.
+export async function GET(request: Request) {
+	const deep = new URL(request.url).searchParams.get("deep") === "1";
 
-		return jsonOk({
-			ok: true,
-			service: "sketchflow-api",
-			database,
-		});
-	} catch (error) {
-		return jsonError(error);
+	if (!deep) {
+		return jsonOk({ ok: true, service: "sketchflow-api" });
 	}
+
+	const database = await pingDatabase()
+		.then(() => true)
+		.catch(() => false);
+
+	return jsonOk({ ok: database, service: "sketchflow-api", database }, { status: database ? 200 : 503 });
 }

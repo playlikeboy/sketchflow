@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink, GitBranch } from "lucide-react";
@@ -9,6 +10,26 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { loadPublicProjectView } from "@/server/public-github";
 
+type PageProps = {
+	params: Promise<{ owner: string; repo: string; projectId: string }>;
+	searchParams: Promise<{ ref?: string }>;
+};
+
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
+	const { owner, repo, projectId } = await params;
+	const { ref } = await searchParams;
+	const view = await loadPublicProjectView(owner, repo, projectId, ref, "share");
+	if (!view) {
+		return { title: "Project not found", robots: { index: false } };
+	}
+
+	const title = view.project?.title || projectId;
+	return {
+		title,
+		description: `${title} — a public Sketchflow project from ${owner}/${repo}.`,
+	};
+}
+
 export default async function ShareProjectPage({
 	params,
 	searchParams,
@@ -18,7 +39,7 @@ export default async function ShareProjectPage({
 }) {
 	const { owner, repo, projectId } = await params;
 	const { ref } = await searchParams;
-	const view = await loadPublicProjectView({ owner, repo, projectId, ref, mode: "share" });
+	const view = await loadPublicProjectView(owner, repo, projectId, ref, "share");
 	if (!view) {
 		notFound();
 	}

@@ -1,5 +1,6 @@
 "use client";
 
+import { draftKey } from "@/lib/storage-keys";
 import { useEffect, useMemo, useState } from "react";
 import useSWR, { type Key } from "swr";
 
@@ -40,7 +41,8 @@ type StateDraftValue = {
 };
 
 async function readLocalSketchDraft(workspaceId: string, projectId: string, sketchId: string, userId?: string | null) {
-	const base = userId ? `sketch:${workspaceId}:${projectId}:${sketchId}:${userId}` : `sketch:${workspaceId}:${projectId}:${sketchId}`;
+	// Must match the key the editor writes drafts under.
+	const base = draftKey(workspaceId, projectId, sketchId, userId);
 	const [scene, notes, state] = await Promise.all([
 		getDraft<DraftValue>(base),
 		getDraft<NotesDraftValue>(`${base}:notes`),

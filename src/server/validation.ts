@@ -1,4 +1,4 @@
-import { BadRequestError } from "@/server/http";
+import { BadRequestError } from "@/server/errors";
 
 export type JsonObject = Record<string, unknown>;
 

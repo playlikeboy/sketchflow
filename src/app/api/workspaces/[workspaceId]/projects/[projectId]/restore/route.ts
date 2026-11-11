@@ -9,7 +9,8 @@ import {
 	validateGithubPathSegment,
 	validateProjectScopedPath,
 } from "@/server/github";
-import { BadRequestError, jsonError, jsonOk, NotFoundError, assertSameOrigin } from "@/server/http";
+import { BadRequestError, jsonError, jsonOk, NotFoundError, assertSameOrigin, assertRateLimit } from "@/server/http";
+import { RATE_LIMITS } from "@/server/rate-limit";
 import {
 	PROJECTS_METADATA_PATH,
 	buildProjectsMetadata,
@@ -27,6 +28,7 @@ export async function POST(
 		const { workspaceId, projectId: rawProjectId } = await params;
 		const projectId = validateGithubPathSegment(rawProjectId);
 		const user = normalizeStackUser(await requireUser());
+		assertRateLimit("project-write", user.id, RATE_LIMITS.projectWrite);
 		const workspace = await getWorkspace(user.id, workspaceId);
 
 		if (!workspace) {

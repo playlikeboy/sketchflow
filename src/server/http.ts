@@ -1,68 +1,39 @@
 import { NextResponse } from "next/server";
 
 import { GithubAccessTokenError, UnauthorizedError } from "@/server/auth";
+import { BadRequestError, ForbiddenError, HttpError, NotFoundError } from "@/server/errors";
+import { CrossSiteRequestError, assertSameOrigin as checkSameOrigin } from "@/server/origin";
+import { createRateLimiter, type RateLimitRule } from "@/server/rate-limit";
 
-export class HttpError extends Error {
-	constructor(
-		message: string,
-		readonly status: number,
-	) {
-		super(message);
-		this.name = "HttpError";
-	}
-}
+export { BadRequestError, ForbiddenError, HttpError, NotFoundError };
 
-export class BadRequestError extends HttpError {
-	constructor(message: string) {
-		super(message, 400);
-		this.name = "BadRequestError";
-	}
-}
-
-export class NotFoundError extends HttpError {
-	constructor(message = "Not found") {
-		super(message, 404);
-		this.name = "NotFoundError";
-	}
-}
-
-export class ForbiddenError extends HttpError {
-	constructor(message = "Forbidden") {
-		super(message, 403);
-		this.name = "ForbiddenError";
-	}
-}
-
-// CSRF guard for cookie-authenticated mutating routes: browsers always send Origin on
-// cross-site POSTs, so reject any request whose Origin is not this app.
+// CSRF guard for cookie-authenticated mutating routes.
 export function assertSameOrigin(request: Request) {
-	if (request.headers.get("sec-fetch-site") === "cross-site") {
-		throw new ForbiddenError("Cross-site requests are not allowed");
-	}
-
-	const origin = request.headers.get("origin");
-	if (!origin) {
-		return;
-	}
-
-	let originHost: string;
 	try {
-		originHost = new URL(origin).host;
-	} catch {
-		throw new ForbiddenError("Cross-site requests are not allowed");
+		checkSameOrigin(request);
+	} catch (error) {
+		if (error instanceof CrossSiteRequestError) {
+			throw new ForbiddenError(error.message);
+		}
+		throw error;
 	}
+}
 
-	const allowedHosts = new Set<string>();
-	const hostHeader = request.headers.get("host");
-	if (hostHeader) allowedHosts.add(hostHeader);
-	try {
-		allowedHosts.add(new URL(request.url).host);
-	} catch {
-		// ignore unparsable request URLs
+export class RateLimitError extends HttpError {
+	readonly code = "rate_limited" as const;
+
+	constructor(readonly retryAfterSeconds: number) {
+		super("Too many requests. Try again shortly.", 429);
+		this.name = "RateLimitError";
 	}
+}
 
-	if (!allowedHosts.has(originHost)) {
-		throw new ForbiddenError("Cross-site requests are not allowed");
+const checkRateLimit = createRateLimiter();
+
+export function assertRateLimit(scope: string, userId: string, rule: RateLimitRule) {
+	const result = checkRateLimit(`${scope}:${userId}`, rule);
+	if (!result.allowed) {
+		throw new RateLimitError(result.retryAfterSeconds);
 	}
 }
 
@@ -85,6 +56,13 @@ export function jsonError(error: unknown) {
 
 	if (error instanceof GithubAccessTokenError) {
 		return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+	}
+
+	if (error instanceof RateLimitError) {
+		return NextResponse.json(
+			{ error: error.message, code: error.code },
+			{ status: error.status, headers: { "Retry-After": String(error.retryAfterSeconds) } },
+		);
 	}
 
 	if (error instanceof HttpError) {

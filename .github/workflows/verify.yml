@@ -51,3 +51,9 @@ jobs:
 
       - name: Build
         run: bun run build
+
+      - name: Smoke test
+        run: |
+          bunx next start -p 3100 &
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:3100/help && break; sleep 1; done
+          node scripts/smoke.mjs http://localhost:3100

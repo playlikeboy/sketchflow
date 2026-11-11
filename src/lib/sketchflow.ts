@@ -19,11 +19,7 @@ export function humanizeSlug(value: string) {
 		.join(" ");
 }
 
-export function draftKey(workspaceId: string, projectId: string, sketchId: string, userId?: string) {
-	return userId
-		? `sketchflow:${userId}:${workspaceId}:${projectId}:${sketchId}`
-		: `sketchflow:${workspaceId}:${projectId}:${sketchId}`;
-}
+export { draftKey } from "@/lib/storage-keys";
 
 export function sketchFilePath(projectId: string, sketchId: string) {
 	return `projects/${projectId}/sketches/${sketchId}.excalidraw.json`;
