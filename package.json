@@ -1,7 +1,7 @@
 {
   "name": "sketchflow",
   "version": "0.1.0",
-  "description": "A GitHub-native visual workspace combining an Excalidraw canvas, markdown docs, and durable repo-backed versioning.",
+  "description": "A canvas with a notes editor beside it. Every save is a Git commit to a GitHub repository you own.",
   "license": "MIT",
   "homepage": "https://sketchflow.space",
   "repository": {
@@ -14,14 +14,20 @@
   "keywords": [
     "sketchflow",
     "excalidraw",
-    "hacktoberfest",
-    "nextjs",
-    "offline-first",
-    "github-api",
+    "whiteboard",
+    "diagrams",
     "visual-workspace",
-    "canvas",
-    "blocknote",
     "markdown",
+    "notes",
+    "github",
+    "git",
+    "offline-first",
+    "local-first",
+    "nextjs",
+    "react",
+    "typescript",
+    "tailwindcss",
+    "cloudflare-workers",
     "open-source"
   ],
   "scripts": {
