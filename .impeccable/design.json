@@ -151,7 +151,7 @@
       "background": {
         "role": "neutral",
         "displayName": "Sheet",
-        "canonical": "#fafbf8",
+        "canonical": "#f9fbfa",
         "theme": "day",
         "tonalRamp": [
           "oklch(15% 0.002 122)",
@@ -183,7 +183,7 @@
       "lowland": {
         "role": "neutral",
         "displayName": "Lowland",
-        "canonical": "#edf2e9",
+        "canonical": "#e9f1ee",
         "theme": "day",
         "tonalRamp": [
           "oklch(15% 0.006 131)",
@@ -199,7 +199,7 @@
       "muted": {
         "role": "neutral",
         "displayName": "Margin",
-        "canonical": "#f0f3ed",
+        "canonical": "#eef3f1",
         "theme": "day",
         "tonalRamp": [
           "oklch(15% 0.004 129)",
@@ -215,7 +215,7 @@
       "accent": {
         "role": "neutral",
         "displayName": "Hover Wash",
-        "canonical": "#e6ece2",
+        "canonical": "#e2ebe7",
         "theme": "day",
         "tonalRamp": [
           "oklch(15% 0.007 132)",
@@ -231,7 +231,7 @@
       "sidebar-accent": {
         "role": "neutral",
         "displayName": "Rail Hover Wash",
-        "canonical": "#dfe7da",
+        "canonical": "#dae6e1",
         "theme": "day",
         "tonalRamp": [
           "oklch(15% 0.009 133)",
@@ -247,7 +247,7 @@
       "rule": {
         "role": "neutral",
         "displayName": "Hairline",
-        "canonical": "#cfd8cd",
+        "canonical": "#cbd7d2",
         "theme": "day",
         "tonalRamp": [
           "oklch(15% 0.008 140)",
@@ -263,7 +263,7 @@
       "input": {
         "role": "neutral",
         "displayName": "Control Edge",
-        "canonical": "#839084",
+        "canonical": "#7f8f89",
         "theme": "day",
         "tonalRamp": [
           "oklch(15% 0.011 147)",
@@ -487,7 +487,7 @@
       "night-background": {
         "role": "neutral",
         "displayName": "Sheet (night)",
-        "canonical": "#0f161a",
+        "canonical": "#0f1513",
         "theme": "night",
         "tonalRamp": [
           "oklch(15% 0.006 233)",
@@ -503,7 +503,7 @@
       "night-card": {
         "role": "neutral",
         "displayName": "Paper (night)",
-        "canonical": "#151e23",
+        "canonical": "#141c19",
         "theme": "night",
         "tonalRamp": [
           "oklch(15% 0.007 233)",
@@ -519,7 +519,7 @@
       "night-popover": {
         "role": "neutral",
         "displayName": "Popover Paper (night)",
-        "canonical": "#18232a",
+        "canonical": "#18211e",
         "theme": "night",
         "tonalRamp": [
           "oklch(15% 0.009 237)",
@@ -535,7 +535,7 @@
       "night-lowland": {
         "role": "neutral",
         "displayName": "Lowland (night)",
-        "canonical": "#131c21",
+        "canonical": "#121917",
         "theme": "night",
         "tonalRamp": [
           "oklch(15% 0.007 233)",
@@ -551,7 +551,7 @@
       "night-sidebar": {
         "role": "neutral",
         "displayName": "Rail (night)",
-        "canonical": "#0b1114",
+        "canonical": "#0a100e",
         "theme": "night",
         "tonalRamp": [
           "oklch(15% 0.005 230)",
@@ -567,7 +567,7 @@
       "night-muted": {
         "role": "neutral",
         "displayName": "Margin (night)",
-        "canonical": "#18222a",
+        "canonical": "#171f1c",
         "theme": "night",
         "tonalRamp": [
           "oklch(15% 0.010 243)",
@@ -583,7 +583,7 @@
       "night-secondary": {
         "role": "neutral",
         "displayName": "Secondary Fill (night)",
-        "canonical": "#1b262c",
+        "canonical": "#1a2420",
         "theme": "night",
         "tonalRamp": [
           "oklch(15% 0.009 232)",
@@ -599,7 +599,7 @@
       "night-accent": {
         "role": "neutral",
         "displayName": "Hover Wash (night)",
-        "canonical": "#212e35",
+        "canonical": "#1f2a26",
         "theme": "night",
         "tonalRamp": [
           "oklch(15% 0.010 232)",
@@ -615,7 +615,7 @@
       "night-rule": {
         "role": "neutral",
         "displayName": "Hairline (night)",
-        "canonical": "#2a373e",
+        "canonical": "#28352f",
         "theme": "night",
         "tonalRamp": [
           "oklch(15% 0.010 232)",
@@ -631,7 +631,7 @@
       "night-input": {
         "role": "neutral",
         "displayName": "Control Edge (night)",
-        "canonical": "#64757e",
+        "canonical": "#63766e",
         "theme": "night",
         "tonalRamp": [
           "oklch(15% 0.011 231)",

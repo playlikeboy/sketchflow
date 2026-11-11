@@ -12,14 +12,14 @@ colors:
   grid: "#b3136f"
   grid-tint: "#fae2ee"
   destructive: "#a8261b"
-  background: "#fafbf8"
+  background: "#f9fbfa"
   card: "#ffffff"
-  lowland: "#edf2e9"
-  muted: "#f0f3ed"
-  accent: "#e6ece2"
-  sidebar-accent: "#dfe7da"
-  rule: "#cfd8cd"
-  input: "#839084"
+  lowland: "#e9f1ee"
+  muted: "#eef3f1"
+  accent: "#e2ebe7"
+  sidebar-accent: "#dae6e1"
+  rule: "#cbd7d2"
+  input: "#7f8f89"
   foreground: "#18211d"
   muted-foreground: "#505d55"
   primary-foreground: "#ffffff"
@@ -34,16 +34,16 @@ colors:
   night-grid-tint: "#3d1730"
   night-destructive: "#f2877b"
   night-destructive-foreground: "#1f0906"
-  night-background: "#0f161a"
-  night-card: "#151e23"
-  night-popover: "#18232a"
-  night-lowland: "#131c21"
-  night-sidebar: "#0b1114"
-  night-muted: "#18222a"
-  night-secondary: "#1b262c"
-  night-accent: "#212e35"
-  night-rule: "#2a373e"
-  night-input: "#64757e"
+  night-background: "#0f1513"
+  night-card: "#141c19"
+  night-popover: "#18211e"
+  night-lowland: "#121917"
+  night-sidebar: "#0a100e"
+  night-muted: "#171f1c"
+  night-secondary: "#1a2420"
+  night-accent: "#1f2a26"
+  night-rule: "#28352f"
+  night-input: "#63766e"
   night-foreground: "#e6ede8"
   night-muted-foreground: "#a3b3ab"
   night-primary-foreground: "#0a1622"
@@ -246,7 +246,7 @@ A cool, slightly green-tinted neutral sheet with four saturated map inks. All va
 - **Water Blue** (`water`, tint `water-tint`): the action ink. Primary buttons, text links, the link hover on a project name, the default badge. `--primary` and `--sidebar-primary` alias it. Text on water is `primary-foreground` (white by day, near-black blue at night because night water is light).
 
 ### Secondary
-- **Contour Orange** (`contour`, tint `contour-tint`): unsaved drafts. The half-disc draft mark, the `draft` badge, the dashed outline of an unsaved shape, the "unsaved" row in a revision list.
+- **Contour Orange** (`contour`, tint `contour-tint`): unsaved drafts. The half-disc draft mark, the `draft` badge, the dashed outline of an unsaved shape, the "Unsaved" label beside a changed file.
 - **Woodland Green** (`wood`, tint `wood-tint`): synced with GitHub. The filled-disc synced mark, the `synced` badge, the newest tick and "Latest" tag on the revision ladder.
 
 ### Tertiary
@@ -378,7 +378,7 @@ A ruled two-column definition list with 4px corners and a hairline border: label
 The project list. A 6px-cornered paper container with a hairline border; a margin-filled head row in the label style; rows separated by hairlines with 12px by 10px cells, top-aligned. Each row is that project's title block laid out sideways: a semibold name that turns water and underlines on hover, with a one-line faded description; the folder in `datum`; the revised date as "12 Nov 2026"; a `StateMark` over a visibility caption; then right-aligned ghost `icon-sm` links, each with an `aria-label` and `title`. Row hover is the margin fill at 60%.
 
 ### Revision Ladder (signature)
-History as a scale bar. An ordered list hangs from a vertical dashed rule (the `scale-rule` utility: 1px wide, 4px on, 4px off, in `rule`). Each commit is an 11px dot on the rule with a 2px paper ring: wood for the newest, grid magenta for the one being previewed, faded ink at 60% otherwise. Beside it, a 4px-cornered cell holds the message (0.875rem medium, two lines at most), a caption line with the 7-character SHA in `datum`, date, author and a wood "Latest" tag, then `xs` actions. Hover draws a hairline and a margin wash; the selected cell takes the grid tint with a 60% magenta border. In compact contexts the ladder reduces to rows of `StateGlyph`, SHA in `datum`, and message.
+History as a map scale bar. Down the left edge of an ordered list runs a 6px bar with 1px ink sides, divided into one segment per commit, alternating ink and paper, newest at the top. Each commit has a 14px hairline tick leaving the bar; the tick turns grid magenta and 2px thick for the version being previewed. Beside it, a 4px-cornered cell holds the message (0.875rem medium, two lines at most), a caption line with the 7-character SHA in `datum`, date, author and a wood "Latest" tag, then `xs` actions. Hover draws a hairline and a margin wash; the selected cell takes the grid tint with a 60% magenta border.
 
 ## Do's and Don'ts
 

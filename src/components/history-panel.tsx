@@ -84,18 +84,25 @@ export function HistoryPanel({
 						<p className="mt-1">Each time you press Save, the commit appears here. You can preview or restore any of them.</p>
 					</div>
 				) : (
-					/* The revision ladder: one tick per commit on a scale rule, newest at the top. */
-					<ol className="scale-rule relative ml-1.5 bg-[position:0_0]">
+					/* The revision ladder: a map scale bar. Each commit is one segment, alternating
+					   ink and paper, with a tick where the commit sits. Newest at the top. */
+					<ol>
 						{commits.map((commit, index) => {
 							const isSelected = selectedPreviewSha === commit.sha;
 							return (
-								<li key={commit.sha} className="relative pb-4 pl-5 last:pb-1">
+								<li key={commit.sha} className="relative pb-3 pl-7 last:pb-0">
 									<span
 										aria-hidden="true"
 										className={cn(
-											"absolute top-1.5 -left-[5px] size-[11px] rounded-full border-2 border-card",
-											isSelected ? "bg-grid" : index === 0 ? "bg-wood" : "bg-muted-foreground/60",
+											"absolute inset-y-0 left-0 w-1.5 border-x border-foreground",
+											index === 0 && "border-t",
+											index === commits.length - 1 && "border-b",
+											index % 2 === 0 ? "bg-foreground" : "bg-card",
 										)}
+									/>
+									<span
+										aria-hidden="true"
+										className={cn("absolute top-[1.125rem] left-1.5 h-px w-3.5", isSelected ? "h-0.5 bg-grid" : "bg-foreground")}
 									/>
 									<div
 										className={cn(

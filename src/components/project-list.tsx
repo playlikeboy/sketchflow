@@ -56,37 +56,8 @@ export function ProjectList({
 					{projects.map((project) => {
 						const canShare = workspace.visibility === "public" && project.visibility === "public";
 						const editorHref = sketchHref(workspace.id, project.id, firstSketchId(project));
-						return (
-							<tr key={project.id} className="group border-b border-rule last:border-b-0 hover:bg-muted/60">
-								<td className="max-w-[22rem] px-3 py-2.5 align-top">
-									<Link
-										href={primary === "notes" ? repoFileHref(workspace, project.notesFile) : editorHref}
-										target={primary === "notes" ? "_blank" : undefined}
-										rel={primary === "notes" ? "noopener noreferrer" : undefined}
-										className="font-semibold text-foreground underline-offset-4 hover:text-primary hover:underline"
-									>
-										{project.title}
-									</Link>
-									{project.description ? (
-										<p className="mt-0.5 line-clamp-1 text-[0.8125rem] text-muted-foreground">{project.description}</p>
-									) : null}
-								</td>
-								<td className="datum hidden px-3 py-2.5 align-top text-muted-foreground lg:table-cell">
-									projects/{project.id}
-								</td>
-								<td className="hidden px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground sm:table-cell">
-									{formatRevised(project.updatedAt)}
-								</td>
-								<td className="px-3 py-2.5 align-top">
-									<div className="flex flex-col gap-1">
-										<StateMark state={project.isLocalOnly ? "local" : "synced"} />
-										<span className="text-xs text-muted-foreground">
-											{project.visibility === "public" ? "Public" : "Private"}
-										</span>
-									</div>
-								</td>
-								<td className="hidden px-2 py-2 align-top md:table-cell">
-									<div className="flex items-center justify-end gap-0.5">
+						const links = (
+							<>
 										{primary === "notes" ? (
 											<Button variant="ghost" size="icon-sm" asChild>
 												<Link href={editorHref} aria-label={`Open ${project.title} in the editor`} title="Open in editor">
@@ -131,7 +102,45 @@ export function ProjectList({
 												</Button>
 											</>
 										) : null}
+									</>
+						);
+						return (
+							<tr key={project.id} className="group border-b border-rule last:border-b-0 hover:bg-muted/60">
+								<td className="max-w-[22rem] px-3 py-2.5 align-top">
+									<Link
+										href={primary === "notes" ? repoFileHref(workspace, project.notesFile) : editorHref}
+										target={primary === "notes" ? "_blank" : undefined}
+										rel={primary === "notes" ? "noopener noreferrer" : undefined}
+										className="font-semibold text-foreground underline-offset-4 hover:text-primary hover:underline"
+									>
+										{project.title}
+									</Link>
+									{project.description ? (
+										<p className="mt-0.5 line-clamp-1 text-[0.8125rem] text-muted-foreground">{project.description}</p>
+									) : null}
+									{/* On narrow screens the folder, date and links move under the title. */}
+									<p className="mt-1 flex flex-wrap gap-x-2 text-xs text-muted-foreground lg:hidden">
+										<span className="datum text-xs break-all">projects/{project.id}</span>
+										<span className="sm:hidden">{formatRevised(project.updatedAt)}</span>
+									</p>
+									<div className="-ml-2 mt-1 flex items-center gap-0.5 md:hidden">{links}</div>
+								</td>
+								<td className="datum hidden px-3 py-2.5 align-top text-muted-foreground lg:table-cell">
+									projects/{project.id}
+								</td>
+								<td className="hidden px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground sm:table-cell">
+									{formatRevised(project.updatedAt)}
+								</td>
+								<td className="px-3 py-2.5 align-top">
+									<div className="flex flex-col gap-1">
+										<StateMark state={project.isLocalOnly ? "local" : "synced"} />
+										<span className="text-xs text-muted-foreground">
+											{project.visibility === "public" ? "Public" : "Private"}
+										</span>
 									</div>
+								</td>
+								<td className="hidden px-2 py-2 align-top md:table-cell">
+									<div className="flex items-center justify-end gap-0.5">{links}</div>
 								</td>
 							</tr>
 						);

@@ -15,6 +15,7 @@ import {
 	BookOpen,
 	Clock,
 	FileText,
+	ChevronDown,
 	GitBranch,
 	GitFork,
 	Loader2,
@@ -32,6 +33,7 @@ import { HistoryPanel } from "@/components/history-panel";
 import { ProjectDocEditor } from "@/components/project-doc-editor";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { StateGlyph, StateMark } from "@/components/state-mark";
+import { TitleBlock, TitleBlockRow } from "@/components/title-block";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -324,6 +326,7 @@ export function EditorClient({
 	const [notesDirty, setNotesDirty] = useState(false);
 	const [hasScene, setHasScene] = useState(false);
 	const [status, setStatus] = useState("Loading sketch");
+	const [sheetInfoOpen, setSheetInfoOpen] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [saveError, setSaveError] = useState<string | null>(null);
 	const [restoringSha, setRestoringSha] = useState<string | null>(null);
@@ -1154,7 +1157,14 @@ export function EditorClient({
 		}
 	}, [workspacesData, targetWorkspaceId]);
 
-	const title = humanizeSlug(sketchId);
+	const projectRecord = data?.project && typeof data.project === "object" ? (data.project as { title?: unknown; updatedAt?: unknown }) : null;
+	const title =
+		typeof projectRecord?.title === "string" && projectRecord.title.trim() ? projectRecord.title.trim() : humanizeSlug(projectId);
+	const revisedAt = typeof projectRecord?.updatedAt === "string" ? new Date(projectRecord.updatedAt) : null;
+	const revisedLabel =
+		revisedAt && !Number.isNaN(revisedAt.getTime())
+			? revisedAt.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+			: null;
 	const subtitle = data
 		? `${data.workspace.repoOwner}/${data.workspace.repoName} · projects/${projectId}`
 		: workspace
@@ -1276,7 +1286,7 @@ export function EditorClient({
 	) : (
 		<div className="flex h-full min-h-0 flex-col border-l border-border bg-card">
 			<PanelHeader title="Notes" detail={notesFilePath(projectId)}>
-				<StateMark state={notesDirty ? "draft" : "synced"} label={notesDirty ? "Unsaved" : "Saved"} />
+				{notesDirty ? <StateMark state="draft" label="Unsaved" /> : null}
 			</PanelHeader>
 			<ProjectDocEditor
 				documentKey={currentNotesDraftKey}
@@ -1299,7 +1309,7 @@ export function EditorClient({
 				detail={`${activeWorkspace?.repoOwner ?? ""}/${activeWorkspace?.repoName ?? ""}`}
 				onClose={() => setEditorMode(lastPrimaryModeRef.current)}
 			>
-				<StateMark state={isOnline ? "synced" : "offline"} label={isOnline ? "Online" : "Offline"} />
+				<span className="text-xs text-muted-foreground">{isOnline ? "Online" : "Offline"}</span>
 			</PanelHeader>
 
 			<div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-3">
@@ -1426,7 +1436,17 @@ export function EditorClient({
 							{repoName}
 						</Link>
 						<span className="hidden text-muted-foreground/60 md:inline" aria-hidden="true">/</span>
-						<span className="max-w-56 truncate font-semibold text-foreground" aria-current="page">{title}</span>
+						<button
+							type="button"
+							aria-expanded={sheetInfoOpen}
+							aria-controls="sheet-title-block"
+							onClick={() => setSheetInfoOpen((open) => !open)}
+							title="Where this project lives"
+							className="inline-flex max-w-56 cursor-pointer items-center gap-1 rounded-sm font-semibold text-foreground hover:text-primary"
+						>
+							<span className="truncate">{title}</span>
+							<ChevronDown className={cn("size-3.5 shrink-0 text-muted-foreground", sheetInfoOpen && "rotate-180")} />
+						</button>
 					</nav>
 				</div>
 
@@ -1494,6 +1514,33 @@ export function EditorClient({
 					)}
 				</div>
 			</header>
+
+			{sheetInfoOpen ? (
+				<div
+					id="sheet-title-block"
+					className="absolute top-12 left-2 z-30 w-[min(26rem,calc(100%-1rem))] rounded-lg border border-rule bg-card p-2 shadow-(--float-shadow) sm:left-3"
+				>
+					<TitleBlock>
+						<TitleBlockRow label="Repository" mono>
+							{activeWorkspace ? `${activeWorkspace.repoOwner}/${activeWorkspace.repoName}` : "Not connected"}
+						</TitleBlockRow>
+						<TitleBlockRow label="Folder" mono>projects/{projectId}</TitleBlockRow>
+						<TitleBlockRow label="Branch" mono>
+							{activeWorkspace ? `${activeWorkspace.defaultBranch} @ ${shortSha(activeWorkspace.latestCommitSha)}` : "Unknown"}
+						</TitleBlockRow>
+						{revisedLabel ? <TitleBlockRow label="Revised">{revisedLabel}</TitleBlockRow> : null}
+						<TitleBlockRow label="State">
+							<StateMark state={workState} />
+						</TitleBlockRow>
+					</TitleBlock>
+					<p className="legend-label mt-2.5 px-0.5">Save writes</p>
+					<ul className="mt-1 space-y-0.5 px-0.5 pb-0.5">
+						{[sketchFilePath(projectId, sketchId), notesFilePath(projectId), projectFilePath(projectId)].map((file) => (
+							<li key={file} className="datum truncate text-muted-foreground" title={file}>{file}</li>
+						))}
+					</ul>
+				</div>
+			) : null}
 
 			<section className="min-h-0 flex-1 bg-background">
 				{authLoading ? (
@@ -1570,7 +1617,7 @@ export function EditorClient({
 									aria-orientation="vertical"
 									aria-label="Resize panels"
 									onMouseDown={handleMouseDown}
-									className="group relative z-10 w-1 cursor-col-resize bg-border hover:bg-grid"
+									className="relative z-10 w-px cursor-col-resize bg-border after:absolute after:inset-y-0 after:-left-1 after:w-2 hover:bg-grid"
 								/>
 
 								<div

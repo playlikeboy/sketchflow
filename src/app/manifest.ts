@@ -10,7 +10,7 @@ export default function manifest(): MetadataRoute.Manifest {
 		start_url: "/app",
 		scope: "/",
 		display: "standalone",
-		background_color: "#fafbf8",
+		background_color: "#f9fbfa",
 		theme_color: "#1558a8",
 		id: SKETCHFLOW_APP_URL,
 		icons: [

@@ -140,7 +140,7 @@ function AppSidebar({
           <SidebarGroupContent>
             {workspaces.length > 0 && selectedWorkspaceId && onWorkspaceChange ? (
               <Select value={selectedWorkspaceId} onValueChange={handleWorkspaceValue}>
-                <SelectTrigger className="datum h-9 w-full rounded-md border-input bg-card px-2.5" aria-label="Switch workspace">
+                <SelectTrigger className="datum h-9 w-full min-w-0 rounded-md border-input bg-card px-2.5 *:data-[slot=select-value]:block *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:truncate" aria-label="Switch workspace">
                   <SelectValue placeholder="Select workspace" />
                 </SelectTrigger>
                 <SelectContent>
@@ -390,7 +390,7 @@ export function AppShell({
                   : "Changes sync to GitHub in the background. Click to pause."
               }
             >
-              <StateGlyph state={isOfflineMode ? "offline" : "synced"} />
+              <StateGlyph state={isOfflineMode ? "offline" : "synced"} className="text-muted-foreground" />
               <span className="hidden sm:inline">{isOfflineMode ? "Sync paused" : "Sync on"}</span>
             </Button>
 

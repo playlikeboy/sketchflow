@@ -66,6 +66,12 @@ const audiences = [
 
 type DemoRevision = { sha: string; message: string };
 
+const demoFiles = [
+	"sketches/system-map.excalidraw.json",
+	"docs/notes.md",
+	"project.json",
+];
+
 const initialRevisions: DemoRevision[] = [
 	{ sha: "3c8d4e2", message: "Add queue between API and worker" },
 	{ sha: "b5e1a04", message: "First system map" },
@@ -165,7 +171,7 @@ function SheetDemo() {
 
 			<div className="border-t border-rule px-3 py-2.5">
 				<div className="flex items-center justify-between gap-3">
-					<span className="legend-label">Revisions</span>
+					<span className="legend-label">Files in the repository</span>
 					{editCount > 0 || dirty ? (
 						<button
 							type="button"
@@ -180,22 +186,23 @@ function SheetDemo() {
 						</button>
 					) : null}
 				</div>
-				<ol className="mt-1.5" aria-live="polite">
-					{dirty ? (
-						<li className="flex items-center gap-2.5 py-1 text-[0.8125rem]">
-							<StateGlyph state="draft" />
-							<span className="datum w-16 shrink-0 text-contour">unsaved</span>
-							<span className="truncate text-muted-foreground">{nextEdit?.message}</span>
-						</li>
-					) : null}
-					{revisions.map((revision) => (
-						<li key={revision.sha} className="flex items-center gap-2.5 py-1 text-[0.8125rem]">
-							<StateGlyph state="synced" />
-							<span className="datum w-16 shrink-0 text-muted-foreground">{revision.sha}</span>
-							<span className="truncate">{revision.message}</span>
-						</li>
-					))}
-				</ol>
+				<ul className="mt-1.5" aria-live="polite">
+					{demoFiles.map((file, index) => {
+						const changed = dirty && index === 0;
+						return (
+							<li key={file} className="flex items-center gap-2.5 py-1">
+								<StateGlyph state={changed ? "draft" : "synced"} />
+								<span className="datum min-w-0 flex-1 truncate">{file}</span>
+								<span className={cn("shrink-0 text-xs", changed ? "font-medium text-contour" : "text-muted-foreground")}>
+									{changed ? "Unsaved" : "Committed"}
+								</span>
+							</li>
+						);
+					})}
+				</ul>
+				<p className="mt-1.5 border-t border-rule pt-2 text-[0.8125rem] text-muted-foreground">
+					Last commit <span className="datum text-foreground">{revisions[0].sha}</span> {revisions[0].message}
+				</p>
 			</div>
 		</div>
 	);
@@ -336,9 +343,10 @@ export function HomeClient() {
 								{repoTree.map((entry) => (
 									<li
 										key={entry.name}
-										className="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-rule px-3 py-2 last:border-b-0"
+										className="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-rule py-2 pr-3 last:border-b-0"
+										style={{ paddingLeft: `${0.75 + entry.depth * 1.25}rem` }}
 									>
-										<span className="datum" style={{ paddingLeft: `${entry.depth * 1.25}rem` }}>{entry.name}</span>
+										<span className="datum min-w-0 break-all">{entry.name}</span>
 										{entry.note ? <span className="text-[0.8125rem] text-muted-foreground">{entry.note}</span> : null}
 									</li>
 								))}

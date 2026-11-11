@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useStackApp } from "@stackframe/stack";
-import { ExternalLink, KeyRound, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronDown, ExternalLink, KeyRound, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { StateMark } from "@/components/state-mark";
+import { StateGlyph } from "@/components/state-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { connectGithubAccount } from "@/lib/github-connect";
@@ -84,10 +84,13 @@ export function GithubAccessCard({
 	}
 
 	return (
-		<div className="rounded-lg border border-contour/40 bg-contour-tint/40 p-3 sm:p-4">
+		<div role="alert" className="border-y border-destructive/50 py-3">
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div className="min-w-0">
-					<h2 className="text-sm font-bold text-foreground">Sketchflow can&apos;t reach GitHub</h2>
+					<h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
+						<StateGlyph state="error" />
+						Sketchflow can&apos;t reach GitHub
+					</h2>
 					<p className="mt-1 max-w-[60ch] text-sm text-muted-foreground">
 						Reconnect so Sketchflow can read and save to your repository. Anything unsaved stays in this
 						browser in the meantime.
@@ -99,8 +102,9 @@ export function GithubAccessCard({
 				</Button>
 			</div>
 
-			<details className="mt-3 text-sm" open={hasToken || undefined}>
-				<summary className="cursor-pointer rounded-sm font-medium text-foreground">
+			<details className="group/token mt-3 text-sm" open={hasToken || undefined}>
+				<summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">
+					<ChevronDown className="size-4 text-muted-foreground group-open/token:rotate-180" />
 					Use a personal access token instead
 				</summary>
 				<p className="mt-2 max-w-[60ch] text-[0.8125rem] text-muted-foreground">
@@ -137,10 +141,12 @@ export function GithubAccessCard({
 				</Link>
 			</details>
 
-			<div className="mt-2 flex min-h-5 flex-wrap items-center gap-3 text-xs" aria-live="polite">
-				{hasToken ? <StateMark state="synced" label="Using a personal access token" /> : null}
-				{message ? <span className="text-muted-foreground">{message}</span> : null}
-			</div>
+			{hasToken || message ? (
+				<p className="mt-2 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground" aria-live="polite">
+					{hasToken ? <span>Using a personal access token for this session.</span> : null}
+					{message ? <span>{message}</span> : null}
+				</p>
+			) : null}
 		</div>
 	);
 }

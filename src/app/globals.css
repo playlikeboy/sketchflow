@@ -7,7 +7,7 @@
 
 /*
  * Survey Sheet design system.
- * A workspace is a surveyed sheet: cool white paper, green-black ink, hairline rules,
+ * A workspace is a surveyed sheet: cool near-white paper with white cards, green-black ink, hairline rules,
  * and four map inks that each have one job.
  *   water   (blue)    primary actions and links
  *   contour (orange)  unsaved drafts
@@ -78,14 +78,14 @@
 :root {
   --radius: 6px;
 
-  --background: #fafbf8;
+  --background: #f9fbfa;
   --foreground: #18211d;
   --card: #ffffff;
   --card-foreground: #18211d;
   --popover: #ffffff;
   --popover-foreground: #18211d;
-  --lowland: #edf2e9;
-  --rule: #cfd8cd;
+  --lowland: #e9f1ee;
+  --rule: #cbd7d2;
 
   --water: #1558a8;
   --water-tint: #dfecfa;
@@ -101,14 +101,14 @@
   --primary-foreground: #ffffff;
   --secondary: var(--lowland);
   --secondary-foreground: #18211d;
-  --muted: #f0f3ed;
+  --muted: #eef3f1;
   --muted-foreground: #505d55;
-  --accent: #e6ece2;
+  --accent: #e2ebe7;
   --accent-foreground: #18211d;
   --destructive: #a8261b;
   --destructive-foreground: #ffffff;
   --border: var(--rule);
-  --input: #839084;
+  --input: #7f8f89;
   --ring: var(--grid);
 
   --chart-1: var(--water);
@@ -121,7 +121,7 @@
   --sidebar-foreground: #18211d;
   --sidebar-primary: var(--water);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #dfe7da;
+  --sidebar-accent: #dae6e1;
   --sidebar-accent-foreground: #18211d;
   --sidebar-border: var(--rule);
   --sidebar-ring: var(--grid);
@@ -131,14 +131,14 @@
 
 /* Night sheet */
 .dark {
-  --background: #0f161a;
+  --background: #0f1513;
   --foreground: #e6ede8;
-  --card: #151e23;
+  --card: #141c19;
   --card-foreground: #e6ede8;
-  --popover: #18232a;
+  --popover: #18211e;
   --popover-foreground: #e6ede8;
-  --lowland: #131c21;
-  --rule: #2a373e;
+  --lowland: #121917;
+  --rule: #28352f;
 
   --water: #7fb4f5;
   --water-tint: #16304d;
@@ -152,23 +152,23 @@
 
   --primary: var(--water);
   --primary-foreground: #0a1622;
-  --secondary: #1b262c;
+  --secondary: #1a2420;
   --secondary-foreground: #e6ede8;
-  --muted: #18222a;
+  --muted: #171f1c;
   --muted-foreground: #a3b3ab;
-  --accent: #212e35;
+  --accent: #1f2a26;
   --accent-foreground: #e6ede8;
   --destructive: #f2877b;
   --destructive-foreground: #1f0906;
   --border: var(--rule);
-  --input: #64757e;
+  --input: #63766e;
   --ring: var(--grid);
 
-  --sidebar: #0b1114;
+  --sidebar: #0a100e;
   --sidebar-foreground: #e6ede8;
   --sidebar-primary: var(--water);
   --sidebar-primary-foreground: #0a1622;
-  --sidebar-accent: #1b262c;
+  --sidebar-accent: #1a2420;
   --sidebar-accent-foreground: #e6ede8;
   --sidebar-border: var(--rule);
   --sidebar-ring: var(--grid);
@@ -273,13 +273,6 @@
     font-size: 0.8125rem;
     letter-spacing: -0.01em;
   }
-
-  /* Scale-bar ticks used by the revision ladder. */
-  .scale-rule {
-    background-image: linear-gradient(to bottom, var(--rule) 50%, transparent 50%);
-    background-size: 1px 8px;
-    background-repeat: repeat-y;
-  }
 }
 
 /* Embedded editors take the sheet's inks. */
@@ -288,22 +281,24 @@
   --color-primary-darker: var(--water);
   --color-primary-darkest: var(--water);
   --color-primary-light: var(--water-tint);
+  --color-surface-primary-container: var(--grid-tint);
+  --color-on-primary-container: var(--foreground);
   font-family: var(--font-sans);
 }
 
 .dark .excalidraw,
 .excalidraw.theme--dark {
   --theme-filter: none !important;
-  --default-bg-color: #0f161a !important;
-  --island-bg-color: #18232a !important;
-  --color-surface-low: #18232a !important;
-  --color-surface-lowest: #0f161a !important;
-  --color-surface-mid: #1f2b32 !important;
-  --color-surface-high: #27353d !important;
-  --button-gray-1: #1f2b32 !important;
-  --button-gray-2: #27353d !important;
-  --button-gray-3: #313f47 !important;
-  --border-color: #2a373e !important;
+  --default-bg-color: #0f1513 !important;
+  --island-bg-color: #18211e !important;
+  --color-surface-low: #18211e !important;
+  --color-surface-lowest: #0f1513 !important;
+  --color-surface-mid: #1f2a26 !important;
+  --color-surface-high: #27342f !important;
+  --button-gray-1: #1f2a26 !important;
+  --button-gray-2: #27342f !important;
+  --button-gray-3: #313f39 !important;
+  --border-color: #28352f !important;
 }
 
 .dark .excalidraw canvas,
