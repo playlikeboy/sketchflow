@@ -12,9 +12,16 @@ Draw on an Excalidraw canvas, write notes beside it, and commit both as plain fi
 
 [Live app](https://sketchflow.space) · [Architecture](./docs/ARCHITECTURE.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
 
-<img src="./docs/images/landing.png" alt="Sketchflow landing page" width="860" />
+<img src="./docs/images/editor.png" alt="The Sketchflow editor: a canvas beside its notes, with save state in the top bar" width="860" />
 
 </div>
+
+<p align="center">
+  <img src="./docs/images/projects.png" alt="Projects listed with folder, revision date and sync state" width="425" />
+  <img src="./docs/images/landing.png" alt="Sketchflow landing page" width="425" />
+</p>
+
+<sub>Screenshots use example data.</sub>
 
 ## Why
 
@@ -74,6 +81,8 @@ More detail is in the [architecture guide](./docs/ARCHITECTURE.md).
 ## Tech stack
 
 Next.js 16 (App Router) and React 19, deployed to Cloudflare Workers with OpenNext. Stack Auth for sign-in and the GitHub connection. Neon Postgres through Drizzle. Tailwind CSS 4. Bun for installs, scripts and tests.
+
+The interface follows the Survey Sheet design system documented in [DESIGN.md](./DESIGN.md), with product context in [PRODUCT.md](./PRODUCT.md).
 
 ## Run it locally
 
