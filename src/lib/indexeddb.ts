@@ -255,7 +255,17 @@ export async function getOfflineCommits(
 	userId?: string | null,
 ): Promise<OfflineCommit[]> {
 	const record = await getDraft<OfflineCommit[]>(offlineCommitsKey(workspaceId, projectId, userId));
-	return record?.value ?? [];
+	if (record?.value) return record.value;
+
+	// Older builds could queue a signed-in user's commits under an unscoped key while auth was
+	// still loading. Keep reading that key so pending work is not stranded; it is removed the
+	// next time the queue is saved or cleared.
+	const legacy = await getDraft<OfflineCommit[]>(legacyOfflineCommitsKey(workspaceId, projectId));
+	return legacy?.value ?? [];
+}
+
+function legacyOfflineCommitsKey(workspaceId: string, projectId: string) {
+	return `offline-commits:${workspaceId}:${projectId}`;
 }
 
 export async function saveOfflineCommit(
@@ -266,6 +276,7 @@ export async function saveOfflineCommit(
 ) {
 	const existing = await getOfflineCommits(workspaceId, projectId, userId);
 	await setDraft(offlineCommitsKey(workspaceId, projectId, userId), [...existing, commit]);
+	await deleteDraft(legacyOfflineCommitsKey(workspaceId, projectId));
 }
 
 export async function clearOfflineCommits(
@@ -273,5 +284,8 @@ export async function clearOfflineCommits(
 	projectId: string,
 	userId?: string | null,
 ) {
-	await deleteDraft(offlineCommitsKey(workspaceId, projectId, userId));
+	await Promise.all([
+		deleteDraft(offlineCommitsKey(workspaceId, projectId, userId)),
+		deleteDraft(legacyOfflineCommitsKey(workspaceId, projectId)),
+	]);
 }

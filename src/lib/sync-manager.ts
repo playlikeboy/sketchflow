@@ -1,6 +1,6 @@
 "use client";
 
-import { getOfflineCommits, clearOfflineCommits, purgeProjectDrafts } from "@/lib/indexeddb";
+import { getOfflineCommits, clearOfflineCommits } from "@/lib/indexeddb";
 import { getActiveUserId } from "@/lib/github-token";
 import { commitWorkspaceFiles, createWorkspaceProject, syncWorkspaceProjectsMetadata } from "@/lib/api";
 
@@ -207,8 +207,9 @@ async function processCommit(action: QueuedAction & { type: "commit" }) {
 	try {
 		const { deleteLocalProject } = await import("@/lib/indexeddb");
 		await deleteLocalProject(action.workspaceId, action.projectId, action.userId);
-		await purgeProjectDrafts(action.workspaceId, action.projectId, action.userId);
-	await clearOfflineCommits(action.workspaceId, action.projectId, action.userId);
+		// Drafts are left in place: the user may have kept editing after this commit was queued,
+		// and the editor clears its own drafts once it has synced them.
+		await clearOfflineCommits(action.workspaceId, action.projectId, action.userId);
 	} catch {
 		// best-effort cleanup
 	}

@@ -65,16 +65,19 @@ export async function POST(request: Request) {
 		// and leave the user's README alone.
 		let files = initialFiles;
 		if (!created) {
+			// Any failure to read the tree aborts the request: without the full file list we cannot
+			// tell which scaffold files would overwrite the user's own.
+			const headSha = await getBranchHeadSha(accessToken, repository.owner.login, repository.name, branch);
 			const tree = await getGithubTreeRecursive({
 				accessToken,
 				owner: repository.owner.login,
 				repo: repository.name,
-				treeShaOrBranch: branch,
-			}).catch(() => null);
-			if (tree?.truncated) {
+				treeShaOrBranch: headSha,
+			});
+			if (tree.truncated) {
 				throw new BadRequestError("Repository is too large to inspect safely. Use a dedicated Sketchflow repository.");
 			}
-			const existingPaths = new Set(tree?.tree.map((entry) => entry.path) ?? []);
+			const existingPaths = new Set(tree.tree.map((entry) => entry.path));
 			const alreadyInitialized = existingPaths.has(".sketchflow/workspace.json");
 			files = alreadyInitialized
 				? []

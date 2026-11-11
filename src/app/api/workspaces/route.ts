@@ -5,7 +5,8 @@ import { getGithubOAuthScopes } from "@/server/env";
 import { getGithubRepository, validateGithubBranch, validateGithubPathSegment, validateGithubRepoName } from "@/server/github";
 import { upsertUser } from "@/server/db/repositories";
 import { listWorkspaces, upsertWorkspace, type WorkspaceVisibility } from "@/server/db/repositories";
-import { BadRequestError, jsonError, jsonOk, assertSameOrigin } from "@/server/http";
+import { BadRequestError, jsonError, jsonOk, assertSameOrigin, assertRateLimit } from "@/server/http";
+import { RATE_LIMITS } from "@/server/rate-limit";
 import { isJsonObject, optionalString, requiredString } from "@/server/validation";
 
 function parseVisibility(value: string | undefined): WorkspaceVisibility {
@@ -40,6 +41,8 @@ export async function POST(request: Request) {
 		const stackUser = await requireUser();
 		const user = normalizeStackUser(stackUser);
 		await upsertUser(user);
+
+		assertRateLimit("workspace-register", user.id, RATE_LIMITS.projectWrite);
 
 		const body = await request.json();
 		if (!isJsonObject(body)) {
