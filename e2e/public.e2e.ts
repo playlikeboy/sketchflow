@@ -35,7 +35,7 @@ test.describe("try it", () => {
 		await expect(page.getByRole("heading", { name: "Scratch sketch" })).toBeVisible();
 		await expect(page.locator(".excalidraw canvas").first()).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByText("In this browser", { exact: true })).toBeVisible();
-		await expect(page.getByRole("button", { name: /Sign in/ })).toBeVisible();
+		await expect(page.getByRole("link", { name: /Sign in/ })).toHaveAttribute("href", "/sign-in");
 		expect(log.filter((call) => call.path.startsWith("/api/workspaces"))).toHaveLength(0);
 	});
 
