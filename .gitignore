@@ -58,3 +58,7 @@ next-env.d.ts
 # Impeccable engine binary: the launcher downloads and verifies it on first run
 .claude/skills/impeccable/scripts/bin/
 .impeccable/config.local.json
+
+# playwright
+/test-results/
+/playwright-report/

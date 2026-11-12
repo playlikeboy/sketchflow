@@ -57,3 +57,9 @@ jobs:
           bunx next start -p 3100 &
           for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:3100/help && break; sleep 1; done
           node scripts/smoke.mjs http://localhost:3100
+
+      - name: Install browser for end-to-end tests
+        run: bunx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: bun run test:e2e
