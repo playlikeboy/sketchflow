@@ -156,4 +156,4 @@ Issues and pull requests are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) 
 
 ## License
 
-[MIT](./LICENSE) © 2025-2026 [Shaswat Raj](https://github.com/SH20RAJ) and Sketchflow contributors.
+[MIT](./LICENSE) © 2025-2026 [Shaswat Raj](https://github.com/playlikeboy) and Sketchflow contributors.
