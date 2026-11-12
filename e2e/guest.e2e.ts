@@ -138,3 +138,80 @@ test("a drawing is still there after switching to Notes and back", async ({ page
 
 	expect(await savedElements()).toBe(1);
 });
+
+/** Live element count in the sketch as it is saved in this browser. */
+function savedElementCount(page: Page) {
+	return page.evaluate(async () => {
+		const [, projectId, sketchId] = location.pathname.match(/projects\/([^/]+)\/sketches\/([^/]+)/) ?? [];
+		const db = await new Promise<IDBDatabase>((resolve, reject) => {
+			const request = indexedDB.open("sketchflow");
+			request.onsuccess = () => resolve(request.result);
+			request.onerror = () => reject(request.error);
+		});
+		const record = await new Promise<{ value?: { scene?: { elements?: { isDeleted?: boolean }[] } } } | undefined>((resolve) => {
+			const request = db.transaction("drafts", "readonly").objectStore("drafts").get(`sketchflow:local:local:${projectId}:${sketchId}`);
+			request.onsuccess = () => resolve(request.result);
+		});
+		db.close();
+		return (record?.value?.scene?.elements ?? []).filter((element) => !element.isDeleted).length;
+	});
+}
+
+async function drawRectangle(page: Page) {
+	const canvas = page.locator(".excalidraw canvas").last();
+	const box = (await canvas.boundingBox()) as { x: number; y: number };
+	await page.mouse.click(box.x + 60, box.y + 420);
+	await page.keyboard.press("r");
+	await page.mouse.move(box.x + 160, box.y + 220);
+	await page.mouse.down();
+	await page.mouse.move(box.x + 280, box.y + 290, { steps: 6 });
+	await page.mouse.up();
+}
+
+test("switching between Split, Canvas and the Insert panel keeps the same canvas and its drawing", async ({ page }) => {
+	await mockApi(page, { signedIn: false });
+	await createGuestProject(page, "Mode switch");
+	await drawRectangle(page);
+	await expect.poll(() => savedElementCount(page), { timeout: 10_000 }).toBe(1);
+
+	// Tag the live canvas. A rebuilt canvas would be a new element without the tag, and would
+	// have lost its undo history along with it.
+	await page.evaluate(() => document.querySelector(".excalidraw")?.setAttribute("data-same-canvas", "yes"));
+	const sameCanvas = page.locator('.excalidraw[data-same-canvas="yes"]');
+
+	await page.getByRole("button", { name: "Canvas", exact: true }).click();
+	await expect(sameCanvas).toHaveCount(1);
+	await page.getByRole("button", { name: "Split", exact: true }).click();
+	await expect(sameCanvas).toHaveCount(1);
+	await page.getByRole("button", { name: "Insert", exact: true }).click();
+	await expect(sameCanvas).toHaveCount(1);
+	await page.getByRole("button", { name: "Close insert panel" }).click();
+	await expect(sameCanvas).toHaveCount(1);
+
+	await page.waitForTimeout(2_000);
+	expect(await savedElementCount(page)).toBe(1);
+});
+
+test("a shape drawn a moment before a reload is not lost", async ({ page }) => {
+	await mockApi(page, { signedIn: false });
+	await createGuestProject(page, "Quick reload");
+	await drawRectangle(page);
+
+	// Sooner than the autosave delay: only the save-on-leave path can have written it.
+	await page.reload();
+	await expect(page.locator(".excalidraw canvas").first()).toBeVisible({ timeout: 30_000 });
+
+	expect(await savedElementCount(page)).toBe(1);
+});
+
+test("the browser tab is named after the project and the page", async ({ page }) => {
+	await mockApi(page, { signedIn: false });
+	await page.goto("/app");
+	await expect(page).toHaveTitle("Projects · This device - Sketchflow");
+
+	await createGuestProject(page, "Kitchen plan");
+	await expect(page).toHaveTitle("Kitchen plan - Sketchflow");
+
+	await page.goto("/app/workspace");
+	await expect(page).toHaveTitle(/^Workspaces/);
+});

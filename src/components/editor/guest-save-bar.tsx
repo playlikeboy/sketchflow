@@ -27,6 +27,8 @@ type GuestSaveBarProps = {
  */
 export function GuestSaveBar({ savedAt, isSignedIn }: GuestSaveBarProps) {
 	const [isSharingPromptOpen, setIsSharingPromptOpen] = useState(false);
+	// An icon alone on a phone, where the header has no room; the name stays for screen readers.
+	const backupLabel = <span className="sr-only sm:not-sr-only">Back up to GitHub</span>;
 
 	return (
 		<>
@@ -43,11 +45,11 @@ export function GuestSaveBar({ savedAt, isSignedIn }: GuestSaveBarProps) {
 				<Button size="sm" asChild title="Copy this project into a GitHub repository">
 					<Link href={WORKSPACE_SYNC_PATH}>
 						<CloudUpload />
-						Back up to GitHub
+						{backupLabel}
 					</Link>
 				</Button>
 			) : (
-				<GithubSignInButton title="Sign in to copy this project into a GitHub repository">Back up to GitHub</GithubSignInButton>
+				<GithubSignInButton title="Sign in to copy this project into a GitHub repository">{backupLabel}</GithubSignInButton>
 			)}
 
 			<SharingPrompt open={isSharingPromptOpen} onOpenChange={setIsSharingPromptOpen} isSignedIn={isSignedIn} />

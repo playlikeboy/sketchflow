@@ -30,6 +30,7 @@ import { useTheme } from "next-themes";
 
 import { LocalProjectMissingNotice, RepositorySignInNotice } from "@/components/editor/editor-notices";
 import { InsertPanel } from "@/components/editor/insert/insert-panel";
+import { useDraftAutosave } from "@/components/editor/use-draft-autosave";
 import { PresentationMode } from "@/components/editor/presentation-mode";
 import { QuickConnect } from "@/components/editor/quick-connect";
 import { GuestSaveBar } from "@/components/editor/guest-save-bar";
@@ -60,6 +61,7 @@ import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson }
 import { draftKey, humanizeSlug, normalizeScene, notesFilePath, projectFilePath, sketchFilePath, slugify } from "@/lib/sketchflow";
 import { useGithubStatus, useSketch, useProjectHistorySnapshot, useWorkspaces } from "@/lib/swr-hooks";
 import { useAppIdentity } from "@/lib/use-app-identity";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { keepImageColoursOnDarkCanvas } from "@/lib/excalidraw-image-colours";
 import { cn } from "@/lib/utils";
 
@@ -365,8 +367,6 @@ export function EditorClient({
 	const [conflict, setConflict] = useState(false);
 	const [restoringSha, setRestoringSha] = useState<string | null>(null);
 	const [mode, setMode] = useState<EditorMode>("split");
-	const sceneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const notesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
 	const sceneRef = useRef<SketchScene | null>(null);
 	const notesRef = useRef("");
@@ -379,7 +379,6 @@ export function EditorClient({
 	const sourceRef = useRef<"github" | "local">("github");
 	const hydrateRef = useRef(false);
 	const elementsVersionRef = useRef(0);
-	const pendingContentChangeRef = useRef(false);
 	const identity = useAppIdentity();
 	const authLoading = identity.isLoading;
 	const userId = identity.userId;
@@ -437,15 +436,13 @@ export function EditorClient({
 	// Tools that act on the canvas only ever get the canvas that is actually showing.
 	const liveApi = hasLiveCanvas ? excalidrawApi : null;
 
-	// Excalidraw reads `initialData` only when it mounts. Whenever the canvas goes away, hand the
-	// next mount the scene as it is now. Without this, coming back from Notes or from a version
-	// preview restored the scene from page load and saved that over the newer work.
-	useEffect(() => {
-		if (!canvasHidden) return;
-		setInitialData((current) =>
-			current && sceneRef.current ? toInitialData(sceneRef.current, resolvedTheme, libraryItemsRef.current) : current,
-		);
-	}, [canvasHidden, resolvedTheme]);
+	// Excalidraw reads its starting scene only when it mounts, and it calls this function to get
+	// it. Reading the live scene here means a canvas that has to remount (after Notes view or a
+	// version preview) comes back with the work as it is now, never as it was at page load.
+	const getLiveInitialData = useCallback(
+		() => (sceneRef.current ? toInitialData(sceneRef.current, resolvedTheme, libraryItemsRef.current) : initialData),
+		[initialData, resolvedTheme],
+	);
 
 	// Presenting needs the canvas; never leave it switched on while the canvas is gone.
 	useEffect(() => {
@@ -631,6 +628,41 @@ export function EditorClient({
 		hydrateRef.current = false;
 	}, [currentDraftKey]);
 
+	/** Notes when a draft reached IndexedDB; for guest projects, also bumps the list's updatedAt. */
+	const touchGuestProject = guestProject.touch;
+	const recordDraftSaved = useCallback((savedAt: string, isContentChange: boolean) => {
+		setLocalSavedAt(savedAt);
+		if (isGuest && isContentChange) {
+			touchGuestProject();
+		}
+	}, [isGuest, touchGuestProject]);
+
+	// Every change is saved to this browser automatically. An edit is written shortly after a
+	// pause (and at least every couple of seconds while drawing continues); scrolling and
+	// selecting are written lazily so they never slow the canvas down.
+	const sceneAutosave = useDraftAutosave<SketchScene>(async (key, scene, isEdit) => {
+		const record = await setDraft<DraftValue>(key, { scene, updatedAt: new Date().toISOString() });
+		if (record && isEdit) {
+			setStatus(`Canvas draft saved ${new Date(record.updatedAt).toLocaleTimeString()}`);
+			recordDraftSaved(record.updatedAt, true);
+		}
+	});
+	const notesAutosave = useDraftAutosave<string>(async (key, nextNotes) => {
+		const record = await setDraft<NotesDraftValue>(key, { notes: nextNotes, updatedAt: new Date().toISOString() });
+		if (record) {
+			setStatus(`Docs draft saved ${new Date(record.updatedAt).toLocaleTimeString()}`);
+			recordDraftSaved(record.updatedAt, true);
+		}
+	});
+
+	const queueSceneDraftSave = useCallback((nextScene: SketchScene, isEdit: boolean) => {
+		sceneAutosave.queue(currentDraftKey, nextScene, isEdit ? "edit" : "view");
+	}, [currentDraftKey, sceneAutosave]);
+
+	const queueNotesDraftSave = useCallback((nextNotes: string) => {
+		notesAutosave.queue(currentNotesDraftKey, nextNotes, "edit");
+	}, [currentNotesDraftKey, notesAutosave]);
+
 	useEffect(() => {
 		let mounted = true;
 
@@ -694,7 +726,6 @@ export function EditorClient({
 
 				sceneRef.current = nextScene;
 				elementsVersionRef.current = sceneElementsVersion(nextScene.elements ?? []);
-				pendingContentChangeRef.current = false;
 				notesRef.current = nextNotes;
 				libraryItemsRef.current = nextLibraryItems;
 				sourceRef.current = restoredLocal || isLocalFallback ? "local" : "github";
@@ -728,60 +759,11 @@ export function EditorClient({
 
 		return () => {
 			mounted = false;
-			if (sceneTimer.current) {
-				clearTimeout(sceneTimer.current);
-			}
-			if (notesTimer.current) {
-				clearTimeout(notesTimer.current);
-			}
+			sceneAutosave.flush();
+			notesAutosave.flush();
 		};
 	}, [currentDraftKey, currentLibraryDraftKey, currentNotesDraftKey, data, sketchError, sketchLoading, projectId, sketchId, workspaceId]);
 
-	/** Notes when a draft reached IndexedDB; for guest projects, also bumps the list's updatedAt. */
-	const touchGuestProject = guestProject.touch;
-	const recordDraftSaved = useCallback((savedAt: string, isContentChange: boolean) => {
-		setLocalSavedAt(savedAt);
-		if (isGuest && isContentChange) {
-			touchGuestProject();
-		}
-	}, [isGuest, touchGuestProject]);
-
-	const queueSceneDraftSave = useCallback((nextScene: SketchScene) => {
-		if (sceneTimer.current) {
-			clearTimeout(sceneTimer.current);
-		}
-
-		sceneTimer.current = setTimeout(() => {
-			void setDraft<DraftValue>(currentDraftKey, {
-				scene: nextScene,
-				updatedAt: new Date().toISOString(),
-			}).then((record) => {
-				if (record) {
-					setStatus(`Canvas draft saved ${new Date(record.updatedAt).toLocaleTimeString()}`);
-					recordDraftSaved(record.updatedAt, pendingContentChangeRef.current);
-					pendingContentChangeRef.current = false;
-				}
-			});
-		}, 500);
-	}, [currentDraftKey, recordDraftSaved]);
-
-	const queueNotesDraftSave = useCallback((nextNotes: string) => {
-		if (notesTimer.current) {
-			clearTimeout(notesTimer.current);
-		}
-
-		notesTimer.current = setTimeout(() => {
-			void setDraft<NotesDraftValue>(currentNotesDraftKey, {
-				notes: nextNotes,
-				updatedAt: new Date().toISOString(),
-			}).then((record) => {
-				if (record) {
-					setStatus(`Docs draft saved ${new Date(record.updatedAt).toLocaleTimeString()}`);
-					recordDraftSaved(record.updatedAt, true);
-				}
-			});
-		}, 500);
-	}, [currentNotesDraftKey, recordDraftSaved]);
 
 	const handleSceneChange = useCallback((elements: readonly unknown[], appState: AppState, files: BinaryFiles) => {
 		if (!isOwner) return;
@@ -796,9 +778,9 @@ export function EditorClient({
 
 		// Excalidraw also reports scrolls and selections; only element edits count as an edit.
 		const elementsVersion = sceneElementsVersion(elements);
-		if (elementsVersion !== elementsVersionRef.current) {
+		const isEdit = elementsVersion !== elementsVersionRef.current;
+		if (isEdit) {
 			elementsVersionRef.current = elementsVersion;
-			pendingContentChangeRef.current = true;
 		}
 
 		if (!sceneDirtyRef.current) {
@@ -811,7 +793,7 @@ export function EditorClient({
 			setSource("local");
 		}
 
-		queueSceneDraftSave(nextScene);
+		queueSceneDraftSave(nextScene, isEdit);
 	}, [queueSceneDraftSave, isOwner]);
 
 	const handleNotesChange = useCallback((value: string) => {
@@ -857,12 +839,8 @@ export function EditorClient({
 		setStatus("Committing to GitHub");
 
 		try {
-			if (sceneTimer.current) {
-				clearTimeout(sceneTimer.current);
-			}
-			if (notesTimer.current) {
-				clearTimeout(notesTimer.current);
-			}
+			sceneAutosave.flush();
+			notesAutosave.flush();
 
 			const project = buildProjectFile(projectId, sketchId, data?.project);
 			const projectMetadata = mergeProjectsMetadata({
@@ -1001,8 +979,8 @@ export function EditorClient({
 
 	/** Drop the local draft and load what GitHub has. */
 	async function loadGithubVersion() {
-		if (sceneTimer.current) clearTimeout(sceneTimer.current);
-		if (notesTimer.current) clearTimeout(notesTimer.current);
+		sceneAutosave.cancel();
+		notesAutosave.cancel();
 		await Promise.all([deleteDraft(currentDraftKey), deleteDraft(currentNotesDraftKey), deleteDraft(currentStateDraftKey)]);
 		window.location.reload();
 	}
@@ -1249,6 +1227,7 @@ export function EditorClient({
 			: null;
 	const title =
 		typeof projectRecord?.title === "string" && projectRecord.title.trim() ? projectRecord.title.trim() : humanizeSlug(projectId);
+	useDocumentTitle(title);
 	const revisedAt = typeof projectRecord?.updatedAt === "string" ? new Date(projectRecord.updatedAt) : null;
 	const revisedLabel =
 		revisedAt && !Number.isNaN(revisedAt.getTime())
@@ -1323,7 +1302,7 @@ export function EditorClient({
 			<PresentationMode api={liveApi} active={presenting} onExit={() => setPresenting(false)} />
 			<Excalidraw
 				key={currentDraftKey}
-				initialData={initialData}
+				initialData={getLiveInitialData}
 				onChange={handleSceneChange}
 				onLibraryChange={handleLibraryChange}
 				excalidrawAPI={(api) => {
@@ -1581,7 +1560,9 @@ export function EditorClient({
 						</span>
 					)}
 
-					<ThemeToggle />
+					<span className="hidden sm:contents">
+						<ThemeToggle />
+					</span>
 
 					{isGuest ? (
 						initialData ? <GuestSaveBar savedAt={localSavedAt} isSignedIn={isSignedIn} /> : null
@@ -1749,33 +1730,42 @@ export function EditorClient({
 								) : null}
 							</div>
 						) : null}
-						{mode === "canvas" ? (
-							canvasEditor
-						) : mode === "docs" ? (
+						{mode === "docs" ? (
 							<div className="mx-auto h-full min-h-0 max-w-4xl">{docsPanel}</div>
 						) : (
-							<div ref={containerRef} className="relative flex h-full min-h-0 w-full select-none">
+							// The canvas keeps the same place in this layout for Canvas, Split and every
+							// side panel, and only its width changes. Rendering it in a different place
+							// per mode made React build a new, empty canvas on each switch.
+							// On a phone the two panes stack, canvas on top; side by side they are too narrow to use.
+							<div ref={containerRef} className="relative flex h-full min-h-0 w-full flex-col select-none md:flex-row">
 								<div
-									style={{ width: `${mode === "split" ? splitPanelSizes[0] : sidePanelSizes[0]}%` }}
-									className="h-full min-h-0 overflow-hidden"
+									style={{ "--pane-width": `${mode === "split" ? splitPanelSizes[0] : sidePanelSizes[0]}%` } as React.CSSProperties}
+									className={cn(
+										"min-h-0 overflow-hidden",
+										mode === "canvas" ? "h-full w-full" : "h-[55%] w-full md:h-full md:w-(--pane-width)",
+									)}
 								>
 									{canvasEditor}
 								</div>
 
-								<div
-									role="separator"
-									aria-orientation="vertical"
-									aria-label="Resize panels"
-									onMouseDown={handleMouseDown}
-									className="relative z-10 w-px cursor-col-resize bg-border after:absolute after:inset-y-0 after:-left-1 after:w-2 hover:bg-grid"
-								/>
+								{mode === "canvas" ? null : (
+									<>
+										<div
+											role="separator"
+											aria-orientation="vertical"
+											aria-label="Resize panels"
+											onMouseDown={handleMouseDown}
+											className="relative z-10 hidden w-px cursor-col-resize bg-border after:absolute after:inset-y-0 after:-left-1 after:w-2 hover:bg-grid md:block"
+										/>
 
-								<div
-									style={{ width: `${mode === "split" ? splitPanelSizes[1] : sidePanelSizes[1]}%` }}
-									className="h-full min-h-0 overflow-hidden"
-								>
-									{mode === "libraries" && isOwner ? libraryPanel : mode === "history" ? historyPanel : mode === "source-control" ? sourceControlPanel : docsPanel}
-								</div>
+										<div
+											style={{ "--pane-width": `${mode === "split" ? splitPanelSizes[1] : sidePanelSizes[1]}%` } as React.CSSProperties}
+											className="h-[45%] min-h-0 w-full overflow-hidden border-t border-border md:h-full md:w-(--pane-width) md:border-t-0"
+										>
+											{mode === "libraries" && isOwner ? libraryPanel : mode === "history" ? historyPanel : mode === "source-control" ? sourceControlPanel : docsPanel}
+										</div>
+									</>
+								)}
 							</div>
 						)}
 					</div>

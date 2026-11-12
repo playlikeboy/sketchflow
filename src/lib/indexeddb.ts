@@ -18,8 +18,16 @@ export type DraftRecord<T> = {
 	updatedAt: string;
 };
 
+let openConnection: Promise<IDBDatabase> | null = null;
+
+/**
+ * One connection, opened on first use and kept for the life of the page. Opening a database
+ * takes several event-loop turns, which a closing page does not have: with a connection already
+ * open, a save issued while the tab is being hidden or reloaded still reaches the disk. It also
+ * makes every autosave cheaper. Nothing closes it except the browser.
+ */
 function openSketchflowDb() {
-	return new Promise<IDBDatabase>((resolve, reject) => {
+	openConnection ??= new Promise<IDBDatabase>((resolve, reject) => {
 		const request = indexedDB.open(DB_NAME, DB_VERSION);
 
 		request.onupgradeneeded = () => {
@@ -29,9 +37,26 @@ function openSketchflowDb() {
 			}
 		};
 
-		request.onsuccess = () => resolve(request.result);
-		request.onerror = () => reject(request.error);
+		request.onsuccess = () => {
+			const db = request.result;
+			// Another tab is upgrading the database, or the browser closed it: let go, and the
+			// next operation opens a fresh connection.
+			db.onversionchange = () => {
+				db.close();
+				openConnection = null;
+			};
+			db.onclose = () => {
+				openConnection = null;
+			};
+			resolve(db);
+		};
+		request.onerror = () => {
+			openConnection = null;
+			reject(request.error);
+		};
 	});
+
+	return openConnection;
 }
 
 async function withDraftStore<T>(mode: IDBTransactionMode, callback: (store: IDBObjectStore) => IDBRequest<T>) {
@@ -41,14 +66,16 @@ async function withDraftStore<T>(mode: IDBTransactionMode, callback: (store: IDB
 		const transaction = db.transaction(STORE_NAME, mode);
 		const store = transaction.objectStore(STORE_NAME);
 		const request = callback(store);
+		// Ask for the write to be committed now instead of after the request's callback has run.
+		// A page that is being reloaded or closed never runs that callback, and the browser then
+		// throws the write away; committed here, it survives.
+		if (mode === "readwrite" && typeof transaction.commit === "function") {
+			transaction.commit();
+		}
 
 		request.onsuccess = () => resolve(request.result);
 		request.onerror = () => reject(request.error);
-		transaction.oncomplete = () => db.close();
-		transaction.onerror = () => {
-			db.close();
-			reject(transaction.error);
-		};
+		transaction.onerror = () => reject(transaction.error);
 	});
 }
 
@@ -176,7 +203,6 @@ export async function hasAnyLocalProjects(userId?: string | null): Promise<boole
 				}
 			};
 			request.onerror = () => reject(request.error);
-			transaction.oncomplete = () => db.close();
 		});
 	} catch (e) {
 		console.warn("Error checking local projects in IndexedDB:", e);
@@ -203,8 +229,8 @@ export async function purgeProjectDrafts(workspaceId: string, projectId: string,
 				cursor.continue();
 			};
 			request.onerror = () => reject(request.error);
-			transaction.oncomplete = () => { db.close(); resolve(); };
-			transaction.onerror = () => { db.close(); reject(transaction.error); };
+			transaction.oncomplete = () => resolve();
+			transaction.onerror = () => reject(transaction.error);
 		});
 	} catch (error) {
 		console.warn("Error purging project drafts:", error);
@@ -229,8 +255,8 @@ export async function purgeUserCache(userId: string) {
 				cursor.continue();
 			};
 			request.onerror = () => reject(request.error);
-			transaction.oncomplete = () => { db.close(); resolve(); };
-			transaction.onerror = () => { db.close(); reject(transaction.error); };
+			transaction.oncomplete = () => resolve();
+			transaction.onerror = () => reject(transaction.error);
 		});
 	} catch (error) {
 		console.warn("Error purging user cache:", error);
