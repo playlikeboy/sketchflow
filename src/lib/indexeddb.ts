@@ -59,23 +59,49 @@ function openSketchflowDb() {
 	return openConnection;
 }
 
+/**
+ * Starts a transaction on the shared connection. A browser can close a connection behind the
+ * page's back (Safari does after a tab has been in the background) without saying so, and
+ * the connection then refuses every transaction: when that happens, open a fresh one and try
+ * once more, so saving recovers instead of failing for the rest of the visit.
+ */
+async function openTransaction(mode: IDBTransactionMode) {
+	const connection = openSketchflowDb();
+	const db = await connection;
+
+	try {
+		return db.transaction(STORE_NAME, mode);
+	} catch {
+		if (openConnection === connection) {
+			openConnection = null;
+		}
+		const freshDb = await openSketchflowDb();
+		return freshDb.transaction(STORE_NAME, mode);
+	}
+}
+
 async function withDraftStore<T>(mode: IDBTransactionMode, callback: (store: IDBObjectStore) => IDBRequest<T>) {
-	const db = await openSketchflowDb();
+	const transaction = await openTransaction(mode);
 
 	return new Promise<T>((resolve, reject) => {
-		const transaction = db.transaction(STORE_NAME, mode);
-		const store = transaction.objectStore(STORE_NAME);
-		const request = callback(store);
-		// Ask for the write to be committed now instead of after the request's callback has run.
-		// A page that is being reloaded or closed never runs that callback, and the browser then
-		// throws the write away; committed here, it survives.
-		if (mode === "readwrite" && typeof transaction.commit === "function") {
-			transaction.commit();
+		const request = callback(transaction.objectStore(STORE_NAME));
+
+		if (mode === "readwrite") {
+			// A write has happened only once its transaction completes: a full disk aborts it then.
+			transaction.oncomplete = () => resolve(request.result);
+			// Ask for the commit now instead of after the request's callback has run. A page that
+			// is being reloaded or closed never runs that callback, and the browser then throws the
+			// write away; committed here, it survives.
+			if (typeof transaction.commit === "function") {
+				transaction.commit();
+			}
+		} else {
+			request.onsuccess = () => resolve(request.result);
 		}
 
-		request.onsuccess = () => resolve(request.result);
 		request.onerror = () => reject(request.error);
 		transaction.onerror = () => reject(transaction.error);
+		transaction.onabort = () => reject(transaction.error ?? new DOMException("The write was aborted.", "AbortError"));
 	});
 }
 
@@ -179,10 +205,9 @@ export async function hasAnyLocalProjects(userId?: string | null): Promise<boole
 		return false;
 	}
 	try {
-		const db = await openSketchflowDb();
+		const transaction = await openTransaction("readonly");
 		const prefix = localProjectsKey("", userId);
 		return new Promise<boolean>((resolve, reject) => {
-			const transaction = db.transaction(STORE_NAME, "readonly");
 			const store = transaction.objectStore(STORE_NAME);
 			const request = store.openCursor();
 			let found = false;
@@ -214,11 +239,10 @@ export async function purgeProjectDrafts(workspaceId: string, projectId: string,
 	if (typeof indexedDB === "undefined") return;
 
 	try {
-		const db = await openSketchflowDb();
+		const transaction = await openTransaction("readwrite");
 		// Scoped to one user (or the signed-out "local" scope): never touches other accounts' drafts.
 		const prefix = projectDraftPrefix(workspaceId, projectId, userId);
 		await new Promise<void>((resolve, reject) => {
-			const transaction = db.transaction(STORE_NAME, "readwrite");
 			const store = transaction.objectStore(STORE_NAME);
 			const request = store.openCursor();
 			request.onsuccess = (event) => {
@@ -242,9 +266,8 @@ export async function purgeUserCache(userId: string) {
 	const prefixes = scopePrefixes(userId);
 	const userWorkspacesKey = workspacesKey(userId);
 	try {
-		const db = await openSketchflowDb();
+		const transaction = await openTransaction("readwrite");
 		await new Promise<void>((resolve, reject) => {
-			const transaction = db.transaction(STORE_NAME, "readwrite");
 			const store = transaction.objectStore(STORE_NAME);
 			const request = store.openCursor();
 			request.onsuccess = (event) => {

@@ -379,6 +379,9 @@ export function EditorClient({
 	const sourceRef = useRef<"github" | "local">("github");
 	const hydrateRef = useRef(false);
 	const elementsVersionRef = useRef(0);
+	// Set while the local draft is being thrown away for the GitHub version: nothing may be
+	// queued in that window, or the save-on-leave would write the draft straight back.
+	const discardingLocalRef = useRef(false);
 	const identity = useAppIdentity();
 	const authLoading = identity.isLoading;
 	const userId = identity.userId;
@@ -766,7 +769,7 @@ export function EditorClient({
 
 
 	const handleSceneChange = useCallback((elements: readonly unknown[], appState: AppState, files: BinaryFiles) => {
-		if (!isOwner) return;
+		if (!isOwner || discardingLocalRef.current) return;
 		const nextScene = normalizeScene({
 			...(sceneRef.current ?? {}),
 			elements: [...elements],
@@ -797,7 +800,7 @@ export function EditorClient({
 	}, [queueSceneDraftSave, isOwner]);
 
 	const handleNotesChange = useCallback((value: string) => {
-		if (!isOwner) return;
+		if (!isOwner || discardingLocalRef.current) return;
 		notesRef.current = value;
 		setNotes(value);
 
@@ -979,10 +982,18 @@ export function EditorClient({
 
 	/** Drop the local draft and load what GitHub has. */
 	async function loadGithubVersion() {
+		discardingLocalRef.current = true;
 		sceneAutosave.cancel();
 		notesAutosave.cancel();
-		await Promise.all([deleteDraft(currentDraftKey), deleteDraft(currentNotesDraftKey), deleteDraft(currentStateDraftKey)]);
-		window.location.reload();
+
+		try {
+			await Promise.all([deleteDraft(currentDraftKey), deleteDraft(currentNotesDraftKey), deleteDraft(currentStateDraftKey)]);
+			window.location.reload();
+		} catch (error) {
+			discardingLocalRef.current = false;
+			console.warn("The local draft could not be removed:", error);
+			setStatus("The copy in this browser could not be removed. Try again.");
+		}
 	}
 
 	async function handleRestoreProject(sha: string) {

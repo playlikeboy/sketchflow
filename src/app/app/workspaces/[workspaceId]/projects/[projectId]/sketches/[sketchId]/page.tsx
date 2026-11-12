@@ -20,7 +20,12 @@ export default async function SketchPage({ params }: SketchPageProps) {
 
 	return (
 		<Suspense fallback={<div className="min-h-screen bg-background" />}>
-			<EditorClient workspaceId={workspaceId} projectId={projectId} sketchId={sketchId} />
+			<EditorClient
+				key={`${workspaceId}/${projectId}/${sketchId}`}
+				workspaceId={workspaceId}
+				projectId={projectId}
+				sketchId={sketchId}
+			/>
 		</Suspense>
 	);
 }
