@@ -30,12 +30,18 @@ const committedPaths = () =>
 	) ?? null;
 const wrote = () => state.github.some((call) => call.method === "PATCH" || call.path.endsWith("/git/trees"));
 
+type ResponseBody = {
+	code?: string;
+	commit: { sha: string; files: string[] };
+	repository: { created: boolean };
+};
+
 beforeEach(resetState);
 
 test("a new repository is created and fully scaffolded", async () => {
 	state.githubHandler = github({ exists: false });
 	const response = await POST(post("/api/workspaces/bootstrap", { repoName: "notes" }));
-	const body = await response.json();
+	const body = (await response.json()) as ResponseBody;
 
 	expect(response.status).toBe(201);
 	expect(body.repository.created).toBe(true);
@@ -65,7 +71,7 @@ test("an existing repository keeps its README and its own files", async () => {
 test("an already initialised workspace is connected without any commit", async () => {
 	state.githubHandler = github({ exists: true, tree: [{ path: ".sketchflow/workspace.json", type: "blob" }] });
 	const response = await POST(post("/api/workspaces/bootstrap", { repoName: "notes" }));
-	const body = await response.json();
+	const body = (await response.json()) as ResponseBody;
 
 	expect(response.status).toBe(201);
 	expect(wrote()).toBe(false);

@@ -8,12 +8,18 @@ const { POST } = await import("../../src/app/api/workspaces/[workspaceId]/commit
 const params = (workspaceId = "ws-1") => ({ params: Promise.resolve({ workspaceId }) });
 const files = [{ path: "projects/demo/docs/notes.md", content: "# Demo\n" }];
 
+type ResponseBody = {
+	code?: string;
+	commit: { sha: string; files: string[] };
+	repository: { created: boolean };
+};
+
 beforeEach(resetState);
 
 test("commits files and records a sync event", async () => {
 	state.githubHandler = githubAcceptingCommits();
 	const response = await POST(post("/api/workspaces/ws-1/commit", { files, message: "Update notes" }), params());
-	const body = await response.json();
+	const body = (await response.json()) as ResponseBody;
 
 	expect(response.status).toBe(200);
 	expect(body.commit.sha).toBe("b".repeat(40));
@@ -58,7 +64,7 @@ test("rejects a malformed expected head", async () => {
 test("reports a conflict instead of overwriting when the branch has moved", async () => {
 	state.githubHandler = githubAcceptingCommits("c".repeat(40));
 	const response = await POST(post("/api/workspaces/ws-1/commit", { files, expectedHeadSha: "a".repeat(40) }), params());
-	const body = await response.json();
+	const body = (await response.json()) as ResponseBody;
 
 	expect(response.status).toBe(409);
 	expect(body.code).toBe("github_conflict");
@@ -72,5 +78,5 @@ test("reports a conflict when the branch moves during the commit", async () => {
 		method === "PATCH" ? json({ message: "Update is not a fast forward" }, 422) : accept(method, path);
 	const response = await POST(post("/api/workspaces/ws-1/commit", { files }), params());
 	expect(response.status).toBe(409);
-	expect((await response.json()).code).toBe("github_conflict");
+	expect(((await response.json()) as ResponseBody).code).toBe("github_conflict");
 });
