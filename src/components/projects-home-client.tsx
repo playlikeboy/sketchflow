@@ -8,17 +8,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { GithubAccessCard } from "@/components/github-access-card";
+import { StateGlyph } from "@/components/state-mark";
 import { EmptyPanel, Notice, ProjectList, ProjectListSkeleton } from "@/components/project-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
 	syncWorkspaceProjectsMetadata,
 	ApiError,
+	type SketchScene,
 	type Workspace,
 } from "@/lib/api";
 import type { WorkspaceProject } from "@/lib/project-metadata";
 import { slugify, draftKey, humanizeSlug } from "@/lib/sketchflow";
 import { saveLocalProject, setDraft } from "@/lib/indexeddb";
+import { clearTryDraft, readTryDraft, tryDraftHasContent } from "@/lib/try-draft";
 import { queueCreateProject } from "@/lib/sync-manager";
 import { DEFAULT_SKETCH_ID, repoFolderHref, sketchHref } from "@/lib/workspace-routes";
 import {
@@ -83,6 +86,8 @@ export function ProjectsHomeClient() {
 	const [projectSearch, setProjectSearch] = useState("");
 	const [localError, setLocalError] = useState<string | null>(null);
 	const appliedTemplateRef = useRef<string | null>(null);
+	const [tryDraft, setTryDraft] = useState<{ scene: SketchScene | null; notes: string | null } | null>(null);
+	const [importingTry, setImportingTry] = useState(false);
 
 	const {
 		data: auth,
@@ -148,6 +153,21 @@ export function ProjectsHomeClient() {
 		appRef.current = app;
 	}, [app]);
 
+	// A sketch made on /try before signing in is offered as a new project.
+	useEffect(() => {
+		let active = true;
+		void readTryDraft()
+			.then((draft) => {
+				if (active && draft.touched && tryDraftHasContent(draft)) {
+					setTryDraft({ scene: draft.scene, notes: draft.notes });
+				}
+			})
+			.catch(() => {});
+		return () => {
+			active = false;
+		};
+	}, []);
+
 	useEffect(() => {
 		if (auth && !auth.authenticated) {
 			void appRef.current.redirectToSignIn();
@@ -208,14 +228,40 @@ export function ProjectsHomeClient() {
 		}
 	}
 
-	async function handleCreateProject() {
-		if (!selectedWorkspace) return;
+	async function handleImportTryDraft() {
+		if (!tryDraft) return;
+		setImportingTry(true);
+		const created = await handleCreateProject({
+			title: "Scratch sketch",
+			scene: tryDraft.scene,
+			notes: tryDraft.notes,
+		});
+		if (created) {
+			await clearTryDraft();
+			setTryDraft(null);
+		}
+		setImportingTry(false);
+	}
+
+	async function discardTryDraft() {
+		await clearTryDraft();
+		setTryDraft(null);
+	}
+
+	async function handleCreateProject(seed?: { title: string; scene: SketchScene | null; notes: string | null }) {
+		if (!selectedWorkspace) return false;
 
 		setCreatingProject(true);
 		setLocalError(null);
 
-		const title = newProjectTitle.trim() || "Untitled Project";
-		const projectId = slugify(title);
+		const title = seed?.title ?? (newProjectTitle.trim() || "Untitled Project");
+		const baseProjectId = slugify(title);
+		// A seeded import must not collide with an existing folder.
+		const taken = new Set(projects.map((project) => project.id));
+		let projectId = baseProjectId;
+		for (let suffix = 2; seed && taken.has(projectId); suffix += 1) {
+			projectId = `${baseProjectId}-${suffix}`;
+		}
 		const now = new Date().toISOString();
 
 		const localProject: WorkspaceProject = {
@@ -248,7 +294,7 @@ export function ProjectsHomeClient() {
 			const currentDraft = draftKey(selectedWorkspace.id, projectId, DEFAULT_SKETCH_ID, auth?.user?.id);
 			await Promise.all([
 				setDraft(currentDraft, {
-					scene: {
+					scene: seed?.scene ?? {
 						type: "excalidraw",
 						version: 2,
 						source: "https://sketchflow.space",
@@ -259,7 +305,7 @@ export function ProjectsHomeClient() {
 					updatedAt: now,
 				}),
 				setDraft(`${currentDraft}:notes`, {
-					notes: `# ${title}\n\nProject documentation and notes.\n`,
+					notes: seed?.notes?.trim() ? seed.notes : `# ${title}\n\nProject documentation and notes.\n`,
 					updatedAt: now,
 				}),
 				setDraft(`${currentDraft}:state`, {
@@ -278,7 +324,7 @@ export function ProjectsHomeClient() {
 				selectedWorkspace.id,
 				{
 					title,
-					description: newProjectDescription.trim() || undefined,
+					description: seed ? undefined : newProjectDescription.trim() || undefined,
 					projectId,
 					sketchId: DEFAULT_SKETCH_ID,
 					visibility: selectedWorkspace.visibility,
@@ -293,8 +339,10 @@ export function ProjectsHomeClient() {
 
 			// 3. Immediately navigate to the sketch canvas!
 			router.push(sketchHref(selectedWorkspace.id, projectId, DEFAULT_SKETCH_ID));
+			return true;
 		} catch (err) {
 			setLocalError(err instanceof Error ? err.message : "Failed to create project");
+			return false;
 		} finally {
 			setCreatingProject(false);
 		}
@@ -333,6 +381,31 @@ export function ProjectsHomeClient() {
 					) : (
 						<Notice>{pageError}</Notice>
 					)
+				) : null}
+
+				{tryDraft ? (
+					<div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rule bg-card p-3 sm:p-4" role="status">
+						<div className="min-w-0">
+							<h2 className="flex items-center gap-2 text-sm font-bold">
+								<StateGlyph state="local" />
+								You have a sketch from Try it
+							</h2>
+							<p className="mt-0.5 text-sm text-muted-foreground">
+								{selectedWorkspace
+									? "It is still only in this browser. Import it as a project to save it to your repository."
+									: "It is still only in this browser. Set up a workspace below, then import it as a project."}
+							</p>
+						</div>
+						<div className="flex flex-wrap items-center gap-2">
+							<Button variant="ghost" size="sm" onClick={() => void discardTryDraft()} disabled={importingTry}>
+								Discard
+							</Button>
+							<Button size="sm" onClick={() => void handleImportTryDraft()} disabled={!selectedWorkspace || importingTry}>
+								{importingTry ? <Loader2 className="animate-spin" /> : <Plus />}
+								Import as a project
+							</Button>
+						</div>
+					</div>
 				) : null}
 
 				{selectedWorkspace ? (

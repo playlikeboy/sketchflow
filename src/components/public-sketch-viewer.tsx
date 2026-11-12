@@ -78,7 +78,7 @@ function ensureVisibleStrokeColors(elements: readonly any[], isDark: boolean): a
   });
 }
 
-function toInitialData(scene: SketchScene, resolvedTheme?: string): ExcalidrawInitialDataState {
+export function toInitialData(scene: SketchScene, resolvedTheme?: string): ExcalidrawInitialDataState {
   const isDark = (resolvedTheme ?? "dark") === "dark";
   const targetBg = isDark ? "#000000" : "#ffffff";
   const targetStroke = isDark ? "#ffffff" : "#1e1e1e";

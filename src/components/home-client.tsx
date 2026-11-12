@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStackApp } from "@stackframe/stack";
-import { ArrowRight, GitBranch, Loader2, Pencil, RotateCcw } from "lucide-react";
+import { ArrowRight, Loader2, Pencil, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
@@ -291,13 +291,18 @@ export function HomeClient() {
 									<ArrowRight />
 								</Button>
 								<Button variant="outline" size="lg" asChild>
-									<Link href={REPO_URL} target="_blank" rel="noopener noreferrer">
-										<GitBranch />
-										Read the source
+									<Link href="/try">
+										<Pencil />
+										Try it without an account
 									</Link>
 								</Button>
 							</div>
-							<p className="mt-4 text-sm text-muted-foreground">Open source under the MIT licence.</p>
+							<p className="mt-4 text-sm text-muted-foreground">
+								Open source under the MIT licence.{" "}
+								<Link href={REPO_URL} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+									Read the source
+								</Link>
+							</p>
 						</div>
 
 						<div className="min-w-0">
@@ -393,6 +398,7 @@ export function HomeClient() {
 					<span>Sketchflow · MIT licence</span>
 					<nav aria-label="Footer" className="flex items-center gap-5">
 						<Link href="/help" className="rounded-sm hover:text-foreground">Help</Link>
+						<Link href="/try" className="rounded-sm hover:text-foreground">Try it</Link>
 						<Link href="/app" className="rounded-sm hover:text-foreground">Open the app</Link>
 						<Link href={REPO_URL} target="_blank" rel="noopener noreferrer" className="rounded-sm hover:text-foreground">
 							GitHub

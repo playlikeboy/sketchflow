@@ -45,3 +45,7 @@ test("maps local keys to the unscoped keys older builds wrote", () => {
   expect(legacyUnscopedKey("sketchflow:user-1:ws:proj:map")).toBeNull();
   expect(legacyUnscopedKey("settings:offline-mode")).toBeNull();
 });
+
+test("the try-it scratch sketch lives in the signed-out local scope", () => {
+  expect(draftKey("try", "scratch", "sketch")).toBe("sketchflow:local:try:scratch:sketch");
+});
