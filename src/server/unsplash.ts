@@ -413,7 +413,9 @@ export function createUnsplashClient(overrides: Partial<UnsplashClientOptions> =
 			const response = await options.fetch(url, {
 				...cache,
 				headers: { Authorization: `Client-ID ${accessKey}`, "Accept-Version": "v1", Accept: "application/json" },
-				redirect: "error",
+				// Never follow a redirect: a 3xx comes back as a non-OK response and is treated as a
+				// failure below. This must be "manual": Cloudflare Workers throw on redirect "error".
+				redirect: "manual",
 				signal: controller.signal,
 			});
 			if (!response.ok) {

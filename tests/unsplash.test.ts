@@ -293,7 +293,7 @@ test("searches with the key in the Authorization header and the documented param
 	expect(calls[0].url).not.toContain(TEST_KEY);
 	expect(new Headers(calls[0].init.headers).get("authorization")).toBe(`Client-ID ${TEST_KEY}`);
 	expect(new Headers(calls[0].init.headers).get("accept-version")).toBe("v1");
-	expect(calls[0].init.redirect).toBe("error");
+	expect(calls[0].init.redirect).toBe("manual");
 	expect((calls[0].init as { next?: { revalidate?: number } }).next?.revalidate).toBe(3600);
 	expect(JSON.stringify(result)).not.toContain(TEST_KEY);
 });
@@ -585,7 +585,7 @@ test("tracks a download by requesting only the validated Unsplash URL", async ()
 	expect(calls.map((call) => call.url)).toEqual([downloadLocationFor("q10VITrVYUM")]);
 	expect(new Headers(calls[0].init.headers).get("authorization")).toBe(`Client-ID ${TEST_KEY}`);
 	expect(calls[0].init.cache).toBe("no-store");
-	expect(calls[0].init.redirect).toBe("error");
+	expect(calls[0].init.redirect).toBe("manual");
 });
 
 test("a token handed out with a search result is accepted for that photo", async () => {
@@ -713,4 +713,25 @@ test("deals photos into the shortest column, and appending never moves earlier p
 	expect(firstPage).toEqual([["tall"], ["wide", "square"]]);
 	expect(bothPages).toEqual([["tall"], ["wide", "square", "wide-2"]]);
 	expect(arrangeInColumns([], 2)).toEqual([[], []]);
+});
+
+// Cloudflare Workers throw a TypeError for `redirect: "error"`, which took photo search down
+// in production while every local test passed. These pin the option that works there.
+test("asks for redirects to be returned, not followed and not thrown, so the request works on Workers", async () => {
+	const { calls, client } = testClient(() => jsonResponse(searchBody()));
+
+	await client.searchPhotos({ query: "harbour", page: 1, visitorKey: VISITOR });
+
+	expect(calls[0].init.redirect).toBe("manual");
+	expect(calls[0].init.redirect).not.toBe("error");
+});
+
+test("treats a redirect from Unsplash as a failure and never requests its target", async () => {
+	const { calls, client } = testClient(() => new Response(null, { status: 302, headers: { location: "https://evil.example/steal" } }));
+
+	const attempt = client.searchPhotos({ query: "lighthouse", page: 1, visitorKey: VISITOR });
+
+	await expect(attempt).rejects.toBeInstanceOf(UnsplashUpstreamError);
+	expect(calls).toHaveLength(1);
+	expect(calls[0].url.startsWith("https://api.unsplash.com/")).toBe(true);
 });
