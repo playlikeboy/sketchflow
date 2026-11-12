@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 const topics = [
 	{ id: "basics", title: "The basics" },
-	{ id: "try", title: "Trying it without an account" },
+	{ id: "try", title: "Using it without an account" },
 	{ id: "saving", title: "Saving your work" },
 	{ id: "states", title: "What the state marks mean" },
 	{ id: "history", title: "History and restore" },
@@ -89,15 +89,20 @@ export default function HelpPage() {
 						</p>
 					</Topic>
 
-					<Topic id="try" title="Trying it without an account">
+					<Topic id="try" title="Using it without an account">
 						<p>
-							<Link href="/try" className="text-primary underline">The Try it page</Link> opens a canvas and notes
-							editor with no sign-in. Everything stays in that browser, and you can download the sketch and the
-							notes as files.
+							You do not need to sign in. <Link href="/app" className="text-primary underline">Open the app</Link>{" "}
+							and everything works: projects, the canvas and notes are saved in this browser under a workspace
+							called <strong>This device</strong>.
 						</p>
 						<p>
-							If you sign in later in the same browser, the projects page offers to import that sketch as a
-							project in your repository.
+							Work that lives only on this device is not backed up. Clearing the browser&apos;s site data removes
+							it, and it does not appear on your other devices.
+						</p>
+						<p>
+							When you want a backup, sign in with GitHub and choose a repository. Sketchflow then offers to copy
+							the projects from this device into it. You choose which ones; nothing is uploaded on its own.
+							Sharing a project needs a repository, so it needs sign-in too.
 						</p>
 					</Topic>
 

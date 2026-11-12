@@ -27,7 +27,10 @@ The user's GitHub repository is the database. Sketchflow stores no sketch conten
 
 ## Operating Context
 
-- Sign in, connect GitHub, create or connect a workspace repository, create projects, draw and write, save snapshots.
+- Local first: the whole app works without an account. Projects made signed out live in the browser under the "This device" workspace.
+- GitHub is optional. Signing in adds repository workspaces and offers to copy projects from this device into a repository the user chooses; nothing uploads on its own.
+- Sharing needs a repository and therefore sign-in. Nothing in the app redirects to sign-in by itself.
+- With a repository: create or connect a workspace repository, create projects, draw and write, save snapshots.
 - Edits are written to the browser's IndexedDB first; the editor never waits on the network. An offline mode pauses sync.
 - A save is one multi-file Git commit. If the branch moved since the draft was based on it, the commit is rejected instead of overwriting.
 - History lists the commits that touched a project, previews an old version, and restores it as a new commit.

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Check, ExternalLink, Link2, Loader2, X } from "lucide-react";
 import { useState } from "react";
 
+import { isLocalWorkspace } from "@/lib/local-workspace";
 import { cn } from "@/lib/utils";
 
 function formatDate(value: string) {
@@ -23,6 +24,7 @@ export function HistoryPanel({
 	onRestore,
 	restoringSha,
 	workspace,
+	onShareBlocked,
 	onClose,
 }: {
 	workspaceId: string;
@@ -33,14 +35,25 @@ export function HistoryPanel({
 	onRestore: (sha: string) => void;
 	restoringSha: string | null;
 	workspace?: { repoOwner: string; repoName: string; visibility: string } | null;
+	/** When set, sharing is unavailable (for example signed out): "Copy link" calls this instead. */
+	onShareBlocked?: () => void;
 	onClose?: () => void;
 }) {
-	const { data, isLoading, error } = useProjectHistory(workspaceId, projectId, userId);
+	const { data, isLoading, error } = useProjectHistory(
+		// The guest workspace has no commits, so it never asks the server for history.
+		isLocalWorkspace(workspaceId) ? null : workspaceId,
+		projectId,
+		userId,
+	);
 	const [copiedSha, setCopiedSha] = useState<string | null>(null);
 
 	const commits = data?.commits ?? [];
 
 	function copyShareLink(sha: string) {
+		if (onShareBlocked) {
+			onShareBlocked();
+			return;
+		}
 		if (!workspace) return;
 		const shareUrl = `${window.location.origin}/share/${workspace.repoOwner}/${workspace.repoName}/${projectId}?ref=${sha}`;
 		void navigator.clipboard.writeText(shareUrl).then(() => {

@@ -15,6 +15,7 @@ import {
   Globe,
   LayoutTemplate,
   Loader2,
+  LogIn,
   LogOut,
   Plus,
   Search,
@@ -36,7 +37,9 @@ import {
   clearSyncQueueForUser,
   onSyncQueueChange,
 } from "@/lib/sync-manager";
-import { useAuthMe } from "@/lib/swr-hooks";
+import { useAppIdentity } from "@/lib/use-app-identity";
+import { isLocalWorkspace, workspaceLabel } from "@/lib/local-workspace";
+import { signInPath } from "@/lib/return-path";
 
 import { BrandMark } from "@/components/brand-mark";
 import { StateGlyph, StateMark } from "@/components/state-mark";
@@ -91,45 +94,126 @@ const navGroups = [
 ];
 
 const CREATE_WORKSPACE_VALUE = "__create_workspace__";
+const UNSYNCED_POLL_MS = 3000;
+const PERSIST_REQUESTED_KEY = "sketchflow:storage-persist-requested";
+
+/**
+ * Asks the browser, once per session, to keep this site's storage when space runs low, so
+ * projects that exist only on this device are less likely to be evicted. Failures are fine:
+ * the request is advisory and some browsers decide on their own.
+ */
+function requestPersistentStorageOnce() {
+  try {
+    if (window.sessionStorage?.getItem(PERSIST_REQUESTED_KEY)) return;
+    window.sessionStorage?.setItem(PERSIST_REQUESTED_KEY, "1");
+  } catch {
+    // Storage can be blocked; still try once for this page load.
+  }
+  void navigator.storage?.persist?.().catch(() => {});
+}
+
+/** Polls `check` while mounted. `check` resolves to the latest value or rejects (ignored). */
+function usePolledFlag(check: (() => Promise<boolean>) | null, deps: unknown[]) {
+  const [value, setValue] = useState(false);
+
+  useEffect(() => {
+    if (!check) {
+      setValue(false);
+      return;
+    }
+    let active = true;
+    const run = () => {
+      check().then((next) => {
+        if (active) setValue(next);
+      }).catch(() => {});
+    };
+    run();
+    const interval = setInterval(run, UNSYNCED_POLL_MS);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `check` is rebuilt every render; deps name its inputs.
+  }, deps);
+
+  return value;
+}
+
+function WorkspaceSwitcher({
+  workspaces,
+  selectedWorkspaceId,
+  onWorkspaceChange,
+  isSignedIn,
+}: {
+  workspaces: Workspace[];
+  selectedWorkspaceId?: string | null;
+  onWorkspaceChange?: (workspaceId: string) => void;
+  isSignedIn: boolean;
+}) {
+  const router = useRouter();
+  const createLabel = isSignedIn ? "New workspace" : "Connect GitHub";
+  const createHref = isSignedIn ? "/app/workspace?new=1" : "/app/workspace";
+
+  function handleWorkspaceValue(value: string) {
+    if (value === CREATE_WORKSPACE_VALUE) {
+      router.push(createHref);
+      return;
+    }
+    onWorkspaceChange?.(value);
+  }
+
+  if (workspaces.length === 0 || !selectedWorkspaceId || !onWorkspaceChange) {
+    return (
+      <Button variant="outline" size="sm" className="w-full justify-start" asChild>
+        <Link href={createHref}>
+          <Plus />
+          {createLabel}
+        </Link>
+      </Button>
+    );
+  }
+
+  return (
+    <Select value={selectedWorkspaceId} onValueChange={handleWorkspaceValue}>
+      <SelectTrigger className="datum h-9 w-full min-w-0 rounded-md border-input bg-card px-2.5 *:data-[slot=select-value]:block *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:truncate" aria-label="Switch workspace">
+        <SelectValue placeholder="Select workspace" />
+      </SelectTrigger>
+      <SelectContent>
+        {workspaces.map((workspace) => (
+          <SelectItem key={workspace.id} value={workspace.id} className={isLocalWorkspace(workspace.id) ? undefined : "datum"}>
+            {workspaceLabel(workspace)}
+          </SelectItem>
+        ))}
+        <SelectSeparator />
+        <SelectItem value={CREATE_WORKSPACE_VALUE}>
+          <Plus className="size-3.5" />
+          {createLabel}
+        </SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
 
 function AppSidebar({
   workspaces = [],
   selectedWorkspaceId,
   onWorkspaceChange,
   userId,
+  isSignedIn,
 }: {
   workspaces?: Workspace[];
   selectedWorkspaceId?: string | null;
   onWorkspaceChange?: (workspaceId: string) => void;
   userId?: string | null;
+  isSignedIn: boolean;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [hasUnsynced, setHasUnsynced] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    function check() {
-      hasAnyLocalProjects(userId).then((val) => {
-        if (active) setHasUnsynced(val);
-      }).catch(() => {});
-    }
-    check();
-    const interval = setInterval(check, 3000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, [pathname, userId]);
-
-  function handleWorkspaceValue(value: string) {
-    if (value === CREATE_WORKSPACE_VALUE) {
-      router.push("/app/workspace?new=1");
-      return;
-    }
-
-    onWorkspaceChange?.(value);
-  }
+  // For a signed-in user, flags repository projects that have not reached GitHub yet. A guest's
+  // projects are all on this device by design, so there is nothing to flag.
+  const hasUnsynced = usePolledFlag(
+    isSignedIn && userId ? () => hasAnyLocalProjects(userId) : null,
+    [pathname, userId, isSignedIn],
+  );
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -141,32 +225,12 @@ function AppSidebar({
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
           <SidebarGroupLabel className="legend-label h-7 px-1">Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
-            {workspaces.length > 0 && selectedWorkspaceId && onWorkspaceChange ? (
-              <Select value={selectedWorkspaceId} onValueChange={handleWorkspaceValue}>
-                <SelectTrigger className="datum h-9 w-full min-w-0 rounded-md border-input bg-card px-2.5 *:data-[slot=select-value]:block *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:truncate" aria-label="Switch workspace">
-                  <SelectValue placeholder="Select workspace" />
-                </SelectTrigger>
-                <SelectContent>
-                  {workspaces.map((workspace) => (
-                    <SelectItem key={workspace.id} value={workspace.id} className="datum">
-                      {workspace.repoOwner}/{workspace.repoName}
-                    </SelectItem>
-                  ))}
-                  <SelectSeparator />
-                  <SelectItem value={CREATE_WORKSPACE_VALUE}>
-                    <Plus className="size-3.5" />
-                    New workspace
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            ) : (
-              <Button variant="outline" size="sm" className="w-full justify-start" asChild>
-                <Link href="/app/workspace?new=1">
-                  <Plus />
-                  New workspace
-                </Link>
-              </Button>
-            )}
+            <WorkspaceSwitcher
+              workspaces={workspaces}
+              selectedWorkspaceId={selectedWorkspaceId}
+              onWorkspaceChange={onWorkspaceChange}
+              isSignedIn={isSignedIn}
+            />
           </SidebarGroupContent>
         </SidebarGroup>
 
@@ -223,6 +287,185 @@ function AppSidebar({
   );
 }
 
+/** Sync status, retry and pause controls. Only meaningful for a repository workspace. */
+function RepositorySyncControls({
+  workspaceId,
+  userId,
+  syncLabel,
+  githubUnreachable,
+}: {
+  workspaceId: string | null;
+  userId: string | null;
+  syncLabel?: string;
+  githubUnreachable: boolean;
+}) {
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [syncFailures, setSyncFailures] = useState(0);
+  const hasWorkspaceUnsynced = usePolledFlag(
+    workspaceId ? () => getLocalProjects(workspaceId, userId).then((projects) => projects.length > 0) : null,
+    [workspaceId, userId],
+  );
+
+  useEffect(() => {
+    getOfflineModeSetting().then(setIsOfflineMode).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const refreshFailures = () => {
+      void getSyncFailureCount().then((count) => {
+        if (active) setSyncFailures(count);
+      }).catch(() => {});
+    };
+
+    refreshFailures();
+    const unsubscribe = onSyncQueueChange(refreshFailures);
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  async function toggleOfflineMode() {
+    const next = !isOfflineMode;
+    setIsOfflineMode(next);
+    await setOfflineModeSetting(next);
+    if (!next) {
+      await triggerSyncNow();
+    }
+  }
+
+  return (
+    <>
+      {githubUnreachable ? (
+        <StateMark state="error" label="GitHub unreachable" className="px-1.5" />
+      ) : syncFailures > 0 ? (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void retryFailedSyncActions(userId ?? undefined)}
+          className="border-destructive/40 text-destructive hover:bg-destructive/10"
+          title="Retry the saves that failed"
+        >
+          <StateGlyph state="error" />
+          Retry {syncFailures} failed {syncFailures === 1 ? "save" : "saves"}
+        </Button>
+      ) : hasWorkspaceUnsynced && !isOfflineMode ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => void triggerSyncNow()}
+          title="Some projects exist only in this browser. Sync them to GitHub now."
+        >
+          <StateGlyph state="local" />
+          Sync local projects
+        </Button>
+      ) : syncLabel ? (
+        <StateMark state="synced" label={syncLabel} className="datum hidden px-1.5 lg:inline-flex" />
+      ) : null}
+
+      <Button
+        variant={isOfflineMode ? "outline" : "ghost"}
+        size="sm"
+        onClick={() => void toggleOfflineMode()}
+        aria-pressed={isOfflineMode}
+        className={cn(isOfflineMode && "bg-accent text-foreground")}
+        title={
+          isOfflineMode
+            ? "Sync is paused. Changes stay in this browser until you resume."
+            : "Changes sync to GitHub in the background. Click to pause."
+        }
+      >
+        {isOfflineMode ? <CloudOff /> : <Cloud />}
+        <span className="hidden sm:inline">{isOfflineMode ? "Sync paused" : "Sync on"}</span>
+      </Button>
+    </>
+  );
+}
+
+/** Sign-out for a signed-in user: GitHub access settings and the sign-out button. */
+function SignedInControls({ userId }: { userId: string | null }) {
+  const { mutate } = useSWRConfig();
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setSignOutError(null);
+
+    // End the session first. If that fails the user is still signed in, so their unsynced
+    // drafts and queued saves must stay where they are.
+    try {
+      await endSession();
+    } catch (error) {
+      setSignOutError(error instanceof Error ? error.message : "Sign-out did not finish. Try again.");
+      setSigningOut(false);
+      return;
+    }
+
+    clearStoredGithubToken();
+    window.localStorage?.removeItem("sketchflow:active-user-id");
+    // Only the signed-in user's scope is purged. Guest projects ("local" scope) stay on this device.
+    if (userId) {
+      await Promise.allSettled([clearSyncQueueForUser(userId), purgeUserCache(userId)]);
+    }
+    await mutate(() => true, undefined, { revalidate: false });
+    window.location.assign("/");
+  }
+
+  return (
+    <>
+      <Button variant="ghost" size="icon-sm" asChild>
+        <a
+          href={GITHUB_ACCESS_SETTINGS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Manage GitHub access (opens GitHub)"
+          title="Manage GitHub access"
+        >
+          <CircleUser />
+        </a>
+      </Button>
+      {signOutError ? (
+        <span role="alert" className="hidden max-w-48 truncate text-xs text-destructive sm:inline" title={signOutError}>
+          {signOutError}
+        </span>
+      ) : null}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => void signOut()}
+        disabled={signingOut}
+        aria-label={signOutError ? `Sign out. ${signOutError}` : "Sign out"}
+        title={signOutError ?? "Sign out"}
+      >
+        {signingOut ? <Loader2 className="animate-spin" /> : <LogOut />}
+      </Button>
+    </>
+  );
+}
+
+/** Sign-in for a guest. Returns to the current page afterwards. */
+function SignInLink() {
+  const pathname = usePathname();
+  const [returnPath, setReturnPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    setReturnPath(`${window.location.pathname}${window.location.search}`);
+  }, [pathname]);
+
+  return (
+    <Button variant="outline" size="sm" asChild>
+      <Link href={signInPath(returnPath ?? pathname)} title="Sign in with GitHub to back up and share projects">
+        <LogIn />
+        Sign in with GitHub
+      </Link>
+    </Button>
+  );
+}
+
 export function AppShell({
   children,
   title,
@@ -251,91 +494,17 @@ export function AppShell({
   /** Set when the page knows GitHub cannot be reached, so the bar never claims work is synced. */
   githubUnreachable?: boolean;
 }) {
-  const { mutate } = useSWRConfig();
-  const { data: auth } = useAuthMe();
-  const userId = auth?.user?.id;
-
-  const [hasWorkspaceUnsynced, setHasWorkspaceUnsynced] = useState(false);
-  const [isOfflineMode, setIsOfflineMode] = useState(false);
-  const [syncFailures, setSyncFailures] = useState(0);
-  const [signingOut, setSigningOut] = useState(false);
-  const [signOutError, setSignOutError] = useState<string | null>(null);
+  const { isSignedIn, isLoading: identityLoading, userId } = useAppIdentity();
+  const showRepositorySync = isSignedIn && !isLocalWorkspace(selectedWorkspaceId);
 
   useEffect(() => {
-    getOfflineModeSetting().then(setIsOfflineMode).catch(() => {});
+    requestPersistentStorageOnce();
   }, []);
 
+  // Queued repository saves need a session; a guest has nothing to send to GitHub.
   useEffect(() => {
-    if (!selectedWorkspaceId) {
-      setHasWorkspaceUnsynced(false);
-      return;
-    }
-    const wsId = selectedWorkspaceId;
-    let active = true;
-    function check() {
-      getLocalProjects(wsId, userId).then((projects) => {
-        if (active) setHasWorkspaceUnsynced(projects.length > 0);
-      }).catch(() => {});
-    }
-    check();
-    const interval = setInterval(check, 3000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, [selectedWorkspaceId, userId]);
-
-  useEffect(() => {
-    startSyncManager();
-
-    let active = true;
-    const refreshFailures = () => {
-      void getSyncFailureCount().then((count) => {
-        if (active) setSyncFailures(count);
-      });
-    };
-
-    refreshFailures();
-    const unsubscribe = onSyncQueueChange(refreshFailures);
-
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, []);
-
-  async function toggleOfflineMode() {
-    const next = !isOfflineMode;
-    setIsOfflineMode(next);
-    await setOfflineModeSetting(next);
-    if (!next) {
-      await triggerSyncNow();
-    }
-  }
-
-  async function signOut() {
-    if (signingOut) return;
-    setSigningOut(true);
-    setSignOutError(null);
-
-    // End the session first. If that fails the user is still signed in, so their unsynced
-    // drafts and queued saves must stay where they are.
-    try {
-      await endSession();
-    } catch (error) {
-      setSignOutError(error instanceof Error ? error.message : "Sign-out did not finish. Try again.");
-      setSigningOut(false);
-      return;
-    }
-
-    clearStoredGithubToken();
-    window.localStorage?.removeItem("sketchflow:active-user-id");
-    if (userId) {
-      await Promise.allSettled([clearSyncQueueForUser(userId), purgeUserCache(userId)]);
-    }
-    await mutate(() => true, undefined, { revalidate: false });
-    window.location.assign("/");
-  }
+    if (isSignedIn) startSyncManager();
+  }, [isSignedIn]);
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -344,6 +513,7 @@ export function AppShell({
         selectedWorkspaceId={selectedWorkspaceId}
         onWorkspaceChange={onWorkspaceChange}
         userId={userId}
+        isSignedIn={isSignedIn}
       />
       <SidebarInset className="min-w-0">
         <header className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-border bg-background px-3 sm:px-5">
@@ -368,77 +538,20 @@ export function AppShell({
               </div>
             ) : null}
 
-            {githubUnreachable ? (
-              <StateMark state="error" label="GitHub unreachable" className="px-1.5" />
-            ) : syncFailures > 0 ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void retryFailedSyncActions(userId ?? undefined)}
-                className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                title="Retry the saves that failed"
-              >
-                <StateGlyph state="error" />
-                Retry {syncFailures} failed {syncFailures === 1 ? "save" : "saves"}
-              </Button>
-            ) : hasWorkspaceUnsynced && !isOfflineMode ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void triggerSyncNow()}
-                title="Some projects exist only in this browser. Sync them to GitHub now."
-              >
-                <StateGlyph state="local" />
-                Sync local projects
-              </Button>
-            ) : syncLabel ? (
-              <StateMark state="synced" label={syncLabel} className="datum hidden px-1.5 lg:inline-flex" />
-            ) : null}
-
-            <Button
-              variant={isOfflineMode ? "outline" : "ghost"}
-              size="sm"
-              onClick={toggleOfflineMode}
-              aria-pressed={isOfflineMode}
-              className={cn(isOfflineMode && "bg-accent text-foreground")}
-              title={
-                isOfflineMode
-                  ? "Sync is paused. Changes stay in this browser until you resume."
-                  : "Changes sync to GitHub in the background. Click to pause."
-              }
-            >
-              {isOfflineMode ? <CloudOff /> : <Cloud />}
-              <span className="hidden sm:inline">{isOfflineMode ? "Sync paused" : "Sync on"}</span>
-            </Button>
+            {showRepositorySync ? (
+              <RepositorySyncControls
+                workspaceId={selectedWorkspaceId ?? null}
+                userId={userId}
+                syncLabel={syncLabel}
+                githubUnreachable={githubUnreachable}
+              />
+            ) : (
+              <StateMark state="local" label="On this device" className="px-1.5" />
+            )}
 
             {action}
 
-            <Button variant="ghost" size="icon-sm" asChild>
-              <a
-                href={GITHUB_ACCESS_SETTINGS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Manage GitHub access (opens GitHub)"
-                title="Manage GitHub access"
-              >
-                <CircleUser />
-              </a>
-            </Button>
-            {signOutError ? (
-              <span role="alert" className="hidden max-w-48 truncate text-xs text-destructive sm:inline" title={signOutError}>
-                {signOutError}
-              </span>
-            ) : null}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => void signOut()}
-              disabled={signingOut}
-              aria-label={signOutError ? `Sign out. ${signOutError}` : "Sign out"}
-              title={signOutError ?? "Sign out"}
-            >
-              {signingOut ? <Loader2 className="animate-spin" /> : <LogOut />}
-            </Button>
+            {isSignedIn ? <SignedInControls userId={userId} /> : identityLoading ? null : <SignInLink />}
           </div>
         </header>
         <main className="min-w-0 flex-1 px-3 py-5 sm:px-5">{children}</main>
