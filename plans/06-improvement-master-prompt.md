@@ -110,7 +110,7 @@ Write a short pricing proposal as a plan file and get the maintainer's sign-off 
 - [ ] C: accessibility pass
 - [ ] C: performance pass
 - [x] D: README, CONTRIBUTING, SECURITY
-- [ ] D: issues, templates, roadmap
+- [x] D: issues and templates (five starter issues opened; a public roadmap is still open)
 - [ ] D: first tagged release (changelog and self-hosting guide written; tag once deploy is green)
 - [ ] E: pricing proposal
 - [ ] E: billing integration and limits
