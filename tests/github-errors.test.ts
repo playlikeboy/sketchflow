@@ -357,3 +357,15 @@ describe("planSyncFailure", () => {
 		expect(later).toEqual({ outcome: "retry", delayMs: 30_000 });
 	});
 });
+
+test("a nonsense retry header still classifies as rate limited instead of throwing", () => {
+	// Arrange
+	const headers = new Headers({ "retry-after": "1e13", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "9".repeat(20) });
+
+	// Act
+	const problem = classifyGithubFailure({ status: 429, message: "You have exceeded a secondary rate limit.", headers });
+
+	// Assert
+	expect(problem.code).toBe("github_rate_limited");
+	expect(problem.retryAt === undefined || !Number.isNaN(Date.parse(problem.retryAt))).toBe(true);
+});

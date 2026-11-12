@@ -17,6 +17,8 @@ export type UnsplashPhoto = {
 	photoPageUrl: string;
 	/** Unsplash's download-tracking endpoint for this photo. Reported when the photo is used. */
 	downloadLocation: string;
+	/** Issued by the server with each search result; the download report is refused without it. */
+	downloadToken: string;
 };
 
 export type UnsplashSearchResponse = {
@@ -130,12 +132,12 @@ export async function fetchUnsplashPhotoBlob(photo: Pick<UnsplashPhoto, "regular
  * Tells Unsplash that a photo was used, which its API guidelines require. Fire and forget:
  * the photo is already on the canvas, so a failure here must never surface to the person drawing.
  */
-export function reportUnsplashDownload(downloadLocation: string) {
+export function reportUnsplashDownload(photo: Pick<UnsplashPhoto, "downloadLocation" | "downloadToken">) {
 	void fetch("/api/unsplash/download", {
 		method: "POST",
 		credentials: "omit",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ downloadLocation }),
+		body: JSON.stringify({ downloadLocation: photo.downloadLocation, downloadToken: photo.downloadToken }),
 		keepalive: true,
 	}).catch(() => undefined);
 }

@@ -228,7 +228,7 @@ export function PhotosTab({ api, query, onInserted }: InsertTabProps) {
 			const blob = await fetchUnsplashPhotoBlob(photo);
 			const image = await rasterToImage(blob);
 			await insertImage(api, { ...image, targetSize: PHOTO_INSERT_SIZE, link: photo.photoPageUrl });
-			reportUnsplashDownload(photo.downloadLocation);
+			reportUnsplashDownload(photo);
 			onInserted(`photo by ${photo.photographerName}`);
 		} catch {
 			const message = isOffline() ? "You're offline. Reconnect to add this photo." : "This photo couldn't be added. Try again.";

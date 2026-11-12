@@ -88,10 +88,10 @@ const DOWNLOAD_IXID_PATTERN = /^[A-Za-z0-9_-]{1,512}$/;
 
 /**
  * The SSRF boundary. Accepts only `https://api.unsplash.com/photos/<id>/download`, optionally
- * with the `ixid` tracking parameter Unsplash adds, and returns a URL rebuilt from the validated
- * parts so nothing else from the caller's string is ever requested.
+ * with the `ixid` tracking parameter Unsplash adds, and returns the photo id with a URL rebuilt
+ * from the validated parts, so nothing else from the caller's string is ever requested.
  */
-export function parseDownloadLocation(raw: unknown) {
+export function parseDownloadTarget(raw: unknown): { photoId: string; url: string } {
 	const invalid = () => new BadRequestError('Expected "downloadLocation" to be an Unsplash download URL');
 
 	if (typeof raw !== "string" || raw.length === 0 || raw.length > MAX_DOWNLOAD_LOCATION_LENGTH) {
@@ -122,10 +122,67 @@ export function parseDownloadLocation(raw: unknown) {
 	}
 
 	const query = ixid === null ? "" : `?ixid=${ixid}`;
-	return `${UNSPLASH_API_ORIGIN}/photos/${path[1]}/download${query}`;
+	return { photoId: path[1], url: `${UNSPLASH_API_ORIGIN}/photos/${path[1]}/download${query}` };
+}
+
+/** The validated, rebuilt download URL on its own. */
+export function parseDownloadLocation(raw: unknown) {
+	return parseDownloadTarget(raw).url;
+}
+
+// ---- Download tokens ----------------------------------------------------------------------
+
+// A token proves that this server handed out a photo in a search result. Without one, the
+// download route would track any photo id a script cared to send, spending the shared Unsplash
+// budget and inventing download counts. It is the first 16 bytes of
+// HMAC-SHA256(access key, "sketchflow:unsplash-download:v1:<photo id>"), base64url encoded.
+const DOWNLOAD_TOKEN_CONTEXT = "sketchflow:unsplash-download:v1:";
+const DOWNLOAD_TOKEN_BYTES = 16;
+const DOWNLOAD_TOKEN_LENGTH = 22;
+const textEncoder = new TextEncoder();
+
+function importSigningKey(accessKey: string) {
+	return crypto.subtle.importKey("raw", textEncoder.encode(accessKey), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+}
+
+function toBase64Url(bytes: Uint8Array) {
+	return btoa(String.fromCharCode(...bytes)).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+
+async function signPhotoId(signingKey: CryptoKey, photoId: string) {
+	const signature = await crypto.subtle.sign("HMAC", signingKey, textEncoder.encode(`${DOWNLOAD_TOKEN_CONTEXT}${photoId}`));
+	return toBase64Url(new Uint8Array(signature).slice(0, DOWNLOAD_TOKEN_BYTES));
+}
+
+export async function createDownloadToken(photoId: string, accessKey: string) {
+	return signPhotoId(await importSigningKey(accessKey), photoId);
+}
+
+function constantTimeEqual(left: string, right: string) {
+	if (left.length !== right.length) return false;
+
+	let difference = 0;
+	for (let index = 0; index < left.length; index += 1) {
+		difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+	}
+	return difference === 0;
+}
+
+/** True only for the token this server issued for exactly this photo id. */
+export async function verifyDownloadToken(photoId: string, token: unknown, accessKey: string) {
+	if (typeof token !== "string" || token.length !== DOWNLOAD_TOKEN_LENGTH) return false;
+	return constantTimeEqual(await createDownloadToken(photoId, accessKey), token);
 }
 
 // ---- Response mapping ---------------------------------------------------------------------
+
+/** A mapped photo before its download token is attached. */
+export type UnsignedUnsplashPhoto = Omit<UnsplashPhoto, "downloadToken">;
+
+export type UnsignedUnsplashSearchResponse = {
+	photos: UnsignedUnsplashPhoto[];
+	totalPages: number;
+};
 
 type JsonRecord = Record<string, unknown>;
 
@@ -176,7 +233,7 @@ function safeDownloadLocation(value: unknown) {
  * Maps one raw Unsplash result to the shape sent to the browser, or null when it is missing
  * anything the tab needs. Photos served from other hosts (Unsplash+ previews) are left out.
  */
-export function mapUnsplashPhoto(raw: unknown): UnsplashPhoto | null {
+export function mapUnsplashPhoto(raw: unknown): UnsignedUnsplashPhoto | null {
 	if (!isRecord(raw)) return null;
 
 	const urls = asRecord(raw.urls);
@@ -213,13 +270,28 @@ export function mapUnsplashPhoto(raw: unknown): UnsplashPhoto | null {
 }
 
 /** Maps a raw `/search/photos` body. Malformed results are dropped rather than failing the page. */
-export function mapUnsplashSearchResponse(raw: unknown): UnsplashSearchResponse {
+export function mapUnsplashSearchResponse(raw: unknown): UnsignedUnsplashSearchResponse {
 	const body = asRecord(raw);
 	const results = Array.isArray(body.results) ? body.results : [];
 	const photos = results.map(mapUnsplashPhoto).filter((photo) => photo !== null);
 	const totalPages = positiveNumber(body.total_pages) ?? (photos.length > 0 ? 1 : 0);
 
 	return { photos, totalPages: Math.min(UNSPLASH_MAX_PAGE, Math.floor(totalPages)) };
+}
+
+/** Attaches a download token to every photo. Kept apart from the mapping so that stays pure. */
+export async function signUnsplashSearchResponse(
+	response: UnsignedUnsplashSearchResponse,
+	accessKey: string,
+): Promise<UnsplashSearchResponse> {
+	const signingKey = await importSigningKey(accessKey);
+	const photos = await Promise.all(
+		response.photos.map(async (photo) => ({
+			...photo,
+			downloadToken: await signPhotoId(signingKey, parseDownloadTarget(photo.downloadLocation).photoId),
+		})),
+	);
+	return { photos, totalPages: response.totalPages };
 }
 
 // ---- Error classification -----------------------------------------------------------------
@@ -241,12 +313,38 @@ export function classifyUnsplashFailure(status: number, rateLimitRemaining: stri
 /** The part of `fetch` this module uses; narrower than the global so tests can pass a plain function. */
 export type UnsplashFetch = (url: string, init: RequestInit) => Promise<Response>;
 
+/** The key used when a request carries no usable visitor address. Everyone without one shares it. */
+export const UNSPLASH_SHARED_VISITOR_KEY = "shared";
+
+const HOUR_MS = 3_600_000;
+const DOWNLOAD_DEDUPE_MS = 24 * HOUR_MS;
+const MAX_TRACKED_DOWNLOADS = 2_000;
+
+/**
+ * Hourly ceilings on calls that actually reach Unsplash, whose demo tier allows 50 an hour for
+ * the whole app. Only cache misses are charged; a cached search costs nothing and is never refused.
+ */
+export const UNSPLASH_UPSTREAM_LIMITS = {
+	// Uncached searches by one visitor, so one person cannot spend everyone's budget.
+	visitorSearchMisses: { limit: 12, windowMs: HOUR_MS },
+	// Uncached searches by everyone this isolate serves.
+	globalSearchMisses: { limit: 35, windowMs: HOUR_MS },
+	// Download reports by everyone this isolate serves. 35 + 15 stays inside the 50.
+	downloads: { limit: 15, windowMs: HOUR_MS },
+} satisfies Record<string, RateLimitRule>;
+
+export type UnsplashUpstreamLimits = Record<keyof typeof UNSPLASH_UPSTREAM_LIMITS, RateLimitRule>;
+
 export type UnsplashClientOptions = {
 	fetch: UnsplashFetch;
 	getAccessKey: () => string;
 	now: () => number;
 	timeoutMs: number;
+	limits: UnsplashUpstreamLimits;
 };
+
+/** What happened to a download report. Only "tracked" reached Unsplash. */
+export type UnsplashDownloadOutcome = "tracked" | "already_tracked" | "over_budget";
 
 // Finished results only. An in-flight promise must not be shared between requests on Cloudflare
 // Workers, where I/O started by one request cannot be awaited from another.
@@ -262,6 +360,7 @@ function defaultOptions(): UnsplashClientOptions {
 		getAccessKey: () => getOptionalEnv("UNSPLASH_ACCESS_KEY").trim(),
 		now: Date.now,
 		timeoutMs: REQUEST_TIMEOUT_MS,
+		limits: UNSPLASH_UPSTREAM_LIMITS,
 	};
 }
 
@@ -275,21 +374,39 @@ function searchUrl(query: string, page: number) {
 	return `${UNSPLASH_API_ORIGIN}/search/photos?${params.toString()}`;
 }
 
+function searchCacheKey(query: string, page: number) {
+	return `${page}\n${query}`;
+}
+
+// The empty search box shows this page. It is never evicted, so once loaded it stays free.
+const PINNED_SEARCH_KEY = searchCacheKey(UNSPLASH_DEFAULT_QUERY, 1);
+
+function isUpstreamTrouble(error: unknown) {
+	return error instanceof UnsplashRateLimitedError || error instanceof UnsplashUpstreamError;
+}
+
 /**
  * Builds an Unsplash client. The exported `searchUnsplashPhotos` and `trackUnsplashDownload`
- * use the real fetch and environment; tests build their own with a mocked fetch.
+ * use the real fetch and environment; tests build their own with a mocked fetch, clock and limits.
  */
 export function createUnsplashClient(overrides: Partial<UnsplashClientOptions> = {}) {
 	const options = { ...defaultOptions(), ...overrides };
 	// Per-isolate memory cache in front of Next's fetch cache, which is not persisted on every host.
+	// Expired entries are kept until evicted: they are what gets served when Unsplash cannot be asked.
 	const searchCache = new Map<string, CachedSearch>();
+	// Photo id to the time it may be reported again.
+	const trackedDownloads = new Map<string, number>();
+	const spend = createRateLimiter(options.now);
 
-	async function requestJson(url: string, cache: RequestInit): Promise<unknown> {
+	function requireAccessKey() {
 		const accessKey = options.getAccessKey();
 		if (!accessKey) {
 			throw new UnsplashNotConfiguredError();
 		}
+		return accessKey;
+	}
 
+	async function requestJson(url: string, accessKey: string, cache: RequestInit): Promise<unknown> {
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), options.timeoutMs);
 		try {
@@ -314,32 +431,95 @@ export function createUnsplashClient(overrides: Partial<UnsplashClientOptions> =
 		}
 	}
 
+	function evictOldestSearch() {
+		for (const key of searchCache.keys()) {
+			if (key !== PINNED_SEARCH_KEY) {
+				searchCache.delete(key);
+				return;
+			}
+		}
+	}
+
 	function rememberSearch(key: string, value: UnsplashSearchResponse) {
 		searchCache.delete(key);
 		if (searchCache.size >= MAX_CACHED_SEARCHES) {
-			const oldestKey = searchCache.keys().next().value;
-			if (oldestKey !== undefined) searchCache.delete(oldestKey);
+			evictOldestSearch();
 		}
 		searchCache.set(key, { expiresAt: options.now() + UNSPLASH_SEARCH_TTL_SECONDS * 1_000, value });
 	}
 
-	async function searchPhotos(input: { query: string; page: number }): Promise<UnsplashSearchResponse> {
+	/** Charges one uncached search to the visitor and to the isolate. False when either is spent. */
+	function spendSearchMiss(visitorKey: string) {
+		// Without a visitor address there is nobody to charge individually; the isolate-wide limit still applies.
+		const isVisitorAllowed =
+			visitorKey === UNSPLASH_SHARED_VISITOR_KEY || spend(`visitor-search:${visitorKey}`, options.limits.visitorSearchMisses).allowed;
+		return isVisitorAllowed && spend("global-search", options.limits.globalSearchMisses).allowed;
+	}
+
+	async function searchPhotos(input: { query: string; page: number; visitorKey: string }): Promise<UnsplashSearchResponse> {
 		const query = normalizeUnsplashQuery(input.query) || UNSPLASH_DEFAULT_QUERY;
-		const cacheKey = `${input.page}\n${query}`;
+		const cacheKey = searchCacheKey(query, input.page);
 		const cached = searchCache.get(cacheKey);
 		if (cached && cached.expiresAt > options.now()) {
 			return cached.value;
 		}
 
-		const body = await requestJson(searchUrl(query, input.page), { next: { revalidate: UNSPLASH_SEARCH_TTL_SECONDS } });
-		const result = mapUnsplashSearchResponse(body);
-		rememberSearch(cacheKey, result);
-		return result;
+		const accessKey = requireAccessKey();
+		if (!spendSearchMiss(input.visitorKey)) {
+			if (cached) return cached.value;
+			throw new UnsplashRateLimitedError();
+		}
+
+		try {
+			const body = await requestJson(searchUrl(query, input.page), accessKey, { next: { revalidate: UNSPLASH_SEARCH_TTL_SECONDS } });
+			const result = await signUnsplashSearchResponse(mapUnsplashSearchResponse(body), accessKey);
+			rememberSearch(cacheKey, result);
+			return result;
+		} catch (error) {
+			// An out-of-date page of photos is better than none while Unsplash is failing or limiting us.
+			if (cached && isUpstreamTrouble(error)) return cached.value;
+			throw error;
+		}
 	}
 
-	/** Reports a photo as used. `downloadLocation` is re-validated here, whatever the caller did. */
-	async function trackDownload(downloadLocation: string): Promise<void> {
-		await requestJson(parseDownloadLocation(downloadLocation), { cache: "no-store" });
+	function rememberDownload(photoId: string) {
+		const now = options.now();
+		if (trackedDownloads.size >= MAX_TRACKED_DOWNLOADS) {
+			for (const [id, reportableAt] of trackedDownloads) {
+				if (reportableAt <= now) trackedDownloads.delete(id);
+			}
+		}
+		if (trackedDownloads.size >= MAX_TRACKED_DOWNLOADS) {
+			const oldestId = trackedDownloads.keys().next().value;
+			if (oldestId !== undefined) trackedDownloads.delete(oldestId);
+		}
+		trackedDownloads.set(photoId, now + DOWNLOAD_DEDUPE_MS);
+	}
+
+	/**
+	 * Reports a photo as used, as Unsplash requires. Only photos this server handed out can be
+	 * reported (the token), each at most once a day per isolate, within an hourly budget. A repeat
+	 * or an exhausted budget is not an error: the caller fires and forgets this.
+	 */
+	async function trackDownload(input: { downloadLocation: unknown; downloadToken: unknown }): Promise<UnsplashDownloadOutcome> {
+		const target = parseDownloadTarget(input.downloadLocation);
+		const accessKey = requireAccessKey();
+		if (!(await verifyDownloadToken(target.photoId, input.downloadToken, accessKey))) {
+			throw new BadRequestError('Expected "downloadToken" to be the token issued with this photo');
+		}
+
+		if ((trackedDownloads.get(target.photoId) ?? 0) > options.now()) return "already_tracked";
+		if (!spend("downloads", options.limits.downloads).allowed) return "over_budget";
+
+		rememberDownload(target.photoId);
+		try {
+			await requestJson(target.url, accessKey, { cache: "no-store" });
+			return "tracked";
+		} catch (error) {
+			// Not reported after all, so a later use of the same photo may try again.
+			trackedDownloads.delete(target.photoId);
+			throw error;
+		}
 	}
 
 	return { searchPhotos, trackDownload };
@@ -352,13 +532,15 @@ export const trackUnsplashDownload = defaultClient.trackDownload;
 
 // ---- Route helpers ------------------------------------------------------------------------
 
-/** These routes work signed out, so they are limited per visitor address instead of per user. */
+/**
+ * Burst control for the routes themselves, counted per request whether or not it is cached.
+ * These routes work signed out, so they are limited per visitor address instead of per user.
+ */
 export const UNSPLASH_RATE_LIMITS = {
 	search: { limit: 30, windowMs: 60_000 },
 	download: { limit: 30, windowMs: 60_000 },
 } satisfies Record<string, RateLimitRule>;
 
-const SHARED_RATE_LIMIT_KEY = "shared";
 const checkRateLimit = createRateLimiter();
 
 /**
@@ -367,7 +549,7 @@ const checkRateLimit = createRateLimiter();
  */
 export function rateLimitKeyForRequest(request: Request) {
 	const address = request.headers.get("cf-connecting-ip")?.trim() ?? "";
-	return /^[0-9a-fA-F:.]{3,45}$/.test(address) ? address.toLowerCase() : SHARED_RATE_LIMIT_KEY;
+	return /^[0-9a-fA-F:.]{3,45}$/.test(address) ? address.toLowerCase() : UNSPLASH_SHARED_VISITOR_KEY;
 }
 
 export function checkUnsplashRateLimit(

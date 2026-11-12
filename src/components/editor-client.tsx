@@ -90,7 +90,6 @@ type NotesDraftValue = {
 
 type LibraryDraftValue = {
 	libraryItems: LibraryItems;
-	installedSources: string[];
 	updatedAt: string;
 };
 
@@ -373,7 +372,10 @@ export function EditorClient({
 	const notesRef = useRef("");
 	const sceneDirtyRef = useRef(false);
 	const notesDirtyRef = useRef(false);
-	const installedLibrarySourcesRef = useRef<string[]>([]);
+	// Excalidraw's own library, kept so a remounted canvas gets it back.
+	const libraryItemsRef = useRef<LibraryItems | undefined>(undefined);
+	// Which action failed last, so "Try again" on the notice repeats that action.
+	const lastFailedSaveRef = useRef<"save" | "offline-sync" | null>(null);
 	const sourceRef = useRef<"github" | "local">("github");
 	const hydrateRef = useRef(false);
 	const elementsVersionRef = useRef(0);
@@ -429,6 +431,28 @@ export function EditorClient({
 		return signedInUserId === activeWorkspace.stackUserId;
 	}, [isGuest, signedInUserId, activeWorkspace]);
 	const [selectedPreviewSha, setSelectedPreviewSha] = useState<string | null>(null);
+	// The editable canvas is not on screen in Notes view or while an old version is previewed.
+	const canvasHidden = mode === "docs" || Boolean(selectedPreviewSha);
+	const hasLiveCanvas = Boolean(initialData) && !canvasHidden;
+	// Tools that act on the canvas only ever get the canvas that is actually showing.
+	const liveApi = hasLiveCanvas ? excalidrawApi : null;
+
+	// Excalidraw reads `initialData` only when it mounts. Whenever the canvas goes away, hand the
+	// next mount the scene as it is now. Without this, coming back from Notes or from a version
+	// preview restored the scene from page load and saved that over the newer work.
+	useEffect(() => {
+		if (!canvasHidden) return;
+		setInitialData((current) =>
+			current && sceneRef.current ? toInitialData(sceneRef.current, resolvedTheme, libraryItemsRef.current) : current,
+		);
+	}, [canvasHidden, resolvedTheme]);
+
+	// Presenting needs the canvas; never leave it switched on while the canvas is gone.
+	useEffect(() => {
+		if (presenting && !hasLiveCanvas) {
+			setPresenting(false);
+		}
+	}, [presenting, hasLiveCanvas]);
 	const {
 		data: snapshotData,
 		isLoading: snapshotLoading,
@@ -665,7 +689,6 @@ export function EditorClient({
 				const nextNotes = localNotesDraft?.value?.notes ?? nextData?.notes ?? fallbackNotes(projectId, sketchId);
 				const restoredLocal = Boolean(localSceneDraft?.value?.scene || localNotesDraft?.value?.notes || localStateDraft?.value?.state);
 				const nextLibraryItems = localLibraryDraft?.value?.libraryItems;
-				const nextInstalledSources = localLibraryDraft?.value?.installedSources ?? [];
 
 				if (!mounted) return;
 
@@ -673,7 +696,7 @@ export function EditorClient({
 				elementsVersionRef.current = sceneElementsVersion(nextScene.elements ?? []);
 				pendingContentChangeRef.current = false;
 				notesRef.current = nextNotes;
-				installedLibrarySourcesRef.current = nextInstalledSources;
+				libraryItemsRef.current = nextLibraryItems;
 				sourceRef.current = restoredLocal || isLocalFallback ? "local" : "github";
 				setInitialData(toInitialData(nextScene, resolvedTheme, nextLibraryItems));
 				setSplitPanelSizes(initialPanelSizes);
@@ -811,9 +834,9 @@ export function EditorClient({
 
 	const handleLibraryChange = useCallback((libraryItems: LibraryItems) => {
 		if (!isOwner) return;
+		libraryItemsRef.current = libraryItems;
 		void setDraft<LibraryDraftValue>(currentLibraryDraftKey, {
 			libraryItems,
-			installedSources: installedLibrarySourcesRef.current,
 			updatedAt: new Date().toISOString(),
 		});
 	}, [currentLibraryDraftKey, isOwner]);
@@ -946,6 +969,7 @@ export function EditorClient({
 				return;
 			}
 			const problem = githubProblemFromError(saveError);
+			lastFailedSaveRef.current = "save";
 			setSaveProblem(problem);
 			setSaveError(
 				problem
@@ -1005,6 +1029,7 @@ export function EditorClient({
 			setSelectedPreviewSha(null);
 			setStatus("Project restored successfully");
 		} catch (error) {
+			setSaveProblem(null);
 			setSaveError(
 				error instanceof Error
 					? error.message
@@ -1105,6 +1130,7 @@ export function EditorClient({
 			await loadOfflineCommits();
 		} catch (err) {
 			console.error("Failed to stash offline commit:", err);
+			setSaveProblem(null);
 			setSaveError("Failed to save local commit draft.");
 		}
 	}, [isGuest, workspaceId, projectId, sketchId, scopeUserId, commitMessage, data, workspace, authorName, mode, splitPanelSizes, loadOfflineCommits]);
@@ -1147,6 +1173,7 @@ export function EditorClient({
 			await mutateSketch();
 		} catch (err) {
 			const problem = githubProblemFromError(err);
+			lastFailedSaveRef.current = "offline-sync";
 			setSaveProblem(problem);
 			setSaveError(
 				problem
@@ -1292,8 +1319,8 @@ export function EditorClient({
 		)
 	) : initialData ? (
 		<div className="relative h-full min-h-0">
-			<QuickConnect api={excalidrawApi} enabled={isOwner && !presenting} />
-			<PresentationMode api={excalidrawApi} active={presenting} onExit={() => setPresenting(false)} />
+			<QuickConnect api={liveApi} enabled={isOwner && !presenting} />
+			<PresentationMode api={liveApi} active={presenting} onExit={() => setPresenting(false)} />
 			<Excalidraw
 				key={currentDraftKey}
 				initialData={initialData}
@@ -1432,7 +1459,7 @@ export function EditorClient({
 	);
 	const libraryPanel = (
 		<InsertPanel
-			api={isOwner ? excalidrawApi : null}
+			api={isOwner ? liveApi : null}
 			isDark={(resolvedTheme ?? "dark") === "dark"}
 			onClose={() => setEditorMode(lastPrimaryModeRef.current)}
 		/>
@@ -1514,9 +1541,19 @@ export function EditorClient({
 
 				<div className="flex min-w-0 items-center gap-1">
 					{isOwner ? (
-						<PanelToggle label="Insert" icon={Plus} active={mode === "libraries"} onClick={() => toggleDrawer("libraries")} />
+						<PanelToggle
+							label="Insert"
+							icon={Plus}
+							active={mode === "libraries"}
+							onClick={() => {
+								setSelectedPreviewSha(null);
+								toggleDrawer("libraries");
+							}}
+						/>
 					) : null}
-					<PanelToggle label="Present" icon={Presentation} active={presenting} onClick={() => setPresenting(true)} />
+					{hasLiveCanvas ? (
+						<PanelToggle label="Present" icon={Presentation} active={presenting} onClick={() => setPresenting((current) => !current)} />
+					) : null}
 					{isGuest ? null : (
 						<PanelToggle label="History" icon={Clock} active={mode === "history"} onClick={() => toggleDrawer("history")} />
 					)}
@@ -1700,6 +1737,12 @@ export function EditorClient({
 												await mutateGithubStatus();
 												setSaveError(null);
 												setSaveProblem(null);
+												// Repeat whichever action failed; it reports its own outcome.
+												if (lastFailedSaveRef.current === "offline-sync") {
+													await handleSyncOfflineCommits();
+												} else {
+													await handleManualSave();
+												}
 											}}
 										/>
 									</div>
@@ -1731,7 +1774,7 @@ export function EditorClient({
 									style={{ width: `${mode === "split" ? splitPanelSizes[1] : sidePanelSizes[1]}%` }}
 									className="h-full min-h-0 overflow-hidden"
 								>
-									{mode === "libraries" ? libraryPanel : mode === "history" ? historyPanel : mode === "source-control" ? sourceControlPanel : docsPanel}
+									{mode === "libraries" && isOwner ? libraryPanel : mode === "history" ? historyPanel : mode === "source-control" ? sourceControlPanel : docsPanel}
 								</div>
 							</div>
 						)}

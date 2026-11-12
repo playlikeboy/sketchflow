@@ -139,7 +139,9 @@ function parseRateLimitReset(headers: Headers): number | null {
 
 function rateLimitRetryAt(headers: Headers, now: number): string | undefined {
 	const retryAtMs = parseRetryAfter(headers.get("retry-after"), now) ?? parseRateLimitReset(headers);
-	return retryAtMs === null ? undefined : new Date(retryAtMs).toISOString();
+	if (retryAtMs === null) return undefined;
+	const retryAt = new Date(retryAtMs);
+	return Number.isNaN(retryAt.getTime()) ? undefined : retryAt.toISOString();
 }
 
 function isRateLimited(failure: GithubFailure, headers: Headers) {

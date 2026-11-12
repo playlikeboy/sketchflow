@@ -1,25 +1,33 @@
 import { expect, test } from "bun:test";
 
 import { arrangeInColumns, classifyUnsplashFailure as classifyClientFailure, normalizeUnsplashQuery, unsplashSearchPath } from "../src/lib/unsplash";
-import { BadRequestError } from "../src/server/errors";
+import { BadRequestError, HttpError } from "../src/server/errors";
+import { createRateLimiter, type RateLimitRule } from "../src/server/rate-limit";
 import {
 	UNSPLASH_DEFAULT_QUERY,
+	UNSPLASH_SHARED_VISITOR_KEY,
+	UNSPLASH_UPSTREAM_LIMITS,
 	UnsplashNotConfiguredError,
 	UnsplashRateLimitedError,
 	UnsplashUpstreamError,
 	checkUnsplashRateLimit,
 	classifyUnsplashFailure,
+	createDownloadToken,
 	createUnsplashClient,
 	mapUnsplashPhoto,
 	mapUnsplashSearchResponse,
 	parseDownloadLocation,
+	parseDownloadTarget,
 	parseSearchPage,
 	parseSearchQuery,
 	rateLimitKeyForRequest,
+	signUnsplashSearchResponse,
+	verifyDownloadToken,
 	withUnsplashReferral,
+	type UnsplashClientOptions,
 	type UnsplashFetch,
+	type UnsplashUpstreamLimits,
 } from "../src/server/unsplash";
-import { createRateLimiter } from "../src/server/rate-limit";
 
 const TEST_KEY = "test-access-key";
 const DOWNLOAD_LOCATION = "https://api.unsplash.com/photos/q10VITrVYUM/download?ixid=M3w3Nzg5OTl8MHwxfHNlYXJjaHwx";
@@ -250,11 +258,33 @@ test("classifies failed responses from the app's own routes for the tab", () => 
 
 // ---- Client (mocked fetch, no network) ----------------------------------------------------
 
-test("searches with the key in the Authorization header and the documented parameters", async () => {
-	const { calls, fetch } = recordingFetch(() => jsonResponse({ total: 1, total_pages: 3, results: [rawPhoto()] }));
-	const client = createUnsplashClient({ fetch, getAccessKey: () => TEST_KEY });
+const HOUR_MS = 3_600_000;
+const VISITOR = "203.0.113.7";
+const OTHER_VISITOR = "203.0.113.8";
+const ROOMY: RateLimitRule = { limit: 10_000, windowMs: HOUR_MS };
+const ROOMY_LIMITS: UnsplashUpstreamLimits = { visitorSearchMisses: ROOMY, globalSearchMisses: ROOMY, downloads: ROOMY };
 
-	const result = await client.searchPhotos({ query: "Mountain Lake", page: 2 });
+function searchBody() {
+	return { total: 1, total_pages: 3, results: [rawPhoto()] };
+}
+
+function downloadLocationFor(photoId: string) {
+	return `https://api.unsplash.com/photos/${photoId}/download?ixid=abc`;
+}
+
+async function signedDownload(photoId: string) {
+	return { downloadLocation: downloadLocationFor(photoId), downloadToken: await createDownloadToken(photoId, TEST_KEY) };
+}
+
+function testClient(respond: (call: RecordedCall) => Response | Promise<Response>, overrides: Partial<UnsplashClientOptions> = {}) {
+	const { calls, fetch } = recordingFetch(respond);
+	return { calls, client: createUnsplashClient({ fetch, getAccessKey: () => TEST_KEY, limits: ROOMY_LIMITS, ...overrides }) };
+}
+
+test("searches with the key in the Authorization header and the documented parameters", async () => {
+	const { calls, client } = testClient(() => jsonResponse(searchBody()));
+
+	const result = await client.searchPhotos({ query: "Mountain Lake", page: 2, visitorKey: VISITOR });
 
 	expect(result.totalPages).toBe(3);
 	expect(result.photos.map((photo) => photo.id)).toEqual(["q10VITrVYUM"]);
@@ -269,50 +299,67 @@ test("searches with the key in the Authorization header and the documented param
 });
 
 test("an empty search uses the default query", async () => {
-	const { calls, fetch } = recordingFetch(() => jsonResponse({ total_pages: 1, results: [rawPhoto()] }));
-	const client = createUnsplashClient({ fetch, getAccessKey: () => TEST_KEY });
+	const { calls, client } = testClient(() => jsonResponse(searchBody()));
 
-	await client.searchPhotos({ query: "   ", page: 1 });
+	await client.searchPhotos({ query: "   ", page: 1, visitorKey: VISITOR });
 
 	expect(new URL(calls[0].url).searchParams.get("query")).toBe(UNSPLASH_DEFAULT_QUERY);
 });
 
 test("repeated searches are served from memory until they expire", async () => {
 	let now = 0;
-	const { calls, fetch } = recordingFetch(() => jsonResponse({ total_pages: 1, results: [rawPhoto()] }));
-	const client = createUnsplashClient({ fetch, getAccessKey: () => TEST_KEY, now: () => now });
+	const { calls, client } = testClient(() => jsonResponse(searchBody()), { now: () => now });
 
-	await client.searchPhotos({ query: "desk", page: 1 });
-	await client.searchPhotos({ query: " DESK ", page: 1 });
+	await client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR });
+	await client.searchPhotos({ query: " DESK ", page: 1, visitorKey: VISITOR });
 	expect(calls).toHaveLength(1);
 
-	await client.searchPhotos({ query: "desk", page: 2 });
+	await client.searchPhotos({ query: "desk", page: 2, visitorKey: VISITOR });
 	expect(calls).toHaveLength(2);
 
-	now += 3_600_001;
-	await client.searchPhotos({ query: "desk", page: 1 });
+	now += HOUR_MS + 1;
+	await client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR });
 	expect(calls).toHaveLength(3);
+});
+
+test("signing adds a token to every photo and leaves the mapped result untouched", async () => {
+	const mapped = mapUnsplashSearchResponse(searchBody());
+	const signed = await signUnsplashSearchResponse(mapped, TEST_KEY);
+
+	expect(mapped.photos[0]).not.toHaveProperty("downloadToken");
+	expect(signed.totalPages).toBe(mapped.totalPages);
+	expect(signed.photos).toEqual([{ ...mapped.photos[0], downloadToken: await createDownloadToken("q10VITrVYUM", TEST_KEY) }]);
+});
+
+test("search results carry a download token for each photo, cached or not", async () => {
+	const { client } = testClient(() => jsonResponse(searchBody()));
+	const expected = await createDownloadToken("q10VITrVYUM", TEST_KEY);
+
+	const fresh = await client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR });
+	const cached = await client.searchPhotos({ query: "desk", page: 1, visitorKey: OTHER_VISITOR });
+
+	expect(fresh.photos[0].downloadToken).toBe(expected);
+	expect(cached.photos[0].downloadToken).toBe(expected);
 });
 
 test("without a key nothing is requested and the failure says so", async () => {
 	const { calls, fetch } = recordingFetch(() => jsonResponse({}));
 	const client = createUnsplashClient({ fetch, getAccessKey: () => "" });
 
-	await expect(client.searchPhotos({ query: "desk", page: 1 })).rejects.toBeInstanceOf(UnsplashNotConfiguredError);
-	await expect(client.trackDownload(DOWNLOAD_LOCATION)).rejects.toBeInstanceOf(UnsplashNotConfiguredError);
+	await expect(client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR })).rejects.toBeInstanceOf(UnsplashNotConfiguredError);
+	await expect(client.trackDownload(await signedDownload("abc"))).rejects.toBeInstanceOf(UnsplashNotConfiguredError);
 	expect(calls).toHaveLength(0);
 });
 
 test("reports Unsplash's rate limit, and does not cache or leak the failure", async () => {
 	const restore = silenceConsoleError();
 	try {
-		const { calls, fetch } = recordingFetch(
+		const { calls, client } = testClient(
 			() => new Response(`Rate Limit Exceeded for ${TEST_KEY}`, { status: 403, headers: { "X-Ratelimit-Remaining": "0" } }),
 		);
-		const client = createUnsplashClient({ fetch, getAccessKey: () => TEST_KEY });
 
-		const failure = await client.searchPhotos({ query: "desk", page: 1 }).catch((error: unknown) => error);
-		await client.searchPhotos({ query: "desk", page: 1 }).catch(() => undefined);
+		const failure = await client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR }).catch((error: unknown) => error);
+		await client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR }).catch(() => undefined);
 
 		expect(failure).toBeInstanceOf(UnsplashRateLimitedError);
 		expect((failure as Error).message).not.toContain(TEST_KEY);
@@ -336,8 +383,8 @@ test("turns upstream errors, network errors and bad JSON into an upstream failur
 		];
 
 		for (const respond of responders) {
-			const client = createUnsplashClient({ fetch: recordingFetch(respond).fetch, getAccessKey: () => TEST_KEY });
-			const failure = await client.searchPhotos({ query: "desk", page: 1 }).catch((error: unknown) => error);
+			const { client } = testClient(respond);
+			const failure = await client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR }).catch((error: unknown) => error);
 
 			expect(failure).toBeInstanceOf(UnsplashUpstreamError);
 			expect((failure as Error).message).not.toContain(TEST_KEY);
@@ -356,31 +403,272 @@ test("gives up on a request that takes too long", async () => {
 			});
 		const client = createUnsplashClient({ fetch, getAccessKey: () => TEST_KEY, timeoutMs: 5 });
 
-		await expect(client.searchPhotos({ query: "desk", page: 1 })).rejects.toBeInstanceOf(UnsplashUpstreamError);
+		await expect(client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR })).rejects.toBeInstanceOf(UnsplashUpstreamError);
 	} finally {
 		restore();
 	}
 });
 
+// ---- Upstream budget (only cache misses are charged) --------------------------------------
+
+test("leaves room in Unsplash's 50 an hour for searches and download reports together", () => {
+	const { visitorSearchMisses, globalSearchMisses, downloads } = UNSPLASH_UPSTREAM_LIMITS;
+
+	expect(globalSearchMisses.limit + downloads.limit).toBeLessThanOrEqual(50);
+	expect(visitorSearchMisses.limit).toBeLessThan(globalSearchMisses.limit);
+	expect([visitorSearchMisses.windowMs, globalSearchMisses.windowMs, downloads.windowMs]).toEqual([HOUR_MS, HOUR_MS, HOUR_MS]);
+});
+
+test("cache hits are never charged or refused, even with every budget spent", async () => {
+	const spent: RateLimitRule = { limit: 1, windowMs: HOUR_MS };
+	const { calls, client } = testClient(() => jsonResponse(searchBody()), {
+		limits: { ...ROOMY_LIMITS, visitorSearchMisses: spent, globalSearchMisses: spent },
+	});
+
+	const first = await client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR });
+	for (let repeat = 0; repeat < 40; repeat += 1) {
+		const visitorKey = repeat % 2 === 0 ? VISITOR : `198.51.100.${repeat}`;
+		expect(await client.searchPhotos({ query: "desk", page: 1, visitorKey })).toBe(first);
+	}
+
+	expect(calls).toHaveLength(1);
+	// The budgets really are spent: a search that is not cached is refused.
+	await expect(client.searchPhotos({ query: "chair", page: 1, visitorKey: OTHER_VISITOR })).rejects.toBeInstanceOf(UnsplashRateLimitedError);
+	expect(calls).toHaveLength(1);
+});
+
+test("the per-visitor limit refuses that visitor's next uncached search, and resets after an hour", async () => {
+	let now = 0;
+	const { calls, client } = testClient(() => jsonResponse(searchBody()), {
+		now: () => now,
+		limits: { ...ROOMY_LIMITS, visitorSearchMisses: { limit: 2, windowMs: HOUR_MS } },
+	});
+
+	await client.searchPhotos({ query: "one", page: 1, visitorKey: VISITOR });
+	await client.searchPhotos({ query: "two", page: 1, visitorKey: VISITOR });
+	await expect(client.searchPhotos({ query: "three", page: 1, visitorKey: VISITOR })).rejects.toBeInstanceOf(UnsplashRateLimitedError);
+	expect(calls).toHaveLength(2);
+
+	// Someone else is unaffected, and their result is then free for the limited visitor too.
+	await client.searchPhotos({ query: "three", page: 1, visitorKey: OTHER_VISITOR });
+	await client.searchPhotos({ query: "three", page: 1, visitorKey: VISITOR });
+	expect(calls).toHaveLength(3);
+
+	now += HOUR_MS;
+	await client.searchPhotos({ query: "four", page: 1, visitorKey: VISITOR });
+	expect(calls).toHaveLength(4);
+});
+
+test("the isolate-wide limit refuses the next uncached search from anyone", async () => {
+	const { calls, client } = testClient(() => jsonResponse(searchBody()), {
+		limits: { ...ROOMY_LIMITS, globalSearchMisses: { limit: 2, windowMs: HOUR_MS } },
+	});
+
+	await client.searchPhotos({ query: "one", page: 1, visitorKey: "198.51.100.1" });
+	await client.searchPhotos({ query: "two", page: 1, visitorKey: "198.51.100.2" });
+	await expect(client.searchPhotos({ query: "three", page: 1, visitorKey: "198.51.100.3" })).rejects.toBeInstanceOf(UnsplashRateLimitedError);
+
+	expect(calls).toHaveLength(2);
+});
+
+test("visitors without an address are held to the isolate-wide limit only", async () => {
+	const { calls, client } = testClient(() => jsonResponse(searchBody()), {
+		limits: { ...ROOMY_LIMITS, visitorSearchMisses: { limit: 1, windowMs: HOUR_MS }, globalSearchMisses: { limit: 3, windowMs: HOUR_MS } },
+	});
+
+	for (const query of ["one", "two", "three"]) {
+		await client.searchPhotos({ query, page: 1, visitorKey: UNSPLASH_SHARED_VISITOR_KEY });
+	}
+	await expect(client.searchPhotos({ query: "four", page: 1, visitorKey: UNSPLASH_SHARED_VISITOR_KEY })).rejects.toBeInstanceOf(
+		UnsplashRateLimitedError,
+	);
+
+	expect(calls).toHaveLength(3);
+});
+
+test("a refused search serves the expired copy when there is one", async () => {
+	let now = 0;
+	const { calls, client } = testClient(() => jsonResponse(searchBody()), {
+		now: () => now,
+		limits: { ...ROOMY_LIMITS, visitorSearchMisses: { limit: 1, windowMs: 10 * HOUR_MS } },
+	});
+
+	const first = await client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR });
+	now += HOUR_MS + 1;
+
+	expect(await client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR })).toBe(first);
+	await expect(client.searchPhotos({ query: "chair", page: 1, visitorKey: VISITOR })).rejects.toBeInstanceOf(UnsplashRateLimitedError);
+	expect(calls).toHaveLength(1);
+});
+
+test("a failed or rate-limited search serves the expired copy when there is one", async () => {
+	const restore = silenceConsoleError();
+	try {
+		const failures = [
+			() => new Response("oops", { status: 500 }),
+			() => new Response("Rate Limit Exceeded", { status: 403, headers: { "X-Ratelimit-Remaining": "0" } }),
+			() => {
+				throw new TypeError("fetch failed");
+			},
+		];
+
+		for (const fail of failures) {
+			let now = 0;
+			let isFailing = false;
+			const { calls, client } = testClient(() => (isFailing ? fail() : jsonResponse(searchBody())), { now: () => now });
+
+			const first = await client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR });
+			now += HOUR_MS + 1;
+			isFailing = true;
+
+			expect(await client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR })).toBe(first);
+			expect(calls).toHaveLength(2);
+			// Nothing to fall back on for a search that was never cached.
+			await expect(client.searchPhotos({ query: "chair", page: 1, visitorKey: VISITOR })).rejects.toBeInstanceOf(HttpError);
+		}
+	} finally {
+		restore();
+	}
+});
+
+test("the default first page is never evicted, so the empty search box stays free", async () => {
+	const { calls, client } = testClient(() => jsonResponse(searchBody()));
+
+	await client.searchPhotos({ query: "", page: 1, visitorKey: VISITOR });
+	for (let index = 0; index < 250; index += 1) {
+		await client.searchPhotos({ query: `filler ${index}`, page: 1, visitorKey: VISITOR });
+	}
+	expect(calls).toHaveLength(251);
+
+	await client.searchPhotos({ query: "", page: 1, visitorKey: VISITOR });
+	expect(calls).toHaveLength(251);
+
+	// Ordinary entries are still evicted oldest first.
+	await client.searchPhotos({ query: "filler 0", page: 1, visitorKey: VISITOR });
+	expect(calls).toHaveLength(252);
+});
+
+// ---- Download tokens and tracking ---------------------------------------------------------
+
+test("a download token is stable for a photo, and differs by photo and by key", async () => {
+	const token = await createDownloadToken("q10VITrVYUM", TEST_KEY);
+
+	expect(token).toMatch(/^[A-Za-z0-9_-]{22}$/);
+	expect(await createDownloadToken("q10VITrVYUM", TEST_KEY)).toBe(token);
+	expect(await createDownloadToken("nvzvOPQW0gc", TEST_KEY)).not.toBe(token);
+	expect(await createDownloadToken("q10VITrVYUM", "another-access-key")).not.toBe(token);
+	expect(token).not.toContain(TEST_KEY);
+});
+
+test("verifies only the token issued for that photo with the current key", async () => {
+	const token = await createDownloadToken("q10VITrVYUM", TEST_KEY);
+	const otherPhotoToken = await createDownloadToken("nvzvOPQW0gc", TEST_KEY);
+	const otherKeyToken = await createDownloadToken("q10VITrVYUM", "another-access-key");
+
+	expect(await verifyDownloadToken("q10VITrVYUM", token, TEST_KEY)).toBe(true);
+	for (const wrong of [undefined, null, "", 42, [token], otherPhotoToken, otherKeyToken, token.slice(0, 21), `${token}A`, "A".repeat(22)]) {
+		expect(await verifyDownloadToken("q10VITrVYUM", wrong, TEST_KEY)).toBe(false);
+	}
+});
+
+test("reads the photo id out of a download location", () => {
+	expect(parseDownloadTarget(DOWNLOAD_LOCATION)).toEqual({ photoId: "q10VITrVYUM", url: DOWNLOAD_LOCATION });
+	expect(() => parseDownloadTarget("https://evil.example/photos/q10VITrVYUM/download")).toThrow(BadRequestError);
+});
+
 test("tracks a download by requesting only the validated Unsplash URL", async () => {
-	const { calls, fetch } = recordingFetch(() => jsonResponse({ url: "https://images.unsplash.com/photo-1" }));
-	const client = createUnsplashClient({ fetch, getAccessKey: () => TEST_KEY });
+	const { calls, client } = testClient(() => jsonResponse({ url: "https://images.unsplash.com/photo-1" }));
 
-	await client.trackDownload(DOWNLOAD_LOCATION);
+	const outcome = await client.trackDownload(await signedDownload("q10VITrVYUM"));
 
-	expect(calls.map((call) => call.url)).toEqual([DOWNLOAD_LOCATION]);
+	expect(outcome).toBe("tracked");
+	expect(calls.map((call) => call.url)).toEqual([downloadLocationFor("q10VITrVYUM")]);
 	expect(new Headers(calls[0].init.headers).get("authorization")).toBe(`Client-ID ${TEST_KEY}`);
 	expect(calls[0].init.cache).toBe("no-store");
 	expect(calls[0].init.redirect).toBe("error");
 });
 
-test("never requests a download location that is not Unsplash's", async () => {
-	const { calls, fetch } = recordingFetch(() => jsonResponse({}));
-	const client = createUnsplashClient({ fetch, getAccessKey: () => TEST_KEY });
+test("a token handed out with a search result is accepted for that photo", async () => {
+	const { calls, client } = testClient((call) => jsonResponse(call.url.includes("/search/") ? searchBody() : { url: "x" }));
 
-	await expect(client.trackDownload("https://evil.example/photos/abc/download")).rejects.toBeInstanceOf(BadRequestError);
-	await expect(client.trackDownload("http://169.254.169.254/latest/meta-data")).rejects.toBeInstanceOf(BadRequestError);
+	const [photo] = (await client.searchPhotos({ query: "desk", page: 1, visitorKey: VISITOR })).photos;
+
+	expect(await client.trackDownload(photo)).toBe("tracked");
+	expect(calls).toHaveLength(2);
+	expect(calls[1].url).toBe(DOWNLOAD_LOCATION);
+});
+
+test("rejects a download with a missing, wrong or other photo's token, without calling Unsplash", async () => {
+	const { calls, client } = testClient(() => jsonResponse({}));
+	const downloadLocation = downloadLocationFor("q10VITrVYUM");
+	const otherPhotoToken = await createDownloadToken("nvzvOPQW0gc", TEST_KEY);
+
+	for (const downloadToken of [undefined, "", "A".repeat(22), otherPhotoToken, 7]) {
+		await expect(client.trackDownload({ downloadLocation, downloadToken })).rejects.toBeInstanceOf(BadRequestError);
+	}
 	expect(calls).toHaveLength(0);
+});
+
+test("never requests a download location that is not Unsplash's", async () => {
+	const { calls, client } = testClient(() => jsonResponse({}));
+	const downloadToken = await createDownloadToken("abc", TEST_KEY);
+
+	for (const downloadLocation of ["https://evil.example/photos/abc/download", "http://169.254.169.254/latest/meta-data", undefined]) {
+		await expect(client.trackDownload({ downloadLocation, downloadToken })).rejects.toBeInstanceOf(BadRequestError);
+	}
+	expect(calls).toHaveLength(0);
+});
+
+test("a repeated download of the same photo reaches Unsplash once a day", async () => {
+	let now = 0;
+	const { calls, client } = testClient(() => jsonResponse({}), { now: () => now });
+	const download = await signedDownload("q10VITrVYUM");
+
+	expect(await client.trackDownload(download)).toBe("tracked");
+	expect(await client.trackDownload(download)).toBe("already_tracked");
+	// The same photo with a different tracking parameter is still the same photo.
+	expect(await client.trackDownload({ ...download, downloadLocation: "https://api.unsplash.com/photos/q10VITrVYUM/download" })).toBe(
+		"already_tracked",
+	);
+	expect(calls).toHaveLength(1);
+
+	now += 24 * HOUR_MS + 1;
+	expect(await client.trackDownload(download)).toBe("tracked");
+	expect(calls).toHaveLength(2);
+});
+
+test("an exhausted download budget answers without calling Unsplash, until the hour is up", async () => {
+	let now = 0;
+	const { calls, client } = testClient(() => jsonResponse({}), {
+		now: () => now,
+		limits: { ...ROOMY_LIMITS, downloads: { limit: 2, windowMs: HOUR_MS } },
+	});
+
+	expect(await client.trackDownload(await signedDownload("photo-1"))).toBe("tracked");
+	expect(await client.trackDownload(await signedDownload("photo-2"))).toBe("tracked");
+	expect(await client.trackDownload(await signedDownload("photo-3"))).toBe("over_budget");
+	expect(calls).toHaveLength(2);
+
+	now += HOUR_MS;
+	expect(await client.trackDownload(await signedDownload("photo-3"))).toBe("tracked");
+	expect(calls).toHaveLength(3);
+});
+
+test("a download report that failed can be sent again", async () => {
+	const restore = silenceConsoleError();
+	try {
+		let isFailing = true;
+		const { calls, client } = testClient(() => (isFailing ? new Response("oops", { status: 500 }) : jsonResponse({})));
+		const download = await signedDownload("q10VITrVYUM");
+
+		await expect(client.trackDownload(download)).rejects.toBeInstanceOf(UnsplashUpstreamError);
+		isFailing = false;
+
+		expect(await client.trackDownload(download)).toBe("tracked");
+		expect(calls).toHaveLength(2);
+	} finally {
+		restore();
+	}
 });
 
 // ---- Route helpers ------------------------------------------------------------------------

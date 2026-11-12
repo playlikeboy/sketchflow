@@ -1,5 +1,5 @@
 import { BadRequestError, RateLimitError, assertSameOrigin, jsonError, jsonOk } from "@/server/http";
-import { checkUnsplashRateLimit, parseDownloadLocation, trackUnsplashDownload, withNoStore } from "@/server/unsplash";
+import { checkUnsplashRateLimit, trackUnsplashDownload, withNoStore } from "@/server/unsplash";
 import { isJsonObject } from "@/server/validation";
 
 const MAX_BODY_BYTES = 2_048;
@@ -43,7 +43,8 @@ async function readJsonBody(request: Request): Promise<unknown> {
 
 // Unsplash requires this call whenever one of its photos is used. Public like the search route,
 // so it is same-origin only, rate limited per visitor, and will only ever request a validated
-// `https://api.unsplash.com/photos/<id>/download` URL.
+// `https://api.unsplash.com/photos/<id>/download` URL, for a photo whose token shows this server
+// handed it out in a search. Repeats and an exhausted hourly budget answer ok without calling Unsplash.
 export async function POST(request: Request) {
 	try {
 		assertSameOrigin(request);
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
 			throw new BadRequestError("Expected a JSON object body");
 		}
 
-		await trackUnsplashDownload(parseDownloadLocation(body.downloadLocation));
+		await trackUnsplashDownload({ downloadLocation: body.downloadLocation, downloadToken: body.downloadToken });
 
 		return withNoStore(jsonOk({ ok: true }));
 	} catch (error) {

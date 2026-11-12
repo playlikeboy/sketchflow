@@ -44,7 +44,7 @@ async function addToScene(api: ExcalidrawImperativeAPI, elements: SceneElement[]
 	const { CaptureUpdateAction } = await import("@excalidraw/excalidraw");
 
 	api.updateScene({
-		elements: [...api.getSceneElements(), ...elements] as unknown as SceneElements,
+		elements: [...api.getSceneElementsIncludingDeleted(), ...elements] as unknown as SceneElements,
 		appState: { selectedElementIds: Object.fromEntries(elements.map((element) => [element.id, true as const])) },
 		// Recorded as one step, so a single undo removes the whole insert.
 		captureUpdate: CaptureUpdateAction.IMMEDIATELY,

@@ -46,9 +46,11 @@ export type InsertPanelProps = {
  */
 export function InsertPanel({ api, isDark, onClose }: InsertPanelProps) {
 	const [activeTab, setActiveTab] = useState(TABS[0].id);
-	const [query, setQuery] = useState("");
+	// Each tab keeps its own search text: what was typed for logos must not search photos.
+	const [queries, setQueries] = useState<Record<string, string>>({});
 	const [status, setStatus] = useState("");
 	const active = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
+	const query = queries[active.id] ?? "";
 	const handleInserted = useCallback((label: string) => setStatus(`Added ${label}`), []);
 
 	return (
@@ -79,7 +81,7 @@ export function InsertPanel({ api, isDark, onClose }: InsertPanelProps) {
 							<Input
 								type="search"
 								value={query}
-								onChange={(event) => setQuery(event.target.value)}
+								onChange={(event) => setQueries((current) => ({ ...current, [active.id]: event.target.value }))}
 								placeholder={active.searchPlaceholder}
 								aria-label={active.searchPlaceholder}
 								className="pl-8"
@@ -91,7 +93,7 @@ export function InsertPanel({ api, isDark, onClose }: InsertPanelProps) {
 				{TABS.map((tab) => (
 					<TabsContent key={tab.id} value={tab.id} className="min-h-0 flex-1 overflow-y-auto">
 						{api ? (
-							<tab.Component api={api} isDark={isDark} query={query.trim()} onInserted={handleInserted} />
+							<tab.Component api={api} isDark={isDark} query={(queries[tab.id] ?? "").trim()} onInserted={handleInserted} />
 						) : (
 							<p className="p-4 text-sm text-muted-foreground">The canvas is still loading.</p>
 						)}
