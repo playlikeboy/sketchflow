@@ -1,5 +1,12 @@
 import { mock } from "bun:test";
 
+import * as betterAuthModule from "../../src/server/better-auth";
+
+// Copied by value before any mock is installed. Bun patches an already-loaded module in
+// place when it is mocked, so reading through the namespace later would reach the mock.
+const realBetterAuth = { ...betterAuthModule };
+const realCreateAuth = betterAuthModule.createAuth;
+
 /**
  * Shared fakes for API handler tests. Handlers run for real; only the edges are replaced:
  * the auth provider, the database repositories, and outbound fetch to GitHub.
@@ -62,28 +69,37 @@ function userIdForGithubAccount(githubUserId: string) {
 	return null;
 }
 
+const FAKE_AUTH_CLIENT_ID = "sketchflow-api-tests";
+
+const fakeAuth = {
+	api: {
+		getGithubIdentity: async () =>
+			state.userId
+				? { githubUserId: githubAccountIdFor(state.userId), email: "owner@example.com", name: "Owner", image: null }
+				: null,
+		getAccessToken: async () => ({ accessToken: "test-token" }),
+	},
+};
+
 export function installMocks() {
 	mock.module("server-only", () => ({}));
 
 	process.env.BETTER_AUTH_SECRET ??= "test-secret-that-is-long-enough-for-better-auth-0123456789";
-	process.env.GITHUB_CLIENT_ID ??= "test-client-id";
+	// Assigned outright (CI sets its own value): the fake below recognises itself by this id.
+	process.env.GITHUB_CLIENT_ID = FAKE_AUTH_CLIENT_ID;
 	process.env.GITHUB_CLIENT_SECRET ??= "test-client-secret";
 
 	mock.module("next/headers", () => ({
 		headers: async () => new Headers(),
 	}));
 
+	// Bun shares module mocks between test files in one run, and their order differs by
+	// platform. So this stands in only for the API tests' own configuration and hands every
+	// other caller (the real sign-in flow tests) the real implementation.
 	mock.module("@/server/better-auth", () => ({
-		GITHUB_PROVIDER_ID: "github",
-		createAuth: () => ({
-			api: {
-				getGithubIdentity: async () =>
-					state.userId
-						? { githubUserId: githubAccountIdFor(state.userId), email: "owner@example.com", name: "Owner", image: null }
-						: null,
-				getAccessToken: async () => ({ accessToken: "test-token" }),
-			},
-		}),
+		...realBetterAuth,
+		createAuth: (config: betterAuthModule.SketchflowAuthConfig) =>
+			config.githubClientId === FAKE_AUTH_CLIENT_ID ? fakeAuth : realCreateAuth(config),
 	}));
 
 	mock.module("@/server/db/repositories", () => ({
