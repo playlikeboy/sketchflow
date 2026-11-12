@@ -959,7 +959,7 @@ export function EditorClient({
 	}
 
 	/** Drop the local draft and load what GitHub has. */
-	async function useGithubVersion() {
+	async function loadGithubVersion() {
 		if (sceneTimer.current) clearTimeout(sceneTimer.current);
 		if (notesTimer.current) clearTimeout(notesTimer.current);
 		await Promise.all([deleteDraft(currentDraftKey), deleteDraft(currentNotesDraftKey), deleteDraft(currentStateDraftKey)]);
@@ -1627,7 +1627,7 @@ export function EditorClient({
 										{saving ? <Loader2 className="animate-spin" /> : null}
 										Keep my version
 									</Button>
-									<Button variant="outline" size="sm" disabled={saving} onClick={() => void useGithubVersion()}>
+									<Button variant="outline" size="sm" disabled={saving} onClick={() => void loadGithubVersion()}>
 										Use the GitHub version
 									</Button>
 									<Button variant="ghost" size="sm" onClick={downloadMyVersion}>

@@ -98,19 +98,19 @@ Write a short pricing proposal as a plan file and get the maintainer's sign-off 
 - [ ] A: enforce the Content-Security-Policy (shipped report-only; needs a production pass against Excalidraw, BlockNote and Stack Auth)
 - [ ] A: durable rate limiting (in-memory per-isolate limiter shipped; move to a Cloudflare Rate Limiting binding)
 - [x] A: repo hygiene and unused dependencies
-- [ ] B: route tests (pure-logic unit tests and an HTTP smoke test shipped; handler tests with mocked GitHub and database still open)
-- [ ] B: Playwright e2e for the core loop
+- [x] B: route tests (commit and bootstrap handlers; projects, restore and history handlers still open)
+- [x] B: Playwright e2e against fixture data (a run against a real account is still open)
 - [ ] B: sync manager tests
 - [ ] B: typed API contracts
 - [ ] B: error reporting
-- [ ] C: first-run flow
-- [ ] C: conflict UX
+- [x] C: first-run flow (no-account Try it page with import after sign-in)
+- [x] C: conflict UX (choice of version; no merge view)
 - [ ] C: multi-sketch, rename, delete, assets
 - [ ] C: commit-pinned sharing
 - [ ] C: accessibility pass
 - [ ] C: performance pass
 - [x] D: README, CONTRIBUTING, SECURITY
 - [ ] D: issues, templates, roadmap
-- [ ] D: releases and self-hosting guide
+- [ ] D: first tagged release (changelog and self-hosting guide written; tag once deploy is green)
 - [ ] E: pricing proposal
 - [ ] E: billing integration and limits

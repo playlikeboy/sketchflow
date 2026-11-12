@@ -28,5 +28,9 @@ If applicable, add screenshots or recordings to help explain your problem.
  - Version: [e.g. 120]
  - Theme: [Dark / Light]
 
+**Where the work lives**
+- Is the workspace repository public or private?
+- What did the state mark say (Synced, Unsaved draft, Local only, Sync paused, Sync failed)?
+
 **Additional Context**
-Add any other context about the problem here (e.g. console logs or network errors).
+Console or network errors, if any. Never paste a GitHub token.

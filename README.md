@@ -10,7 +10,7 @@ Draw on an Excalidraw canvas, write notes beside it, and commit both as plain fi
 [![License: MIT](https://img.shields.io/badge/license-MIT-58cc02.svg)](./LICENSE)
 [![Stars](https://img.shields.io/github/stars/playlikeboy/sketchflow?color=58cc02)](https://github.com/playlikeboy/sketchflow/stargazers)
 
-[Live app](https://sketchflow.space) · [Architecture](./docs/ARCHITECTURE.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
+[Live app](https://sketchflow.space) · [Architecture](./docs/ARCHITECTURE.md) · [Self-hosting](./docs/SELF_HOSTING.md) · [Changelog](./CHANGELOG.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
 
 <img src="./docs/images/editor.png" alt="The Sketchflow editor: a canvas beside its notes, with save state in the top bar" width="860" />
 
@@ -30,9 +30,10 @@ Most whiteboard tools keep your diagrams in their database. Sketchflow keeps the
 ## What it does
 
 - **Canvas and notes side by side.** An Excalidraw canvas next to a BlockNote editor, per project.
+- **Try it without an account.** `/try` opens a real editor that saves only in the browser; sign in later and import the sketch as a project.
 - **Local first.** Edits are written to IndexedDB as you work, so the editor does not wait on the network. Drafts are scoped per signed-in user.
 - **Snapshot commits.** A save writes the sketch, notes and project metadata in one Git commit through the GitHub Git Data API. Nothing is committed per stroke.
-- **Conflict detection.** A commit is rejected if the branch moved since your draft was based on it, instead of overwriting someone else's work.
+- **Conflict handling.** A save is refused if the branch moved since your draft was based on it, and you choose which version becomes the latest. Nothing is overwritten silently.
 - **Project history and restore.** List the commits that touched a project, preview an old version, and restore it as a new commit.
 - **Public share and embed pages.** Read-only pages for projects in public repositories, which respect the `sharing` setting in each project's `project.json`.
 - **Fork a public project** into your own workspace.
@@ -121,7 +122,8 @@ bun run dev
 | Command | What it does |
 | --- | --- |
 | `bun run dev` | Development server |
-| `bun run test` | Unit tests |
+| `bun run test` | Unit and API handler tests |
+| `bun run test:e2e` | Browser tests against a production build, with fixture API data |
 | `bun run lint` | ESLint |
 | `bun run typecheck` | TypeScript, no emit |
 | `bun run build` | Production build |
@@ -129,7 +131,7 @@ bun run dev
 | `bun run db:push` | Push the Drizzle schema to the database |
 | `bun run deploy` | Build with OpenNext and deploy to Cloudflare |
 
-CI runs test, lint, typecheck, build and the smoke test on every pull request.
+CI runs the tests, lint, typecheck, build, the smoke test and the browser tests on every pull request.
 
 ## Security model
 
@@ -147,8 +149,8 @@ Sketchflow is a working app under active development. Known gaps, tracked in [`p
 
 - The Content-Security-Policy ships in report-only mode until it has been exercised in production.
 - Rate limiting is in memory per Worker isolate; a durable limiter is planned.
-- There are unit tests and an HTTP smoke test, but no signed-in end-to-end tests yet.
-- Conflict resolution reports the conflict; it does not yet offer a merge view.
+- Browser tests run against fixture data. Nothing in CI exercises a real GitHub account or database.
+- A conflicting save offers a choice of version, not a merge view.
 
 ## Contributing
 

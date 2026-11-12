@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 
 const topics = [
 	{ id: "basics", title: "The basics" },
+	{ id: "try", title: "Trying it without an account" },
 	{ id: "saving", title: "Saving your work" },
 	{ id: "states", title: "What the state marks mean" },
 	{ id: "history", title: "History and restore" },
@@ -88,6 +89,18 @@ export default function HelpPage() {
 						</p>
 					</Topic>
 
+					<Topic id="try" title="Trying it without an account">
+						<p>
+							<Link href="/try" className="text-primary underline">The Try it page</Link> opens a canvas and notes
+							editor with no sign-in. Everything stays in that browser, and you can download the sketch and the
+							notes as files.
+						</p>
+						<p>
+							If you sign in later in the same browser, the projects page offers to import that sketch as a
+							project in your repository.
+						</p>
+					</Topic>
+
 					<Topic id="saving" title="Saving your work">
 						<p>
 							As you draw and type, every change is kept in your browser straight away. You do not need to save to
@@ -98,9 +111,9 @@ export default function HelpPage() {
 							your repository as a single Git commit.
 						</p>
 						<p>
-							If the branch changed since you started, for example because you saved from another device, the save
-							is refused and you are told. Your changes stay in the browser. Reload to pick up the newer version
-							before saving again.
+							If the project changed on GitHub since you opened it, for example because you saved from another
+							device, nothing is overwritten. You are asked which version to keep: yours, saved on top with the
+							other one still in History, or the one on GitHub. You can download yours first either way.
 						</p>
 					</Topic>
 
