@@ -21,6 +21,8 @@ import {
 	Loader2,
 	Maximize2,
 	PanelsTopLeft,
+	Plus,
+	Presentation,
 	Save,
 	X,
 } from "lucide-react";
@@ -28,6 +30,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 
 import { LocalProjectMissingNotice, RepositorySignInNotice } from "@/components/editor/editor-notices";
+import { InsertPanel } from "@/components/editor/insert/insert-panel";
+import { PresentationMode } from "@/components/editor/presentation-mode";
+import { QuickConnect } from "@/components/editor/quick-connect";
 import { GuestSaveBar } from "@/components/editor/guest-save-bar";
 import { SharingPrompt } from "@/components/editor/sharing-prompt";
 import { useGuestProject } from "@/components/editor/use-guest-project";
@@ -378,6 +383,7 @@ export function EditorClient({
 	// The guest workspace ("This device") lives only in IndexedDB: no server requests, no
 	// commits, and its drafts always use the "local" storage scope, whoever is signed in.
 	const isGuest = isLocalWorkspace(workspaceId);
+	const [presenting, setPresenting] = useState(false);
 	const scopeUserId = storageUserId(workspaceId, userId);
 	const remoteUserId = isGuest ? null : userId;
 	const guestProject = useGuestProject(projectId, isGuest);
@@ -1325,7 +1331,9 @@ export function EditorClient({
 			</div>
 		)
 	) : initialData ? (
-		<div className="h-full min-h-0">
+		<div className="relative h-full min-h-0">
+			<QuickConnect api={excalidrawApi} enabled={isOwner && !presenting} />
+			<PresentationMode api={excalidrawApi} active={presenting} onExit={() => setPresenting(false)} />
 			<Excalidraw
 				key={currentDraftKey}
 				initialData={initialData}
@@ -1339,7 +1347,8 @@ export function EditorClient({
 					setExcalidrawApi(api);
 				}}
 				theme={(resolvedTheme ?? "dark") === "dark" ? "dark" : "light"}
-				viewModeEnabled={!isOwner}
+				viewModeEnabled={!isOwner || presenting}
+				zenModeEnabled={presenting}
 				UIOptions={{
 					tools: {
 						image: isOwner,
@@ -1462,10 +1471,9 @@ export function EditorClient({
 		</div>
 	);
 	const libraryPanel = (
-		<ExcalidrawLibraryPanel
-			installedSources={installedLibrarySources}
-			installingSource={installingLibrarySource}
-			onInstall={handleInstallLibrary}
+		<InsertPanel
+			api={isOwner ? excalidrawApi : null}
+			isDark={(resolvedTheme ?? "dark") === "dark"}
 			onClose={() => setEditorMode(lastPrimaryModeRef.current)}
 		/>
 	);
@@ -1545,7 +1553,10 @@ export function EditorClient({
 				</div>
 
 				<div className="flex min-w-0 items-center gap-1">
-					<PanelToggle label="Libraries" icon={BookOpen} active={mode === "libraries"} onClick={() => toggleDrawer("libraries")} />
+					{isOwner ? (
+						<PanelToggle label="Insert" icon={Plus} active={mode === "libraries"} onClick={() => toggleDrawer("libraries")} />
+					) : null}
+					<PanelToggle label="Present" icon={Presentation} active={presenting} onClick={() => setPresenting(true)} />
 					{isGuest ? null : (
 						<PanelToggle label="History" icon={Clock} active={mode === "history"} onClick={() => toggleDrawer("history")} />
 					)}
