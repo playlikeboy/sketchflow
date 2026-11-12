@@ -1,5 +1,5 @@
 import { SKETCHFLOW_APP_URL } from "@/lib/config";
-import { normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
+import { requireGithubAccessToken, requireUser } from "@/server/auth";
 import {
 	recordSyncEvent,
 	upsertGithubConnection,
@@ -30,11 +30,10 @@ function parseVisibility(isPrivate: boolean): WorkspaceVisibility {
 export async function POST(request: Request) {
 	try {
 		assertSameOrigin(request);
-		const stackUser = await requireUser();
-		const user = normalizeStackUser(stackUser);
+		const user = await requireUser();
 		assertRateLimit("bootstrap", user.id, RATE_LIMITS.bootstrap);
 		const scopes = getGithubOAuthScopes();
-		const { accessToken } = await requireGithubAccessToken(scopes, request);
+		const { accessToken } = await requireGithubAccessToken(request);
 
 		const body = await request.json().catch(() => ({}));
 		if (!isJsonObject(body)) {

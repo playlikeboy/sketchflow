@@ -1,6 +1,5 @@
 import { requireGithubAccessToken } from "@/server/auth";
 import { getWorkspace, recordSyncEvent, updateWorkspaceCommit } from "@/server/db/repositories";
-import { getGithubOAuthScopes } from "@/server/env";
 import { createCommitOnBranch, jsDelivrBaseUrl, validateGithubFileChange, type GithubFileChange } from "@/server/github";
 import { BadRequestError, jsonError, jsonOk, NotFoundError, assertSameOrigin, assertRateLimit } from "@/server/http";
 import { RATE_LIMITS } from "@/server/rate-limit";
@@ -27,8 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ wor
 	try {
 		assertSameOrigin(request);
 		const { workspaceId } = await params;
-		const scopes = getGithubOAuthScopes();
-		const { accessToken, user } = await requireGithubAccessToken(scopes, request);
+		const { accessToken, user } = await requireGithubAccessToken(request);
 		assertRateLimit("commit", user.id, RATE_LIMITS.commit);
 		const workspace = await getWorkspace(user.id, workspaceId);
 

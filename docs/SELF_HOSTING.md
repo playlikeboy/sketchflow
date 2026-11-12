@@ -9,7 +9,7 @@ Sketchflow runs as a single Cloudflare Worker built with [OpenNext](https://open
 | Service | Used for | Notes |
 | --- | --- | --- |
 | Cloudflare account | Hosting the Worker | Workers with a custom domain or a `workers.dev` address |
-| [Stack Auth](https://stack-auth.com) project | Sign-in and the GitHub connection | Enable the GitHub provider with your own OAuth app and the `repo`, `read:user`, `user:email` scopes |
+| [GitHub OAuth App](https://github.com/settings/developers) | Sign-in and repository access | Callback URL `https://<your-domain>/api/auth/callback/github`; Sketchflow requests `repo`, `read:user`, `user:email` at sign-in |
 | [Neon](https://neon.tech) Postgres | Accounts, workspace pointers, sync events | The free tier is enough; no sketch content is stored here |
 | Bun | Building | The version pinned in the workflows |
 
@@ -26,20 +26,25 @@ These are the same names the deploy workflow checks for.
 
 | Variable | Public? | Value |
 | --- | --- | --- |
-| `NEXT_PUBLIC_STACK_PROJECT_ID` | yes | Stack Auth project id (a UUID) |
-| `NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY` | yes | Stack Auth client key |
 | `NEXT_PUBLIC_APP_URL` | yes | The URL you will serve from, for example `https://draw.example.com` |
-| `STACK_SECRET_SERVER_KEY` | **secret** | Stack Auth server key |
+| `BETTER_AUTH_SECRET` | **secret** | Random value that encrypts session cookies: `openssl rand -base64 32` |
+| `BETTER_AUTH_URL` | no | Public origin, if it differs from `NEXT_PUBLIC_APP_URL` |
+| `GITHUB_CLIENT_ID` | no | Client id of your GitHub OAuth App |
+| `GITHUB_CLIENT_SECRET` | **secret** | Client secret of your GitHub OAuth App |
 | `DATABASE_URL` | **secret** | Neon connection string |
 | `GITHUB_API_VERSION` | no | `2022-11-28` |
 | `GITHUB_OAUTH_SCOPES` | no | `repo,read:user,user:email` |
 | `SKETCHFLOW_REPO_NAME` | no | Default name for new workspace repositories |
 | `SKETCHFLOW_DEFAULT_BRANCH` | no | `main` |
 
-`NEXT_PUBLIC_*` values are compiled into the client bundle, so they must be present when you build. Give the Worker the two secrets with Wrangler so they are never written to a file:
+Create a GitHub OAuth App at <https://github.com/settings/developers> with the authorization callback URL `https://<your-domain>/api/auth/callback/github`. Sign-in asks for the scopes in `GITHUB_OAUTH_SCOPES` once, on GitHub's consent screen.
+
+`NEXT_PUBLIC_*` values are compiled into the client bundle, so they must be present when you build. Give the Worker its runtime values with Wrangler so secrets are never written to a file:
 
 ```bash
-bunx wrangler secret put STACK_SECRET_SERVER_KEY
+bunx wrangler secret put BETTER_AUTH_SECRET
+bunx wrangler secret put GITHUB_CLIENT_ID
+bunx wrangler secret put GITHUB_CLIENT_SECRET
 ```
 
 ```bash

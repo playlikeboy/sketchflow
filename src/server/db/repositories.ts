@@ -101,6 +101,22 @@ export async function upsertGithubConnection(stackUserId: string, input: GithubC
 		});
 }
 
+/**
+ * The user id recorded against a GitHub account, or null if it has never connected. When
+ * more than one user claims the same GitHub account the mapping is ambiguous and none is
+ * trusted, so the account falls back to its own GitHub-derived id.
+ */
+export async function findUserIdByGithubUserId(githubUserId: string) {
+	const db = getDb();
+	const rows = await db
+		.selectDistinct({ stackUserId: sketchflowGithubConnections.stackUserId })
+		.from(sketchflowGithubConnections)
+		.where(eq(sketchflowGithubConnections.githubUserId, githubUserId))
+		.limit(2);
+
+	return rows.length === 1 ? rows[0].stackUserId : null;
+}
+
 export async function listWorkspaces(stackUserId: string) {
 	const db = getDb();
 	const rows = await db

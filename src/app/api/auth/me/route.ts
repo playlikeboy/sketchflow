@@ -1,5 +1,5 @@
 import { jsonError, jsonOk } from "@/server/http";
-import { getOptionalUser, normalizeStackUser } from "@/server/auth";
+import { getOptionalUser } from "@/server/auth";
 
 export async function GET() {
 	try {
@@ -7,7 +7,7 @@ export async function GET() {
 
 		return jsonOk({
 			authenticated: Boolean(user),
-			user: user ? normalizeStackUser(user) : null,
+			user,
 		});
 	} catch (error) {
 		return jsonError(error);

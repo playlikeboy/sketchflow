@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useStackApp } from "@stackframe/stack";
 import type { AppState, BinaryFiles, ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
 import { ArrowLeft, Download, Eraser, FileText, Loader2, Maximize2, PanelsTopLeft } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,6 +14,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import type { SketchScene } from "@/lib/api";
 import { setDraft } from "@/lib/indexeddb";
+import { SIGN_IN_PATH } from "@/lib/return-path";
 import { normalizeScene } from "@/lib/sketchflow";
 import {
 	TRY_DRAFT_KEY,
@@ -75,7 +75,6 @@ function download(filename: string, content: string, type: string) {
 }
 
 export function TryClient() {
-	const app = useStackApp();
 	const { resolvedTheme } = useTheme();
 	const [layout, setLayout] = useState<Layout>("split");
 	const [initialData, setInitialData] = useState<ExcalidrawInitialDataState | null>(null);
@@ -264,9 +263,12 @@ export function TryClient() {
 						<span className="hidden lg:inline">Download</span>
 					</Button>
 					<ThemeToggle />
-					<Button size="sm" onClick={() => void app.redirectToSignUp()} title="Create an account and keep this sketch">
-						<span className="sm:hidden">Sign in</span>
-						<span className="hidden sm:inline">Sign in to save to GitHub</span>
+					{/* After sign-in the projects page offers this sketch as a new project. */}
+					<Button size="sm" asChild>
+						<Link href={SIGN_IN_PATH} title="Sign in with GitHub and keep this sketch">
+							<span className="sm:hidden">Sign in</span>
+							<span className="hidden sm:inline">Sign in to save to GitHub</span>
+						</Link>
 					</Button>
 				</div>
 			</header>

@@ -3,6 +3,9 @@ export const GITHUB_TOKEN_CHANGED_EVENT = "sketchflow:github-token-changed";
 export const GITHUB_TOKEN_SETUP_URL =
   "https://github.com/settings/tokens/new?description=Sketchflow%20local%20sync%20token&scopes=repo,read:user,user:email";
 
+// Where a user reviews or withdraws the access they granted Sketchflow at sign-in.
+export const GITHUB_ACCESS_SETTINGS_URL = "https://github.com/settings/applications";
+
 function canUseTokenStorage() {
   return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined" && typeof window.localStorage !== "undefined";
 }

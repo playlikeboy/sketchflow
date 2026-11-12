@@ -3,6 +3,9 @@ import { check, foreignKey, index, jsonb, pgTable, text, timestamp, unique } fro
 
 const timestamptz = (name: string) => timestamp(name, { mode: "string", withTimezone: true });
 
+// `stack_user_id` is the Sketchflow user id. The column name dates from the previous auth
+// provider and is kept so existing rows need no migration; see src/server/identity.ts.
+
 export const sketchflowUsers = pgTable("sketchflow_users", {
 	stackUserId: text("stack_user_id").primaryKey(),
 	email: text("email"),

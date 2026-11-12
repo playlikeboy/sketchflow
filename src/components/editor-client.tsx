@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useStackApp } from "@stackframe/stack";
 import type {
 	AppState,
 	BinaryFiles,
@@ -47,6 +46,7 @@ import {
 import { Input } from "@/components/ui/input";
 
 import { ApiError, commitWorkspaceFiles, restoreProjectVersion, type SketchLoadResponse, type SketchScene } from "@/lib/api";
+import { redirectToSignIn } from "@/lib/auth-client";
 import type { ExcalidrawLibrary } from "@/lib/excalidraw-libraries";
 import { deleteDraft, getDraft, setDraft, deleteLocalProject, type OfflineCommit, getOfflineCommits, saveOfflineCommit, clearOfflineCommits } from "@/lib/indexeddb";
 import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
@@ -296,9 +296,7 @@ export function EditorClient({
 	projectId: string;
 	sketchId: string;
 }) {
-	const app = useStackApp();
 	const { resolvedTheme } = useTheme();
-	const appRef = useRef(app);
 	const [initialData, setInitialData] = useState<ExcalidrawInitialDataState | null>(null);
 	const [mounted, setMounted] = useState(false);
 	const [splitPanelSizes, setSplitPanelSizes] = useState<number[]>([50, 50]);
@@ -485,10 +483,6 @@ export function EditorClient({
 	}, [mode, queueStateDraftSave, refreshEditorFrame]);
 
 	useEffect(() => {
-		appRef.current = app;
-	}, [app]);
-
-	useEffect(() => {
 		setMounted(true);
 	}, []);
 
@@ -519,7 +513,7 @@ export function EditorClient({
 
 	useEffect(() => {
 		if (auth && !auth.authenticated && data && data.workspace?.visibility === "private") {
-			void appRef.current.redirectToSignIn();
+			redirectToSignIn();
 		}
 	}, [auth, data]);
 
@@ -1142,7 +1136,7 @@ export function EditorClient({
 
 	const handleForkClick = useCallback(() => {
 		if (!auth?.authenticated) {
-			void appRef.current.redirectToSignIn();
+			redirectToSignIn();
 			return;
 		}
 		setShowForkModal(true);
@@ -1660,7 +1654,6 @@ export function EditorClient({
 									<div className="mt-3">
 										<GithubAccessCard
 											compact
-											scopes={githubStatus?.scopes}
 											onRecovered={async () => {
 												await mutateGithubStatus();
 												setSaveError(null);

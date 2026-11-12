@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
-import { StackProvider, StackTheme } from "@stackframe/stack";
-import { stackServerApp } from "@/stack/server";
 import { PwaRegister } from "@/components/pwa-register";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SKETCHFLOW_APP_URL } from "@/lib/config";
@@ -92,12 +90,8 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <StackProvider app={stackServerApp}>
-            <StackTheme>
-              <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
-              <PwaRegister />
-            </StackTheme>
-          </StackProvider>
+          <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
+          <PwaRegister />
         </ThemeProvider>
       </body>
     </html>

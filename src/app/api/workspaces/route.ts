@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { requireGithubAccessToken, requireUser, normalizeStackUser } from "@/server/auth";
-import { getGithubOAuthScopes } from "@/server/env";
+import { requireGithubAccessToken, requireUser } from "@/server/auth";
 import { getGithubRepository, validateGithubBranch, validateGithubPathSegment, validateGithubRepoName } from "@/server/github";
 import { upsertUser } from "@/server/db/repositories";
 import { listWorkspaces, upsertWorkspace, type WorkspaceVisibility } from "@/server/db/repositories";
@@ -23,8 +22,7 @@ function parseVisibility(value: string | undefined): WorkspaceVisibility {
 
 export async function GET() {
 	try {
-		const stackUser = await requireUser();
-		const user = normalizeStackUser(stackUser);
+		const user = await requireUser();
 		await upsertUser(user);
 
 		const workspaces = await listWorkspaces(user.id);
@@ -38,8 +36,7 @@ export async function GET() {
 export async function POST(request: Request) {
 	try {
 		assertSameOrigin(request);
-		const stackUser = await requireUser();
-		const user = normalizeStackUser(stackUser);
+		const user = await requireUser();
 		await upsertUser(user);
 
 		assertRateLimit("workspace-register", user.id, RATE_LIMITS.projectWrite);
@@ -63,7 +60,7 @@ export async function POST(request: Request) {
 
 		// Only register repositories the caller can actually reach, and trust GitHub (not the
 		// request body) for visibility and the default branch.
-		const { accessToken } = await requireGithubAccessToken(getGithubOAuthScopes(), request);
+		const { accessToken } = await requireGithubAccessToken(request);
 		const repository = await getGithubRepository(accessToken, repoOwner, repoName);
 
 		const workspace = await upsertWorkspace(user.id, {

@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useStackApp } from "@stackframe/stack";
 import { ArrowRight, FolderOpen, Loader2, Plus, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { GithubAccessCard } from "@/components/github-access-card";
@@ -13,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WorkspaceAdvancedOptions } from "@/components/workspace-advanced-options";
 import { bootstrapWorkspace } from "@/lib/api";
+import { redirectToSignIn } from "@/lib/auth-client";
 import { repoHref } from "@/lib/workspace-routes";
 import {
 	useAuthMe,
@@ -33,8 +33,6 @@ function friendlyError(message: string) {
 }
 
 export function WorkspaceClient() {
-	const app = useStackApp();
-	const appRef = useRef(app);
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
 	const [search, setSearch] = useState("");
 	const [repoName, setRepoName] = useState("sketchflow-workspace");
@@ -72,12 +70,8 @@ export function WorkspaceClient() {
 	const loading = authLoading || workspacesLoading || githubLoading;
 
 	useEffect(() => {
-		appRef.current = app;
-	}, [app]);
-
-	useEffect(() => {
 		if (auth && !auth.authenticated) {
-			void appRef.current.redirectToSignIn();
+			redirectToSignIn();
 		}
 	}, [auth]);
 
@@ -145,7 +139,6 @@ export function WorkspaceClient() {
 						) : (
 							<GithubAccessCard
 								compact
-								scopes={githubStatus?.scopes}
 								onRecovered={async () => {
 									await refresh();
 								}}

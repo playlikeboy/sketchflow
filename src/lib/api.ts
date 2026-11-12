@@ -34,11 +34,11 @@ export type GithubStatus =
 				avatarUrl: string | null;
 				htmlUrl: string;
 			};
-			source?: "stack-auth" | "local-token";
+			source?: "github-oauth" | "local-token";
 	  }
 	| {
 			connected: false;
-			reason: "github_not_connected" | "github_oauth_app_required" | "github_token_unavailable";
+			reason: "github_not_connected" | "github_token_unavailable";
 			message: string;
 			scopes: string[];
 	  };

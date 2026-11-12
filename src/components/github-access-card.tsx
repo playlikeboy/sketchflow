@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useStackApp } from "@stackframe/stack";
 import { ChevronDown, ExternalLink, KeyRound, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { StateGlyph } from "@/components/state-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { connectGithubAccount } from "@/lib/github-connect";
+import { signInWithGithub } from "@/lib/auth-client";
 import {
 	GITHUB_TOKEN_SETUP_URL,
 	clearStoredGithubToken,
@@ -17,15 +16,12 @@ import {
 } from "@/lib/github-token";
 
 export function GithubAccessCard({
-	scopes,
 	onRecovered,
 	compact = false,
 }: {
-	scopes?: string[];
 	onRecovered?: () => Promise<void> | void;
 	compact?: boolean;
 }) {
-	const app = useStackApp();
 	const [token, setToken] = useState("");
 	const [hasToken, setHasToken] = useState(false);
 	const [busy, setBusy] = useState<"connect" | "token" | null>(null);
@@ -45,11 +41,11 @@ export function GithubAccessCard({
 		setMessage(null);
 
 		try {
-			await connectGithubAccount(app, scopes);
-			await finish("GitHub reconnected.");
+			// Leaves this page for GitHub and comes back here with a fresh token, so the busy
+			// state stays on until the browser navigates away.
+			await signInWithGithub();
 		} catch (error) {
 			setMessage(error instanceof Error ? error.message : "GitHub did not finish reconnecting. Try again, or use a token.");
-		} finally {
 			setBusy(null);
 		}
 	}

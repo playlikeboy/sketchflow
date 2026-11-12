@@ -1,6 +1,5 @@
-import { normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
+import { requireGithubAccessToken, requireUser } from "@/server/auth";
 import { getWorkspace } from "@/server/db/repositories";
-import { getGithubOAuthScopes } from "@/server/env";
 import { parseRepoJson, readGithubFileText, validateGithubPathSegment, validateProjectScopedPath } from "@/server/github";
 import { BadRequestError, jsonError, jsonOk, NotFoundError } from "@/server/http";
 import { isJsonObject } from "@/server/validation";
@@ -15,15 +14,14 @@ export async function GET(
 		if (!/^[0-9a-f]{7,40}$/i.test(commitSha)) {
 			throw new BadRequestError("Expected a Git commit SHA");
 		}
-		const user = normalizeStackUser(await requireUser());
+		const user = await requireUser();
 		const workspace = await getWorkspace(user.id, workspaceId);
 
 		if (!workspace) {
 			throw new NotFoundError("Workspace not found");
 		}
 
-		const scopes = getGithubOAuthScopes();
-		const { accessToken } = await requireGithubAccessToken(scopes, request);
+		const { accessToken } = await requireGithubAccessToken(request);
 
 		// 1. Read project metadata configuration at the specific commit
 		const projectFile = await readGithubFileText({

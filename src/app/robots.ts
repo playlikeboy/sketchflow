@@ -7,7 +7,7 @@ export default function robots(): MetadataRoute.Robots {
 		rules: {
 			userAgent: "*",
 			allow: "/",
-			disallow: ["/api/", "/handler/"],
+			disallow: ["/api/", "/sign-in"],
 		},
 		sitemap: `${SKETCHFLOW_APP_URL}/sitemap.xml`,
 	};

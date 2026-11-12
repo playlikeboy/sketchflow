@@ -41,27 +41,53 @@ export function json(body: unknown, status = 200) {
 	return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
+// Each test user signs in as its own GitHub account. The real user-id mapping in
+// src/server/auth.ts then resolves that account back to the test user through the faked
+// connection lookup below.
+const githubAccountIds = new Map<string, string>();
+
+function githubAccountIdFor(userId: string) {
+	let accountId = githubAccountIds.get(userId);
+	if (!accountId) {
+		accountId = String(1000 + githubAccountIds.size);
+		githubAccountIds.set(userId, accountId);
+	}
+	return accountId;
+}
+
+function userIdForGithubAccount(githubUserId: string) {
+	for (const [userId, accountId] of githubAccountIds) {
+		if (accountId === githubUserId) return userId;
+	}
+	return null;
+}
+
 export function installMocks() {
 	mock.module("server-only", () => ({}));
 
-	mock.module("@/stack/server", () => ({
-		stackServerApp: {
-			getUser: async () =>
-				state.userId
-					? {
-							id: state.userId,
-							primaryEmail: "owner@example.com",
-							displayName: "Owner",
-							profileImageUrl: null,
-							getConnectedAccount: async () => ({
-								getAccessToken: async () => ({ status: "ok", data: { accessToken: "test-token" } }),
-							}),
-						}
-					: null,
-		},
+	process.env.BETTER_AUTH_SECRET ??= "test-secret-that-is-long-enough-for-better-auth-0123456789";
+	process.env.GITHUB_CLIENT_ID ??= "test-client-id";
+	process.env.GITHUB_CLIENT_SECRET ??= "test-client-secret";
+
+	mock.module("next/headers", () => ({
+		headers: async () => new Headers(),
+	}));
+
+	mock.module("@/server/better-auth", () => ({
+		GITHUB_PROVIDER_ID: "github",
+		createAuth: () => ({
+			api: {
+				getGithubIdentity: async () =>
+					state.userId
+						? { githubUserId: githubAccountIdFor(state.userId), email: "owner@example.com", name: "Owner", image: null }
+						: null,
+				getAccessToken: async () => ({ accessToken: "test-token" }),
+			},
+		}),
 	}));
 
 	mock.module("@/server/db/repositories", () => ({
+		findUserIdByGithubUserId: async (githubUserId: string) => userIdForGithubAccount(githubUserId),
 		upsertUser: async () => {},
 		upsertGithubConnection: async () => {},
 		listWorkspaces: async (userId: string) => state.workspaces.filter((item) => item.stackUserId === userId),

@@ -20,12 +20,13 @@ In scope:
 Out of scope:
 
 - Content in a public repository being publicly readable. Public workspaces are public on GitHub by design.
-- Vulnerabilities in GitHub, Stack Auth, Neon or Cloudflare themselves; report those to the vendor.
+- Vulnerabilities in GitHub, Better Auth, Neon or Cloudflare themselves; report those to the vendor.
 - Denial of service through volume alone.
 
 ## How Sketchflow handles credentials
 
-- Sign-in and the GitHub connection are handled by Stack Auth. Sketchflow asks Stack Auth for a GitHub access token per request and does not store it.
+- Sign-in is GitHub OAuth, handled by Better Auth running inside this app with no auth database. The session and the GitHub access token are held in encrypted, HttpOnly, `Secure`, `SameSite=Lax` cookies in the user's browser and are decrypted per request. Sketchflow does not store the token anywhere else.
+- Sessions are stateless and expire after 30 days. Signing out clears the cookies. A copied cookie cannot be revoked individually: the user can revoke Sketchflow under GitHub's authorized OAuth apps, which invalidates the token, and an operator can rotate `BETTER_AUTH_SECRET`, which ends every session.
 - A user may instead paste a personal access token. It is kept in that browser's session storage, sent only to this app's own API over HTTPS, and never written to the database, logs or repository files.
 - Postgres stores user ids, GitHub logins, workspace pointers and sync events. It holds no tokens and no sketch content.
 

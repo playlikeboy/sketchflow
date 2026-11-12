@@ -7,15 +7,21 @@ import { jsonError, jsonOk } from "@/server/http";
 export async function GET(request: Request) {
 	try {
 		const scopes = getGithubOAuthScopes();
-		const { accessToken, user, source } = await requireGithubAccessToken(scopes, request);
+		const { accessToken, user, source } = await requireGithubAccessToken(request);
 		const githubUser = await getAuthenticatedGithubUser(accessToken);
 
 		await upsertUser(user);
-		await upsertGithubConnection(user.id, {
-			githubLogin: githubUser.login,
-			githubUserId: String(githubUser.id),
-			scopes,
-		});
+
+		// The connection row is what ties a GitHub account to a Sketchflow user at sign-in, so
+		// it is recorded only for the account that signed in through GitHub. A pasted personal
+		// access token can belong to any account and must never create that link.
+		if (source === "github-oauth") {
+			await upsertGithubConnection(user.id, {
+				githubLogin: githubUser.login,
+				githubUserId: String(githubUser.id),
+				scopes,
+			});
+		}
 
 		return jsonOk({
 			connected: true,

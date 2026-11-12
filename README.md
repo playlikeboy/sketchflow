@@ -46,7 +46,7 @@ Most whiteboard tools keep your diagrams in their database. Sketchflow keeps the
 flowchart LR
     B[Browser<br/>Excalidraw · BlockNote · SWR] -->|drafts| I[(IndexedDB)]
     B -->|snapshot commit| A[Next.js API routes<br/>on Cloudflare Workers]
-    A -->|auth| S[Stack Auth]
+    B -->|sign in with GitHub| A
     A -->|pointers and sync events| P[(Neon Postgres)]
     A -->|trees · commits · refs| G[(Your GitHub repo)]
     V[Share and embed pages] -->|public read| G
@@ -81,13 +81,15 @@ More detail is in the [architecture guide](./docs/ARCHITECTURE.md).
 
 ## Tech stack
 
-Next.js 16 (App Router) and React 19, deployed to Cloudflare Workers with OpenNext. Stack Auth for sign-in and the GitHub connection. Neon Postgres through Drizzle. Tailwind CSS 4. Bun for installs, scripts and tests.
+Next.js 16 (App Router) and React 19, deployed to Cloudflare Workers with OpenNext. Better Auth for GitHub sign-in, with the session kept in encrypted cookies. Neon Postgres through Drizzle. Tailwind CSS 4. Bun for installs, scripts and tests.
 
 The interface follows the Survey Sheet design system documented in [DESIGN.md](./DESIGN.md), with product context in [PRODUCT.md](./PRODUCT.md).
 
 ## Run it locally
 
-You need [Bun](https://bun.sh), a [Stack Auth](https://stack-auth.com) project with the GitHub provider enabled, and a [Neon](https://neon.tech) database.
+You need [Bun](https://bun.sh), a [GitHub OAuth App](https://github.com/settings/developers), and a [Neon](https://neon.tech) database.
+
+Set the OAuth App's authorization callback URL to `http://localhost:3000/api/auth/callback/github`. A GitHub OAuth App has a single callback URL, so use one app for local development and another for each deployed origin.
 
 ```bash
 git clone https://github.com/playlikeboy/sketchflow.git
@@ -100,9 +102,10 @@ Fill in `.env.local`:
 
 | Variable | Purpose |
 | --- | --- |
-| `NEXT_PUBLIC_STACK_PROJECT_ID` | Stack Auth project id (a UUID) |
-| `NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY` | Stack Auth client key |
-| `STACK_SECRET_SERVER_KEY` | Stack Auth server key |
+| `BETTER_AUTH_SECRET` | Random secret that encrypts the session cookies (`openssl rand -base64 32`) |
+| `BETTER_AUTH_URL` | Public origin of a deployment. Leave unset in development |
+| `GITHUB_CLIENT_ID` | GitHub OAuth App client id |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth App client secret |
 | `DATABASE_URL` | Neon Postgres connection string |
 | `NEXT_PUBLIC_APP_URL` | Base URL, `http://localhost:3000` in development |
 | `GITHUB_API_VERSION` | GitHub REST API version, default `2022-11-28` |
@@ -135,7 +138,8 @@ CI runs the tests, lint, typecheck, build, the smoke test and the browser tests 
 
 ## Security model
 
-- GitHub access tokens are never stored by Sketchflow. They come from Stack Auth per request, or from a personal access token the user keeps in their own browser session.
+- Signing in with GitHub grants repository access once, on GitHub's consent screen. Sketchflow keeps the resulting token only in an encrypted, HttpOnly cookie in the user's browser; it is never written to Postgres, logs or repository files. A user can instead supply a personal access token that stays in their own browser session.
+- Sessions are stateless and last 30 days. Signing out clears the cookies; to cut off a session Sketchflow cannot reach, revoke the app under GitHub's authorized OAuth apps, or rotate `BETTER_AUTH_SECRET` to end every session.
 - Every write route checks that the workspace belongs to the signed-in user, rejects cross-site requests, validates each path segment and branch name, and is rate limited per user.
 - Content read from a repository is treated as untrusted input, including the user's own.
 - Connecting an existing repository never overwrites files already in it.

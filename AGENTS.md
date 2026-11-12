@@ -7,7 +7,7 @@ Sketchflow is a GitHub-native visual workspace. User-owned GitHub repos are the 
 ## Required Practices
 
 - Use Context7 for current docs whenever working with libraries, frameworks, SDKs, APIs, CLIs, or cloud services.
-- Never commit secrets. `.env.local`, `.env*`, `.dev.vars`, tokens, database URLs, Stack Auth secrets, and GitHub tokens must stay untracked.
+- Never commit secrets. `.env.local`, `.env*`, `.dev.vars`, tokens, database URLs, the Better Auth secret, GitHub OAuth client secrets, and GitHub tokens must stay untracked.
 - Keep Postgres small. Store only users, GitHub connection metadata, workspace pointers, billing metadata, and sync events.
 - Use Drizzle for database schema and queries. Do not add raw SQL repositories unless there is a clear migration or introspection reason.
 - Preserve GitHub as the durable data store. Sketch scene JSON, project files, docs, exports, and assets belong in the user's repo.
@@ -23,7 +23,8 @@ Sketchflow is a GitHub-native visual workspace. User-owned GitHub repos are the 
 - Use Tailwind CSS and lucide-react icons. Do not introduce a component framework without an explicit decision.
 - Use `@excalidraw/excalidraw` only in client-rendered components.
 - Use BlockNote for project docs editing.
-- Use SWR for authenticated app API data and scope workspace caches by the Stack user id.
+- Use SWR for authenticated app API data and scope workspace caches by the Sketchflow user id.
+- Auth is Better Auth with GitHub as the only sign-in, run without a database: the session and the GitHub OAuth token live in encrypted cookies. Do not add a Better Auth database adapter or persist OAuth tokens in Postgres.
 - Keep the app minimal. Avoid explanatory panels in core workspace/project pages unless they unblock an action.
 
 ## Verification

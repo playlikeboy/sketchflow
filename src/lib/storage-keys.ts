@@ -1,6 +1,6 @@
 // Key scheme for browser-local storage (IndexedDB drafts and caches).
 //
-// Every key is namespaced by a scope: the Stack user id when signed in, or the explicit
+// Every key is namespaced by a scope: the Sketchflow user id when signed in, or the explicit
 // "local" scope when nobody is signed in. Nothing is stored under an unscoped key, so one
 // account can never read or purge another account's drafts on a shared browser.
 

@@ -27,14 +27,14 @@ Traditional visual collaboration apps lock user drawings and notes inside a prop
 graph TD
     Client["Client Browser (React 19 / Next.js)"]
     IDB["IndexedDB (User-Scoped Instant Drafts)"]
-    StackAuth["Stack Auth (OAuth & Tokens)"]
-    NextAPI["Next.js Server / Cloudflare Worker"]
+    GitHubOAuth["GitHub OAuth (sign-in, repo access granted once)"]
+    NextAPI["Next.js Server / Cloudflare Worker (Better Auth, encrypted session cookies)"]
     NeonDB["Neon Postgres (Drizzle Metadata)"]
     GitHub["User GitHub Repo (Durable Truth)"]
 
     Client -->|Instant 0ms write| IDB
     Client -->|Authenticated API| NextAPI
-    StackAuth -->|GitHub OAuth Token| NextAPI
+    GitHubOAuth -->|OAuth token, kept in the browser's encrypted cookie| NextAPI
     NextAPI -->|Metadata / Pointers| NeonDB
     NextAPI -->|Git Trees Multi-File Commit| GitHub
 ```
@@ -70,7 +70,7 @@ my-sketchflow-workspace/
 ## ⚡ Offline-First & Storage Layer
 
 ### 1. User & Workspace Scoped IndexedDB
-To prevent cross-user draft leaks on shared devices or multiple accounts, all local storage keys are partitioned by `stackUserId`:
+To prevent cross-user draft leaks on shared devices or multiple accounts, all local storage keys are partitioned by the Sketchflow user id (named `stackUserId` in code and `stack_user_id` in Postgres for historical reasons; it is derived from the GitHub account, see `src/server/identity.ts`):
 - Sketches: `local-sketch:${userId}:${workspaceId}:${projectId}:${sketchId}`
 - Documentation: `local-notes:${userId}:${workspaceId}:${projectId}`
 - Layout & Editor State: `local-state:${userId}:${workspaceId}:${projectId}:${sketchId}`

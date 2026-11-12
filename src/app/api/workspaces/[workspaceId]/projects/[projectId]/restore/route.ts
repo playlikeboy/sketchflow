@@ -1,6 +1,5 @@
-import { normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
+import { requireGithubAccessToken, requireUser } from "@/server/auth";
 import { getWorkspace, recordSyncEvent, updateWorkspaceCommit } from "@/server/db/repositories";
-import { getGithubOAuthScopes } from "@/server/env";
 import {
 	createCommitOnBranch,
 	getBranchHeadSha,
@@ -27,7 +26,7 @@ export async function POST(
 		assertSameOrigin(request);
 		const { workspaceId, projectId: rawProjectId } = await params;
 		const projectId = validateGithubPathSegment(rawProjectId);
-		const user = normalizeStackUser(await requireUser());
+		const user = await requireUser();
 		assertRateLimit("project-write", user.id, RATE_LIMITS.projectWrite);
 		const workspace = await getWorkspace(user.id, workspaceId);
 
@@ -45,8 +44,7 @@ export async function POST(
 			throw new BadRequestError('Expected "sourceCommitSha" to be a Git commit SHA');
 		}
 
-		const scopes = getGithubOAuthScopes();
-		const { accessToken } = await requireGithubAccessToken(scopes, request);
+		const { accessToken } = await requireGithubAccessToken(request);
 
 		// 1. Fetch project config details from the target historical commit
 		const projectFileText = await readGithubFileText({

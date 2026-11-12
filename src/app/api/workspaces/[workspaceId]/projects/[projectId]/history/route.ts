@@ -1,6 +1,5 @@
-import { normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
+import { requireGithubAccessToken, requireUser } from "@/server/auth";
 import { getWorkspace } from "@/server/db/repositories";
-import { getGithubOAuthScopes } from "@/server/env";
 import { getPathCommits, validateGithubPathSegment } from "@/server/github";
 import { jsonError, jsonOk, NotFoundError } from "@/server/http";
 
@@ -11,15 +10,14 @@ export async function GET(
 	try {
 		const { workspaceId, projectId: rawProjectId } = await params;
 		const projectId = validateGithubPathSegment(rawProjectId);
-		const user = normalizeStackUser(await requireUser());
+		const user = await requireUser();
 		const workspace = await getWorkspace(user.id, workspaceId);
 
 		if (!workspace) {
 			throw new NotFoundError("Workspace not found");
 		}
 
-		const scopes = getGithubOAuthScopes();
-		const { accessToken } = await requireGithubAccessToken(scopes, request);
+		const { accessToken } = await requireGithubAccessToken(request);
 
 		const commits = await getPathCommits({
 			accessToken,

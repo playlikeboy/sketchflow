@@ -1,8 +1,7 @@
 import { PROJECTS_METADATA_PATH, normalizeProjectsMetadata } from "@/lib/project-metadata";
 import { SKETCHFLOW_APP_URL } from "@/lib/config";
-import { hasLocalGithubToken, normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
+import { hasLocalGithubToken, requireGithubAccessToken, requireUser } from "@/server/auth";
 import { getWorkspace, getWorkspacePublic } from "@/server/db/repositories";
-import { getGithubOAuthScopes } from "@/server/env";
 import {
 	GithubApiError,
 	getBranchHeadSha,
@@ -76,8 +75,7 @@ async function readAuthenticatedSketch(input: {
 	projectSlug: string;
 	sketchSlug: string;
 }) {
-	const scopes = getGithubOAuthScopes();
-	const { accessToken } = await requireGithubAccessToken(scopes, input.request);
+	const { accessToken } = await requireGithubAccessToken(input.request);
 	const base = {
 		accessToken,
 		owner: input.workspace.repoOwner,
@@ -120,7 +118,7 @@ export async function GET(
 		}
 
 		if (workspace.visibility === "private") {
-			const user = normalizeStackUser(await requireUser());
+			const user = await requireUser();
 			if (workspace.stackUserId !== user.id) {
 				return jsonError(new NotFoundError("Workspace not found or unauthorized"));
 			}

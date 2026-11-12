@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useStackApp } from "@stackframe/stack";
 import { ArrowRight, BookOpen, Boxes, FileText, LayoutTemplate, Loader2, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { EmptyPanel, ProjectList, ProjectListSkeleton } from "@/components/project-list";
 import { Button } from "@/components/ui/button";
+import { redirectToSignIn } from "@/lib/auth-client";
 import type { WorkspaceProject } from "@/lib/project-metadata";
 import { useAuthMe } from "@/lib/swr-hooks";
 import { useOfflineWorkspaces, useOfflineWorkspaceProjects } from "@/lib/swr-offline";
@@ -71,8 +71,6 @@ function sortRecent(projects: WorkspaceProject[]) {
 }
 
 export function AppSectionClient({ section }: { section: AppSection }) {
-	const app = useStackApp();
-	const appRef = useRef(app);
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
 	const [search, setSearch] = useState("");
 	const {
@@ -124,12 +122,8 @@ export function AppSectionClient({ section }: { section: AppSection }) {
 	const config = sectionConfig[section];
 
 	useEffect(() => {
-		appRef.current = app;
-	}, [app]);
-
-	useEffect(() => {
 		if (auth && !auth.authenticated) {
-			void appRef.current.redirectToSignIn();
+			redirectToSignIn();
 		}
 	}, [auth]);
 

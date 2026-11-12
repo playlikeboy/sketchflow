@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useStackApp } from "@stackframe/stack";
 import { useSWRConfig } from "swr";
 import {
   CircleHelp,
@@ -15,6 +14,7 @@ import {
   GitBranch,
   Globe,
   LayoutTemplate,
+  Loader2,
   LogOut,
   Plus,
   Search,
@@ -43,7 +43,8 @@ import { StateGlyph, StateMark } from "@/components/state-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { clearStoredGithubToken } from "@/lib/github-token";
+import { signOut as endSession } from "@/lib/auth-client";
+import { GITHUB_ACCESS_SETTINGS_URL, clearStoredGithubToken } from "@/lib/github-token";
 import {
   Select,
   SelectContent,
@@ -250,7 +251,6 @@ export function AppShell({
   /** Set when the page knows GitHub cannot be reached, so the bar never claims work is synced. */
   githubUnreachable?: boolean;
 }) {
-  const app = useStackApp();
   const { mutate } = useSWRConfig();
   const { data: auth } = useAuthMe();
   const userId = auth?.user?.id;
@@ -258,6 +258,8 @@ export function AppShell({
   const [hasWorkspaceUnsynced, setHasWorkspaceUnsynced] = useState(false);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [syncFailures, setSyncFailures] = useState(0);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   useEffect(() => {
     getOfflineModeSetting().then(setIsOfflineMode).catch(() => {});
@@ -311,20 +313,28 @@ export function AppShell({
     }
   }
 
-  function signOut() {
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setSignOutError(null);
+
+    // End the session first. If that fails the user is still signed in, so their unsynced
+    // drafts and queued saves must stay where they are.
+    try {
+      await endSession();
+    } catch (error) {
+      setSignOutError(error instanceof Error ? error.message : "Sign-out did not finish. Try again.");
+      setSigningOut(false);
+      return;
+    }
+
     clearStoredGithubToken();
+    window.localStorage?.removeItem("sketchflow:active-user-id");
     if (userId) {
-      void clearSyncQueueForUser(userId);
-      void purgeUserCache(userId);
+      await Promise.allSettled([clearSyncQueueForUser(userId), purgeUserCache(userId)]);
     }
-
-    if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.removeItem("sketchflow:active-user-id");
-    }
-
-    void mutate(() => true, undefined, { revalidate: false }).then(() => {
-      void app.signOut({ redirectUrl: "/" });
-    });
+    await mutate(() => true, undefined, { revalidate: false });
+    window.location.assign("/");
   }
 
   return (
@@ -403,17 +413,31 @@ export function AppShell({
 
             {action}
 
+            <Button variant="ghost" size="icon-sm" asChild>
+              <a
+                href={GITHUB_ACCESS_SETTINGS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Manage GitHub access (opens GitHub)"
+                title="Manage GitHub access"
+              >
+                <CircleUser />
+              </a>
+            </Button>
+            {signOutError ? (
+              <span role="alert" className="hidden max-w-48 truncate text-xs text-destructive sm:inline" title={signOutError}>
+                {signOutError}
+              </span>
+            ) : null}
             <Button
               variant="ghost"
               size="icon-sm"
-              onClick={() => void app.redirectToAccountSettings()}
-              aria-label="Account settings"
-              title="Account settings"
+              onClick={() => void signOut()}
+              disabled={signingOut}
+              aria-label={signOutError ? `Sign out. ${signOutError}` : "Sign out"}
+              title={signOutError ?? "Sign out"}
             >
-              <CircleUser />
-            </Button>
-            <Button variant="ghost" size="icon-sm" onClick={signOut} aria-label="Sign out" title="Sign out">
-              <LogOut />
+              {signingOut ? <Loader2 className="animate-spin" /> : <LogOut />}
             </Button>
           </div>
         </header>

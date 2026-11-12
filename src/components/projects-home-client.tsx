@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useStackApp } from "@stackframe/stack";
 import { FolderOpen, GitCommit, Loader2, Plus, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -12,6 +11,7 @@ import { StateGlyph } from "@/components/state-mark";
 import { EmptyPanel, Notice, ProjectList, ProjectListSkeleton } from "@/components/project-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { redirectToSignIn } from "@/lib/auth-client";
 import {
 	syncWorkspaceProjectsMetadata,
 	ApiError,
@@ -73,8 +73,6 @@ const templateDrafts: Record<string, { title: string; description: string }> = {
 };
 
 export function ProjectsHomeClient() {
-	const app = useStackApp();
-	const appRef = useRef(app);
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	// A link can name the workspace to open (the workspace list and the editor breadcrumb do).
@@ -149,10 +147,6 @@ export function ProjectsHomeClient() {
 		errorCopy(githubError);
 	const projectError = errorCopy(projectsError);
 
-	useEffect(() => {
-		appRef.current = app;
-	}, [app]);
-
 	// A sketch made on /try before signing in is offered as a new project.
 	useEffect(() => {
 		let active = true;
@@ -170,7 +164,7 @@ export function ProjectsHomeClient() {
 
 	useEffect(() => {
 		if (auth && !auth.authenticated) {
-			void appRef.current.redirectToSignIn();
+			redirectToSignIn();
 		}
 	}, [auth]);
 
@@ -373,7 +367,6 @@ export function ProjectsHomeClient() {
 				{pageError ? (
 					pageError.toLowerCase().includes("github") ? (
 						<GithubAccessCard
-							scopes={githubStatus?.scopes}
 							onRecovered={async () => {
 								await refresh();
 							}}

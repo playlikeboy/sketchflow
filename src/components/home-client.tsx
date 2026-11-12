@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useStackApp } from "@stackframe/stack";
 import { ArrowRight, Loader2, Pencil, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -11,6 +10,7 @@ import { StateGlyph, StateMark } from "@/components/state-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TitleBlock, TitleBlockRow } from "@/components/title-block";
 import { Button } from "@/components/ui/button";
+import { SIGN_IN_PATH } from "@/lib/return-path";
 import { useAuthMe } from "@/lib/swr-hooks";
 import { cn } from "@/lib/utils";
 
@@ -229,7 +229,6 @@ function ContourField() {
 }
 
 export function HomeClient() {
-	const app = useStackApp();
 	const router = useRouter();
 	const { data: auth, isLoading } = useAuthMe();
 
@@ -263,11 +262,11 @@ export function HomeClient() {
 					</nav>
 					<div className="flex items-center gap-1.5">
 						<ThemeToggle />
-						<Button variant="ghost" size="sm" onClick={() => void app.redirectToSignIn()}>
-							Sign in
+						<Button variant="ghost" size="sm" asChild>
+							<Link href={SIGN_IN_PATH}>Sign in</Link>
 						</Button>
-						<Button size="sm" onClick={() => void app.redirectToSignUp()}>
-							Get started
+						<Button size="sm" asChild>
+							<Link href={SIGN_IN_PATH}>Get started</Link>
 						</Button>
 					</div>
 				</div>
@@ -286,9 +285,11 @@ export function HomeClient() {
 								repository you own, in file formats that open without us.
 							</p>
 							<div className="mt-7 flex flex-wrap items-center gap-3">
-								<Button size="lg" onClick={() => void app.redirectToSignUp()}>
-									Start with GitHub
-									<ArrowRight />
+								<Button size="lg" asChild>
+									<Link href={SIGN_IN_PATH}>
+										Start with GitHub
+										<ArrowRight />
+									</Link>
 								</Button>
 								<Button variant="outline" size="lg" asChild>
 									<Link href="/try">
@@ -384,10 +385,12 @@ export function HomeClient() {
 							size="lg"
 							variant="outline"
 							className="border-transparent bg-card text-foreground hover:bg-card/90"
-							onClick={() => void app.redirectToSignUp()}
+							asChild
 						>
-							Start with GitHub
-							<ArrowRight />
+							<Link href={SIGN_IN_PATH}>
+								Start with GitHub
+								<ArrowRight />
+							</Link>
 						</Button>
 					</div>
 				</section>

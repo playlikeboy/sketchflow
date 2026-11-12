@@ -73,9 +73,6 @@ export async function mockApi(page: Page, options: MockOptions = {}): Promise<Ap
 	await page.route("**/api/**", async (route: Route) => {
 		const request = route.request();
 		const path = new URL(request.url()).pathname;
-		// Stack Auth's own SDK calls are not ours to answer.
-		if (path.startsWith("/api/v1/")) return route.abort();
-
 		const method = request.method();
 		log.push({ method, path, body: request.postDataJSON?.() ?? null });
 		const json = (body: unknown, status = 200) =>
@@ -84,7 +81,7 @@ export async function mockApi(page: Page, options: MockOptions = {}): Promise<Ap
 		if (path === "/api/auth/me") return json(signedIn ? { authenticated: true, user } : { authenticated: false, user: null });
 		if (!signedIn) return json({ error: "Authentication required" }, 401);
 		if (path === "/api/github/status") {
-			return json({ connected: true, scopes: ["repo"], github: { login: "demo-user", id: 1, avatarUrl: null, htmlUrl: "https://github.com/demo-user" }, source: "stack-auth" });
+			return json({ connected: true, scopes: ["repo"], github: { login: "demo-user", id: 1, avatarUrl: null, htmlUrl: "https://github.com/demo-user" }, source: "github-oauth" });
 		}
 		if (path === "/api/workspaces") return json({ workspaces: options.noWorkspaces ? [] : [workspace] });
 		if (path.endsWith("/commit") && method === "POST") {

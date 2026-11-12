@@ -1,6 +1,12 @@
 import "server-only";
 
-import { stackServerApp } from "@/stack/server";
+import { headers } from "next/headers";
+
+import { SKETCHFLOW_APP_URL } from "@/lib/config";
+import { createAuth, type SketchflowAuth } from "@/server/better-auth";
+import { findUserIdByGithubUserId } from "@/server/db/repositories";
+import { getGithubOAuthScopes, getOptionalEnv, getRequiredEnv } from "@/server/env";
+import { chooseAppUserId } from "@/server/identity";
 
 export class UnauthorizedError extends Error {
 	constructor(message = "Authentication required") {
@@ -9,7 +15,7 @@ export class UnauthorizedError extends Error {
 	}
 }
 
-export type GithubAccessTokenErrorCode = "github_not_connected" | "github_oauth_app_required" | "github_token_unavailable";
+export type GithubAccessTokenErrorCode = "github_not_connected" | "github_token_unavailable";
 
 export class GithubAccessTokenError extends Error {
 	constructor(
@@ -29,158 +35,68 @@ export type SketchflowUser = {
 	profileImageUrl: string | null;
 };
 
-type StackUserLike = {
-	id: string;
-	primaryEmail?: string | null;
-	displayName?: string | null;
-	profileImageUrl?: string | null;
-	listConnectedAccounts?: () => Promise<unknown[]>;
-	getConnectedAccount?: (
-		provider: string,
-		options?: { scopes?: string[]; or?: "redirect" | "throw" | "return-null" },
-	) => Promise<unknown>;
-};
+export type GithubAccessTokenSource = "github-oauth" | "local-token";
 
-type OAuthConnectionLike = {
-	id?: string;
-	provider?: string;
-	getAccessToken: (options?: { scopes?: string[] }) => Promise<
-		| {
-				status: "ok";
-				data: { accessToken: string };
-		  }
-		| {
-				status: "error";
-				error: unknown;
-		  }
-		| {
-				accessToken: string;
-		  }
-	>;
-};
-
-const STACK_OAUTH_TIMEOUT_MS = 25_000;
 const LOCAL_GITHUB_TOKEN_HEADER = "x-sketchflow-github-token";
+const RECONNECT_GITHUB_MESSAGE = "Reconnect GitHub to finish setting up your workspace.";
+const USER_ID_CACHE_LIMIT = 500;
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorFactory: () => Error) {
-	let timeout: ReturnType<typeof setTimeout>;
-	const timeoutPromise = new Promise<never>((_resolve, reject) => {
-		timeout = setTimeout(() => reject(errorFactory()), timeoutMs);
-	});
+let authInstance: SketchflowAuth | null = null;
 
-	return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeout));
-}
+// Built on first use so a build that has no secrets in its environment can still import
+// route modules, and so the Worker reads its bindings after they are populated.
+export function getAuth() {
+	if (!authInstance) {
+		const isProduction = process.env.NODE_ENV === "production";
 
-function errorMessage(error: unknown) {
-	if (error instanceof Error) {
-		return error.message;
+		authInstance = createAuth({
+			secret: getRequiredEnv("BETTER_AUTH_SECRET"),
+			baseURL: getOptionalEnv("BETTER_AUTH_URL") || (isProduction ? SKETCHFLOW_APP_URL : undefined),
+			githubClientId: getRequiredEnv("GITHUB_CLIENT_ID"),
+			githubClientSecret: getRequiredEnv("GITHUB_CLIENT_SECRET"),
+			githubScopes: getGithubOAuthScopes(),
+		});
 	}
 
-	if (error && typeof error === "object") {
-		if ("humanReadableMessage" in error && typeof error.humanReadableMessage === "string") {
-			return error.humanReadableMessage;
-		}
+	return authInstance;
+}
 
-		if ("message" in error && typeof error.message === "string") {
-			return error.message;
-		}
+// A GitHub account maps to the same Sketchflow user id for good, so the answer is safe to
+// keep for the life of the server instance.
+const userIdByGithubUserId = new Map<string, string>();
+
+async function resolveAppUserId(githubUserId: string) {
+	const cached = userIdByGithubUserId.get(githubUserId);
+	if (cached) {
+		return cached;
 	}
 
-	return "";
-}
+	const userId = chooseAppUserId(githubUserId, await findUserIdByGithubUserId(githubUserId));
 
-function githubTokenError(
-	error: unknown,
-	fallback = "Reconnect GitHub to finish setting up your workspace.",
-) {
-	const message = errorMessage(error);
-
-	if (message.toLowerCase().includes("shared oauth keys")) {
-		return new GithubAccessTokenError(
-			"github_oauth_app_required",
-			"Reconnect GitHub to finish setting up your workspace.",
-		);
+	if (userIdByGithubUserId.size >= USER_ID_CACHE_LIMIT) {
+		userIdByGithubUserId.clear();
 	}
+	userIdByGithubUserId.set(githubUserId, userId);
 
-	return new GithubAccessTokenError("github_token_unavailable", message || fallback);
+	return userId;
 }
 
-function isOAuthConnectionLike(account: unknown): account is OAuthConnectionLike {
-	return Boolean(
-		account &&
-			typeof account === "object" &&
-			"getAccessToken" in account &&
-			typeof account.getAccessToken === "function",
-	);
-}
+export async function getOptionalUser(): Promise<SketchflowUser | null> {
+	const identity = await getAuth().api.getGithubIdentity({ headers: await headers() });
 
-function isGithubConnection(account: OAuthConnectionLike) {
-	return account.provider === "github" || account.id === "github";
-}
-
-async function getGithubConnection(user: StackUserLike, scopes: string[]) {
-	if (user.getConnectedAccount) {
-		const directAccount = (await withTimeout(
-			user.getConnectedAccount("github", {
-				scopes,
-				or: "return-null",
-			}),
-			STACK_OAUTH_TIMEOUT_MS,
-			() => new GithubAccessTokenError("github_token_unavailable", "GitHub connection check timed out"),
-		)) as OAuthConnectionLike | null;
-
-		if (directAccount) {
-			return directAccount;
-		}
-	}
-
-	if (!user.listConnectedAccounts) {
+	if (!identity) {
 		return null;
 	}
 
-	const accounts = await withTimeout(
-		user.listConnectedAccounts(),
-		STACK_OAUTH_TIMEOUT_MS,
-		() => new GithubAccessTokenError("github_token_unavailable", "GitHub connection check timed out"),
-	);
-	const githubAccount = accounts.find((account) => isOAuthConnectionLike(account) && isGithubConnection(account));
-
-	return isOAuthConnectionLike(githubAccount) ? githubAccount : null;
-}
-
-async function getAccessTokenFromConnection(account: OAuthConnectionLike, scopes: string[]) {
-	const token = await withTimeout(
-		account.getAccessToken({ scopes }),
-		STACK_OAUTH_TIMEOUT_MS,
-		() => new GithubAccessTokenError("github_token_unavailable", "GitHub access token check timed out"),
-	);
-
-	if ("status" in token) {
-		if (token.status === "ok") {
-			return token.data.accessToken;
-		}
-
-		throw githubTokenError(token.error);
-	}
-
-	return token.accessToken;
-}
-
-export function normalizeStackUser(user: StackUserLike): SketchflowUser {
 	return {
-		id: user.id,
-		primaryEmail: user.primaryEmail ?? null,
-		displayName: user.displayName ?? null,
-		profileImageUrl: user.profileImageUrl ?? null,
+		id: await resolveAppUserId(identity.githubUserId),
+		primaryEmail: identity.email,
+		displayName: identity.name,
+		profileImageUrl: identity.image,
 	};
 }
 
-export async function getOptionalUser() {
-	const user = (await stackServerApp.getUser()) as StackUserLike | null;
-	return user;
-}
-
-export async function requireUser() {
+export async function requireUser(): Promise<SketchflowUser> {
 	const user = await getOptionalUser();
 
 	if (!user) {
@@ -199,46 +115,40 @@ export function hasLocalGithubToken(request?: Request) {
 	return Boolean(getLocalGithubToken(request));
 }
 
-export async function requireGithubAccessToken(scopes: string[], request?: Request) {
+async function getOAuthGithubAccessToken() {
+	try {
+		const tokens = await getAuth().api.getAccessToken({
+			body: { useAccountCookie: true },
+			headers: await headers(),
+		});
+
+		return tokens.accessToken || null;
+	} catch (error) {
+		// Detail goes to the server log only; the browser gets a fixed reconnect message.
+		console.error("Could not read the GitHub access token from the session", error);
+		throw new GithubAccessTokenError("github_token_unavailable", RECONNECT_GITHUB_MESSAGE);
+	}
+}
+
+/**
+ * Returns a GitHub token for the signed-in user: a personal access token the browser sent
+ * for this request if there is one, otherwise the OAuth token granted at sign-in.
+ */
+export async function requireGithubAccessToken(
+	request?: Request,
+): Promise<{ accessToken: string; user: SketchflowUser; source: GithubAccessTokenSource }> {
 	const user = await requireUser();
 	const localToken = getLocalGithubToken(request);
 
 	if (localToken) {
-		return {
-			accessToken: localToken,
-			user: normalizeStackUser(user),
-			source: "local-token" as const,
-		};
+		return { accessToken: localToken, user, source: "local-token" };
 	}
 
-	if (!user.listConnectedAccounts && !user.getConnectedAccount) {
-		throw new UnauthorizedError("GitHub account is not connected");
-	}
+	const accessToken = await getOAuthGithubAccessToken();
 
-	let account: OAuthConnectionLike | null;
-	try {
-		account = await getGithubConnection(user, scopes);
-	} catch (error) {
-		throw githubTokenError(error, "GitHub account is not connected");
-	}
-
-	if (!account) {
+	if (!accessToken) {
 		throw new GithubAccessTokenError("github_not_connected", "GitHub account is not connected");
 	}
 
-	let accessToken: string;
-	try {
-		accessToken = await getAccessTokenFromConnection(account, scopes);
-	} catch (error) {
-		if (error instanceof GithubAccessTokenError) {
-			throw error;
-		}
-		throw githubTokenError(error);
-	}
-
-	return {
-		accessToken,
-		user: normalizeStackUser(user),
-		source: "stack-auth" as const,
-	};
+	return { accessToken, user, source: "github-oauth" };
 }

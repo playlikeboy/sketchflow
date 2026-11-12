@@ -9,9 +9,8 @@ import {
 	type WorkspaceProject,
 } from "@/lib/project-metadata";
 import { GITHUB_REST_API_VERSION, SKETCHFLOW_APP_URL } from "@/lib/config";
-import { hasLocalGithubToken, normalizeStackUser, requireGithubAccessToken, requireUser } from "@/server/auth";
+import { hasLocalGithubToken, requireGithubAccessToken, requireUser } from "@/server/auth";
 import { getWorkspace, getWorkspacePublic, recordSyncEvent, updateWorkspaceCommit, upsertWorkspace } from "@/server/db/repositories";
-import { getGithubOAuthScopes } from "@/server/env";
 import {
 	GithubApiError,
 	type GithubDirectoryItem,
@@ -298,8 +297,7 @@ async function readAuthenticatedWorkspaceProjects(
 		visibility: "private" | "public";
 	},
 ) {
-	const scopes = getGithubOAuthScopes();
-	const { accessToken } = await requireGithubAccessToken(scopes, request);
+	const { accessToken } = await requireGithubAccessToken(request);
 	return readWorkspaceProjects({ accessToken, workspace });
 }
 
@@ -309,7 +307,7 @@ export async function GET(
 ) {
 	try {
 		const { workspaceId } = await params;
-		const user = normalizeStackUser(await requireUser());
+		const user = await requireUser();
 		let workspace = await getWorkspace(user.id, workspaceId);
 
 		if (!workspace) {
@@ -318,8 +316,7 @@ export async function GET(
 
 		let dynamicVisibility = workspace.visibility;
 		try {
-			const scopes = getGithubOAuthScopes();
-			const { accessToken } = await requireGithubAccessToken(scopes, request);
+			const { accessToken } = await requireGithubAccessToken(request);
 			const repoDetails = await getGithubRepository(accessToken, workspace.repoOwner, workspace.repoName);
 			dynamicVisibility = repoDetails.private ? "private" : "public";
 
@@ -372,8 +369,7 @@ export async function POST(
 	try {
 		assertSameOrigin(request);
 		const { workspaceId } = await params;
-		const scopes = getGithubOAuthScopes();
-		const { accessToken, user } = await requireGithubAccessToken(scopes, request);
+		const { accessToken, user } = await requireGithubAccessToken(request);
 		assertRateLimit("project-write", user.id, RATE_LIMITS.projectWrite);
 		const workspace = await getWorkspace(user.id, workspaceId);
 
