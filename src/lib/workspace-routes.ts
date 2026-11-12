@@ -8,7 +8,8 @@ export function sketchHref(
 	projectId = DEFAULT_PROJECT_ID,
 	sketchId = DEFAULT_SKETCH_ID,
 ) {
-	return `/app/workspaces/${workspaceId}/projects/${projectId}/sketches/${sketchId}`;
+	// Ids can come from browser storage or repository JSON, so each is encoded as one segment.
+	return `/app/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(projectId)}/sketches/${encodeURIComponent(sketchId)}`;
 }
 
 export function repoHref(workspace: Pick<Workspace, "repoOwner" | "repoName">) {

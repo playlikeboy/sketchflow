@@ -345,3 +345,20 @@ test("a project whose device copy cannot be removed after its commit is still sy
 	expect(result.status).toBe("synced");
 	expect(result.warning).toContain("could not be removed");
 });
+
+test("refuses to sync when the repository's latest commit is unknown, and keeps everything on the device", async () => {
+	// Arrange
+	const { deps, commits, removed } = fakeDeps({ guests: [guestProject("One", "one")] });
+	const withoutHead: LocalSyncDeps = {
+		...deps,
+		fetchRepoProjects: async () => ({ projects: [], workspace: { latestCommitSha: null } }),
+	};
+
+	// Act
+	const attempt = syncGuestProjects({ workspace: repoWorkspace, projectIds: ["one"] }, withoutHead);
+
+	// Assert
+	await expect(attempt).rejects.toThrow("latest commit");
+	expect(commits).toHaveLength(0);
+	expect(removed).toHaveLength(0);
+});

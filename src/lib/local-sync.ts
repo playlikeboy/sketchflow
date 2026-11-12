@@ -377,6 +377,11 @@ export async function syncGuestProjects(
 	const total = projectIds.length;
 	const guests = await deps.listGuestProjects();
 	let repo = await loadRepoState(deps, workspace.id);
+	// Every commit names the branch head it was built on, so a change made elsewhere in the
+	// meantime is rejected instead of being overwritten. Without a head there is no such guard.
+	if (!repo.headSha) {
+		throw new Error("Couldn't read the repository's latest commit, so nothing was synced. Try again in a moment.");
+	}
 	let synced: WorkspaceProject[] = [];
 	let results: SyncResult[] = [];
 	let stopError: unknown = null;
