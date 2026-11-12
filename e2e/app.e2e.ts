@@ -69,4 +69,31 @@ test.describe("editor", () => {
 		await page.getByRole("button", { name: "Back to current" }).click();
 		await expect(page.getByText(/Previewing/)).toHaveCount(0);
 	});
+
+	test("a save that loses a race asks which version to keep", async ({ page }) => {
+		const log = await mockApi(page, { commitConflict: true });
+		await page.goto(editorPath);
+		await expect(page.locator(".excalidraw canvas").first()).toBeVisible({ timeout: 20_000 });
+
+		// Type in the notes so there is something to save.
+		const notes = page.locator(".sketchflow-doc-editor [contenteditable='true']").first();
+		await notes.click();
+		await page.keyboard.type("One more line. ");
+
+		const save = page.getByRole("button", { name: "Save", exact: true });
+		await expect(save).toBeEnabled();
+		await save.click();
+
+		const dialog = page.getByRole("alertdialog");
+		await expect(dialog).toContainText("changed on GitHub since you opened it");
+		await expect(dialog).toContainText("your changes are still in this browser");
+
+		await dialog.getByRole("button", { name: "Keep my version" }).click();
+		await expect(dialog).toHaveCount(0);
+
+		const saves = log.filter((call) => call.path.endsWith("/commit"));
+		expect(saves).toHaveLength(2);
+		expect((saves[0].body as { expectedHeadSha: string | null }).expectedHeadSha).toBeTruthy();
+		expect((saves[1].body as { expectedHeadSha?: string | null }).expectedHeadSha ?? null).toBeNull();
+	});
 });

@@ -16,6 +16,7 @@ import {
 	Clock,
 	FileText,
 	ChevronDown,
+	Download,
 	GitBranch,
 	GitFork,
 	Loader2,
@@ -329,6 +330,7 @@ export function EditorClient({
 	const [sheetInfoOpen, setSheetInfoOpen] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [saveError, setSaveError] = useState<string | null>(null);
+	const [conflict, setConflict] = useState(false);
 	const [restoringSha, setRestoringSha] = useState<string | null>(null);
 	const [mode, setMode] = useState<EditorMode>("split");
 	const [installedLibrarySources, setInstalledLibrarySources] = useState<string[]>([]);
@@ -803,12 +805,17 @@ export function EditorClient({
 		}
 	}, [currentLibraryDraftKey]);
 
-	async function handleManualSave() {
+	/**
+	 * `overwrite` commits on top of whatever is on the branch now. It is only used after the
+	 * user has been told the project changed on GitHub and chose to keep their own version.
+	 */
+	async function handleManualSave(options: { overwrite?: boolean } = {}) {
 		const scene = sceneRef.current;
 		if (!scene || (!data && !workspace)) return;
 
 		setSaving(true);
 		setSaveError(null);
+		setConflict(false);
 		setStatus("Committing to GitHub");
 
 		try {
@@ -850,7 +857,7 @@ export function EditorClient({
 			const response = await commitWorkspaceFiles({
 				workspaceId,
 				message: `Update ${humanizeSlug(projectId)} visual doc`,
-				expectedHeadSha: data?.workspace?.latestCommitSha ?? workspace?.latestCommitSha ?? null,
+				expectedHeadSha: options.overwrite ? null : data?.workspace?.latestCommitSha ?? workspace?.latestCommitSha ?? null,
 				files: [
 					{
 						path: projectFilePath(projectId),
@@ -918,6 +925,11 @@ export function EditorClient({
 				{ revalidate: false },
 			);
 		} catch (saveError) {
+			if (saveError instanceof ApiError && saveError.code === "github_conflict") {
+				setConflict(true);
+				setStatus("Local draft saved");
+				return;
+			}
 			const nextMessage =
 				saveError instanceof ApiError && saveError.code?.startsWith("github_")
 					? "GitHub sync needs a fresh connection. Your local draft is safe."
@@ -929,6 +941,29 @@ export function EditorClient({
 		} finally {
 			setSaving(false);
 		}
+	}
+
+	function downloadMyVersion() {
+		const save = (filename: string, content: string, type: string) => {
+			const url = URL.createObjectURL(new Blob([content], { type }));
+			const link = document.createElement("a");
+			link.href = url;
+			link.download = filename;
+			link.click();
+			URL.revokeObjectURL(url);
+		};
+		if (sceneRef.current) {
+			save(`${projectId}.excalidraw`, `${JSON.stringify(sceneRef.current, null, 2)}\n`, "application/json");
+		}
+		save(`${projectId}-notes.md`, notesRef.current, "text/markdown");
+	}
+
+	/** Drop the local draft and load what GitHub has. */
+	async function useGithubVersion() {
+		if (sceneTimer.current) clearTimeout(sceneTimer.current);
+		if (notesTimer.current) clearTimeout(notesTimer.current);
+		await Promise.all([deleteDraft(currentDraftKey), deleteDraft(currentNotesDraftKey), deleteDraft(currentStateDraftKey)]);
+		window.location.reload();
 	}
 
 	async function handleRestoreProject(sha: string) {
@@ -1499,7 +1534,7 @@ export function EditorClient({
 					{isOwner ? (
 						<Button
 							disabled={!hasScene || saving || (!dirty && !!data)}
-							onClick={handleManualSave}
+							onClick={() => void handleManualSave()}
 							size="sm"
 							title="Commit the sketch and notes to GitHub"
 						>
@@ -1571,6 +1606,40 @@ export function EditorClient({
 					</div>
 				) : initialData ? (
 					<div className="relative h-full min-h-0 overflow-hidden">
+						{conflict ? (
+							<div
+								role="alertdialog"
+								aria-labelledby="conflict-title"
+								aria-describedby="conflict-body"
+								className="absolute top-3 left-1/2 z-20 w-[min(560px,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-contour/50 bg-card p-4 text-sm shadow-(--float-shadow)"
+							>
+								<h2 id="conflict-title" className="flex items-center gap-2 font-bold text-foreground">
+									<StateGlyph state="draft" />
+									This project changed on GitHub since you opened it
+								</h2>
+								<p id="conflict-body" className="mt-1.5 text-muted-foreground">
+									Nothing was saved, and your changes are still in this browser. Choose which version becomes the
+									latest. Either way the other one is not lost: the GitHub version stays in History, and you can
+									download yours first.
+								</p>
+								<div className="mt-3 flex flex-wrap items-center gap-2">
+									<Button size="sm" disabled={saving} onClick={() => void handleManualSave({ overwrite: true })}>
+										{saving ? <Loader2 className="animate-spin" /> : null}
+										Keep my version
+									</Button>
+									<Button variant="outline" size="sm" disabled={saving} onClick={() => void useGithubVersion()}>
+										Use the GitHub version
+									</Button>
+									<Button variant="ghost" size="sm" onClick={downloadMyVersion}>
+										<Download />
+										Download mine
+									</Button>
+									<Button variant="ghost" size="sm" className="ml-auto" onClick={() => setConflict(false)}>
+										Decide later
+									</Button>
+								</div>
+							</div>
+						) : null}
 						{saveError ? (
 							<div
 								role="alert"

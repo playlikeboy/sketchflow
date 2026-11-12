@@ -60,8 +60,8 @@ const scene = { type: "excalidraw", version: 2, source: "https://sketchflow.spac
 export type MockOptions = {
 	signedIn?: boolean;
 	noWorkspaces?: boolean;
-	/** Status the commit route answers with; 409 simulates a branch that moved. */
-	commitStatus?: number;
+	/** Answer a save with a conflict while it names the head it expects, as GitHub does when the branch moved. */
+	commitConflict?: boolean;
 };
 
 export type ApiLog = { method: string; path: string; body: unknown }[];
@@ -88,10 +88,10 @@ export async function mockApi(page: Page, options: MockOptions = {}): Promise<Ap
 		}
 		if (path === "/api/workspaces") return json({ workspaces: options.noWorkspaces ? [] : [workspace] });
 		if (path.endsWith("/commit") && method === "POST") {
-			const status = options.commitStatus ?? 200;
-			return status === 200
-				? json({ commit: { sha: "e41c7d0c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a", htmlUrl: "", branch: "main", files: [] }, cdnBaseUrl: "" })
-				: json({ error: "GitHub branch changed since this draft was created. Refresh the workspace before syncing.", code: "github_conflict" }, status);
+			const body = request.postDataJSON() as { expectedHeadSha?: string | null };
+			return options.commitConflict && body.expectedHeadSha
+				? json({ error: "GitHub branch changed since this draft was created. Refresh the workspace before syncing.", code: "github_conflict" }, 409)
+				: json({ commit: { sha: "e41c7d0c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a", htmlUrl: "", branch: "main", files: [] }, cdnBaseUrl: "" });
 		}
 		if (path.endsWith("/projects")) {
 			return json({ workspace, projects: options.noWorkspaces ? [] : projects, metadata: null, metadataPresent: true, metadataPath: "projects/projects-metadata.json" });
