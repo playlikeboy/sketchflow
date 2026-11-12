@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { ProjectsHomeClient } from "@/components/projects-home-client";
+
+export const metadata: Metadata = { title: "Projects" };
 
 export default function AppPage() {
 	return (

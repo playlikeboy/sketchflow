@@ -38,6 +38,7 @@ import {
   onSyncQueueChange,
 } from "@/lib/sync-manager";
 import { useAppIdentity } from "@/lib/use-app-identity";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { isLocalWorkspace, workspaceLabel } from "@/lib/local-workspace";
 import { signInPath } from "@/lib/return-path";
 
@@ -495,6 +496,8 @@ export function AppShell({
   githubUnreachable?: boolean;
 }) {
   const { isSignedIn, isLoading: identityLoading, userId } = useAppIdentity();
+  // "Projects · owner/repo": the page, and the workspace it is showing.
+  useDocumentTitle(title, subtitle);
   const showRepositorySync = isSignedIn && !isLocalWorkspace(selectedWorkspaceId);
 
   useEffect(() => {
@@ -523,7 +526,7 @@ export function AppShell({
             {subtitle ? <p className="datum hidden truncate text-muted-foreground sm:block">{subtitle}</p> : null}
           </div>
 
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
             {onSearchChange ? (
               <div className="relative hidden w-60 md:block">
                 <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -546,7 +549,10 @@ export function AppShell({
                 githubUnreachable={githubUnreachable}
               />
             ) : (
-              <StateMark state="local" label="On this device" className="px-1.5" />
+              // On a phone the page name needs this room; the workspace switcher says the same.
+              <span className="hidden sm:inline-flex">
+                <StateMark state="local" label="On this device" className="px-1.5" />
+              </span>
             )}
 
             {action}

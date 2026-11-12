@@ -263,7 +263,7 @@ export function HomeClient() {
 					</nav>
 					<div className="flex items-center gap-1.5">
 						<ThemeToggle />
-						<Button variant="ghost" size="sm" asChild>
+						<Button variant="ghost" size="sm" className="hidden sm:inline-flex" asChild>
 							<Link href={SIGN_IN_PATH}>Sign in</Link>
 						</Button>
 						<Button size="sm" asChild>
