@@ -1261,37 +1261,11 @@ export function EditorClient({
 				onChange={handleSceneChange}
 				onLibraryChange={handleLibraryChange}
 				excalidrawAPI={(api) => {
+					// Excalidraw hands over its API before its own component has mounted, so the
+					// scene must not be updated here. The theme effect above adjusts colours once
+					// `excalidrawApi` is set and the canvas is live.
 					excalidrawApiRef.current = api;
 					setExcalidrawApi(api);
-					if (api) {
-						const isDark = (resolvedTheme ?? "dark") === "dark";
-						const targetBg = isDark ? "#000000" : "#ffffff";
-						const targetStroke = isDark ? "#ffffff" : "#1e1e1e";
-						const appState = api.getAppState();
-						const currentBg = (appState.viewBackgroundColor || "").trim().toLowerCase();
-						const isDefaultOrNeutralBg =
-							!currentBg ||
-							currentBg === "#ffffff" ||
-							currentBg === "#fff" ||
-							currentBg === "#121212" ||
-							currentBg === "#1a1a1a" ||
-							currentBg === "#000000" ||
-							currentBg === "#000" ||
-							currentBg === "#f8f9fa" ||
-							currentBg === "transparent";
-						if (isDefaultOrNeutralBg && (currentBg !== targetBg || appState.currentItemStrokeColor !== targetStroke)) {
-							const currentElements = api.getSceneElements();
-							const updatedElements = ensureVisibleStrokeColors(currentElements, isDark);
-							api.updateScene({
-								elements: updatedElements,
-								appState: {
-									viewBackgroundColor: targetBg,
-									currentItemStrokeColor: targetStroke,
-								},
-							});
-							api.refresh();
-						}
-					}
 				}}
 				theme={(resolvedTheme ?? "dark") === "dark" ? "dark" : "light"}
 				viewModeEnabled={!isOwner}
