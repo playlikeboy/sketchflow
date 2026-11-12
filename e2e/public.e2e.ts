@@ -19,41 +19,12 @@ test.describe("landing page", () => {
 		await expect(page.getByText("Add cache in front of the database")).toBeVisible();
 	});
 
-	test("links to the no-account editor", async ({ page }) => {
+	test("opens the app without an account", async ({ page }) => {
 		await mockApi(page, { signedIn: false });
 		await page.goto("/");
-		await page.getByRole("link", { name: "Try it without an account" }).click();
-		await expect(page).toHaveURL(/\/try$/);
-	});
-});
-
-test.describe("try it", () => {
-	test("opens an editor without signing in and never calls the workspace API", async ({ page }) => {
-		const log = await mockApi(page, { signedIn: false });
-		await page.goto("/try");
-
-		await expect(page.getByRole("heading", { name: "Scratch sketch" })).toBeVisible();
-		await expect(page.locator(".excalidraw canvas").first()).toBeVisible({ timeout: 20_000 });
-		await expect(page.getByText("In this browser", { exact: true })).toBeVisible();
-		await expect(page.getByRole("link", { name: /Sign in/ })).toHaveAttribute("href", "/sign-in");
-		expect(log.filter((call) => call.path.startsWith("/api/workspaces"))).toHaveLength(0);
-	});
-
-	test("keeps notes across a reload", async ({ page }) => {
-		await mockApi(page, { signedIn: false });
-		await page.goto("/try");
-
-		const editor = page.locator(".sketchflow-doc-editor [contenteditable='true']").first();
-		await expect(editor).toContainText("My first sketch", { timeout: 20_000 });
-		await editor.click();
-		await page.keyboard.press("Control+End");
-		await page.keyboard.type(" Remember the retry queue.");
-		await page.waitForTimeout(1_000);
-
-		await page.reload();
-		await expect(page.locator(".sketchflow-doc-editor [contenteditable='true']").first()).toContainText("Remember the retry queue.", {
-			timeout: 20_000,
-		});
+		await page.getByRole("link", { name: "Open Sketchflow" }).first().click();
+		await expect(page).toHaveURL(/\/app$/);
+		await expect(page.getByText("On this device", { exact: true })).toBeVisible();
 	});
 });
 

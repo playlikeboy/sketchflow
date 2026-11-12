@@ -15,15 +15,16 @@ import { useAuthMe } from "@/lib/swr-hooks";
 import { cn } from "@/lib/utils";
 
 const REPO_URL = "https://github.com/playlikeboy/sketchflow";
+const APP_PATH = "/app";
 
 const steps = [
 	{
-		title: "Connect a repository",
-		body: "Sign in, connect GitHub, and name a repository. Sketchflow creates it, or connects one you already own without touching the files in it.",
+		title: "Draw and write side by side",
+		body: "Open Sketchflow and start, no account needed. Each project is an Excalidraw canvas next to a notes editor, saved in your browser as you work, so nothing waits on the network.",
 	},
 	{
-		title: "Draw and write side by side",
-		body: "Each project is an Excalidraw canvas next to a notes editor. Every change is kept in your browser as you work, so nothing waits on the network.",
+		title: "Connect a repository",
+		body: "When you want a backup, sign in with GitHub and name a repository. Sketchflow creates it, or connects one you already own without touching the files in it, and copies your projects in.",
 	},
 	{
 		title: "Save a snapshot",
@@ -266,7 +267,7 @@ export function HomeClient() {
 							<Link href={SIGN_IN_PATH}>Sign in</Link>
 						</Button>
 						<Button size="sm" asChild>
-							<Link href={SIGN_IN_PATH}>Get started</Link>
+							<Link href={APP_PATH}>Open Sketchflow</Link>
 						</Button>
 					</div>
 				</div>
@@ -281,20 +282,21 @@ export function HomeClient() {
 								Sketch it. Write it down. Keep the files.
 							</h1>
 							<p className="mt-5 max-w-[34rem] text-lg text-muted-foreground">
-								Sketchflow is a canvas with a notes editor beside it. Every save is a Git commit to a GitHub
-								repository you own, in file formats that open without us.
+								Sketchflow is a canvas with a notes editor beside it. Start drawing straight away, no account
+								needed. Connect GitHub when you want every save to be a Git commit to a repository you own, in
+								file formats that open without us.
 							</p>
 							<div className="mt-7 flex flex-wrap items-center gap-3">
 								<Button size="lg" asChild>
-									<Link href={SIGN_IN_PATH}>
-										Start with GitHub
-										<ArrowRight />
+									<Link href={APP_PATH}>
+										<Pencil />
+										Open Sketchflow
 									</Link>
 								</Button>
 								<Button variant="outline" size="lg" asChild>
-									<Link href="/try">
-										<Pencil />
-										Try it without an account
+									<Link href={SIGN_IN_PATH}>
+										Sign in with GitHub
+										<ArrowRight />
 									</Link>
 								</Button>
 							</div>
@@ -378,7 +380,7 @@ export function HomeClient() {
 						<div>
 							<h2 className="text-3xl font-bold tracking-tight">Put your next diagram where your work already lives</h2>
 							<p className="mt-2 max-w-[56ch] opacity-90">
-								All you need is a GitHub account.
+								Start without an account. Add GitHub when you want your files in a repository.
 							</p>
 						</div>
 						<Button
@@ -387,8 +389,8 @@ export function HomeClient() {
 							className="border-transparent bg-card text-foreground hover:bg-card/90"
 							asChild
 						>
-							<Link href={SIGN_IN_PATH}>
-								Start with GitHub
+							<Link href={APP_PATH}>
+								Open Sketchflow
 								<ArrowRight />
 							</Link>
 						</Button>
@@ -401,8 +403,8 @@ export function HomeClient() {
 					<span>Sketchflow · MIT licence</span>
 					<nav aria-label="Footer" className="flex items-center gap-5">
 						<Link href="/help" className="rounded-sm hover:text-foreground">Help</Link>
-						<Link href="/try" className="rounded-sm hover:text-foreground">Try it</Link>
-						<Link href="/app" className="rounded-sm hover:text-foreground">Open the app</Link>
+						<Link href={APP_PATH} className="rounded-sm hover:text-foreground">Open the app</Link>
+						<Link href={SIGN_IN_PATH} className="rounded-sm hover:text-foreground">Sign in</Link>
 						<Link href={REPO_URL} target="_blank" rel="noopener noreferrer" className="rounded-sm hover:text-foreground">
 							GitHub
 						</Link>

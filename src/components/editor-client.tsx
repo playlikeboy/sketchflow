@@ -27,6 +27,10 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 
+import { LocalProjectMissingNotice, RepositorySignInNotice } from "@/components/editor/editor-notices";
+import { GuestSaveBar } from "@/components/editor/guest-save-bar";
+import { SharingPrompt } from "@/components/editor/sharing-prompt";
+import { useGuestProject } from "@/components/editor/use-guest-project";
 import { ExcalidrawLibraryPanel } from "@/components/excalidraw-library-panel";
 import { GithubAccessCard } from "@/components/github-access-card";
 import { HistoryPanel } from "@/components/history-panel";
@@ -46,12 +50,13 @@ import {
 import { Input } from "@/components/ui/input";
 
 import { ApiError, commitWorkspaceFiles, restoreProjectVersion, type SketchLoadResponse, type SketchScene } from "@/lib/api";
-import { redirectToSignIn } from "@/lib/auth-client";
 import type { ExcalidrawLibrary } from "@/lib/excalidraw-libraries";
 import { deleteDraft, getDraft, setDraft, deleteLocalProject, type OfflineCommit, getOfflineCommits, saveOfflineCommit, clearOfflineCommits } from "@/lib/indexeddb";
+import { LOCAL_WORKSPACE, isLocalWorkspace, storageUserId, workspaceLabel } from "@/lib/local-workspace";
 import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
 import { draftKey, humanizeSlug, normalizeScene, notesFilePath, projectFilePath, sketchFilePath, slugify } from "@/lib/sketchflow";
-import { useAuthMe, useGithubStatus, useSketch, useProjectHistorySnapshot, useWorkspaces } from "@/lib/swr-hooks";
+import { useGithubStatus, useSketch, useProjectHistorySnapshot, useWorkspaces } from "@/lib/swr-hooks";
+import { useAppIdentity } from "@/lib/use-app-identity";
 import { cn } from "@/lib/utils";
 
 const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
@@ -94,10 +99,31 @@ type StateDraftValue = {
 
 type EditorMode = "split" | "canvas" | "docs" | "libraries" | "history" | "source-control";
 
+const PROJECT_NOT_FOUND_MESSAGE = "Project not found locally or on GitHub.";
+
 const editorModes = new Set<EditorMode>(["split", "canvas", "docs", "libraries", "history", "source-control"]);
 
 function isEditorMode(value: string | null): value is EditorMode {
 	return Boolean(value && editorModes.has(value as EditorMode));
+}
+
+/** The guest workspace has no commits or history, so those drawers fall back to the split view. */
+function modeForWorkspace(mode: EditorMode, workspaceId: string): EditorMode {
+	return isLocalWorkspace(workspaceId) && (mode === "history" || mode === "source-control") ? "split" : mode;
+}
+
+/** Changes whenever an element is added, edited or deleted (Excalidraw bumps `version`). */
+function sceneElementsVersion(elements: readonly unknown[]): number {
+	return elements.reduce<number>((total, element) => {
+		const version = (element as { version?: unknown } | null)?.version;
+		return total + 1 + (typeof version === "number" ? version : 0);
+	}, 0);
+}
+
+/** The newest `updatedAt` among the draft records that exist. */
+function latestUpdatedAt(records: ReadonlyArray<{ updatedAt: string } | null>): string | null {
+	const times = records.flatMap((record) => (record ? [record.updatedAt] : []));
+	return times.length > 0 ? times.reduce((latest, time) => (time > latest ? time : latest)) : null;
 }
 
 function shortSha(value: string | null | undefined) {
@@ -343,15 +369,29 @@ export function EditorClient({
 	const installedLibrarySourcesRef = useRef<string[]>([]);
 	const sourceRef = useRef<"github" | "local">("github");
 	const hydrateRef = useRef(false);
-	const { data: auth, isLoading: authLoading } = useAuthMe();
-	const { data: githubStatus, mutate: mutateGithubStatus } = useGithubStatus(auth?.user?.id);
-	const { data: workspacesData } = useWorkspaces(auth?.user?.id);
+	const elementsVersionRef = useRef(0);
+	const pendingContentChangeRef = useRef(false);
+	const identity = useAppIdentity();
+	const authLoading = identity.isLoading;
+	const userId = identity.userId;
+	const authorName = identity.user?.displayName || identity.user?.primaryEmail;
+	// The guest workspace ("This device") lives only in IndexedDB: no server requests, no
+	// commits, and its drafts always use the "local" storage scope, whoever is signed in.
+	const isGuest = isLocalWorkspace(workspaceId);
+	const scopeUserId = storageUserId(workspaceId, userId);
+	const remoteUserId = isGuest ? null : userId;
+	const guestProject = useGuestProject(projectId, isGuest);
+	const [localSavedAt, setLocalSavedAt] = useState<string | null>(null);
+	// Which blocked action (fork or share) is explaining that it needs GitHub, if any.
+	const [sharingPrompt, setSharingPrompt] = useState<"Sharing" | "Forking" | null>(null);
+	const { mutate: mutateGithubStatus } = useGithubStatus(remoteUserId);
+	const { data: workspacesData } = useWorkspaces(remoteUserId);
 	const workspace = useMemo(() => {
 		return workspacesData?.workspaces?.find((w) => w.id === workspaceId) || null;
 	}, [workspacesData, workspaceId]);
 	const currentDraftKey = useMemo(
-		() => draftKey(workspaceId, projectId, sketchId, auth?.user?.id),
-		[workspaceId, projectId, sketchId, auth?.user?.id],
+		() => draftKey(workspaceId, projectId, sketchId, scopeUserId),
+		[workspaceId, projectId, sketchId, scopeUserId],
 	);
 	const currentNotesDraftKey = useMemo(
 		() => `${currentDraftKey}:notes`,
@@ -371,17 +411,20 @@ export function EditorClient({
 		error: sketchError,
 		isLoading: sketchLoading,
 		mutate: mutateSketch,
-	} = useSketch(sketchInput, auth?.user?.id);
-	const activeWorkspace = data?.workspace ?? workspace;
+	} = useSketch(isGuest ? null : sketchInput, userId);
+	const activeWorkspace = isGuest ? LOCAL_WORKSPACE : data?.workspace ?? workspace;
+	const signedInUserId = identity.user?.id ?? null;
 	const isOwner = useMemo(() => {
-		if (!activeWorkspace) return false;
-		return Boolean(auth?.authenticated && auth?.user?.id === activeWorkspace.stackUserId);
-	}, [auth, activeWorkspace]);
+		// Whoever is at this browser owns the guest workspace.
+		if (isGuest) return true;
+		if (!activeWorkspace || !signedInUserId) return false;
+		return signedInUserId === activeWorkspace.stackUserId;
+	}, [isGuest, signedInUserId, activeWorkspace]);
 	const [selectedPreviewSha, setSelectedPreviewSha] = useState<string | null>(null);
 	const {
 		data: snapshotData,
 		isLoading: snapshotLoading,
-	} = useProjectHistorySnapshot(workspaceId, projectId, selectedPreviewSha, auth?.user?.id);
+	} = useProjectHistorySnapshot(isGuest ? null : workspaceId, projectId, selectedPreviewSha, userId);
 	const previewInitialData = useMemo(() => {
 		if (!snapshotData?.sketch) return null;
 		return toInitialData(normalizeScene(snapshotData.sketch), resolvedTheme);
@@ -495,7 +538,7 @@ export function EditorClient({
 			const params = new URLSearchParams(window.location.search);
 			const nextMode = params.get("view");
 			if (isEditorMode(nextMode)) {
-				setMode(nextMode);
+				setMode(modeForWorkspace(nextMode, workspaceId));
 			}
 		};
 
@@ -505,17 +548,11 @@ export function EditorClient({
 		return () => {
 			window.removeEventListener("popstate", readModeFromUrl);
 		};
-	}, []);
+	}, [workspaceId]);
 
 	useEffect(() => {
 		installedLibrarySourcesRef.current = installedLibrarySources;
 	}, [installedLibrarySources]);
-
-	useEffect(() => {
-		if (auth && !auth.authenticated && data && data.workspace?.visibility === "private") {
-			redirectToSignIn();
-		}
-	}, [auth, data]);
 
 	useEffect(() => {
 		const api = excalidrawApi || excalidrawApiRef.current;
@@ -601,7 +638,7 @@ export function EditorClient({
 						hydrateRef.current = false;
 						return;
 					}
-					setLoadError(sketchError instanceof Error ? sketchError.message : "Project not found locally or on GitHub.");
+					setLoadError(sketchError instanceof Error ? sketchError.message : PROJECT_NOT_FOUND_MESSAGE);
 					return;
 				}
 
@@ -628,13 +665,16 @@ export function EditorClient({
 				if (!mounted) return;
 
 				sceneRef.current = nextScene;
+				elementsVersionRef.current = sceneElementsVersion(nextScene.elements ?? []);
+				pendingContentChangeRef.current = false;
 				notesRef.current = nextNotes;
 				installedLibrarySourcesRef.current = nextInstalledSources;
 				sourceRef.current = restoredLocal || isLocalFallback ? "local" : "github";
 				setInitialData(toInitialData(nextScene, resolvedTheme, nextLibraryItems));
 				setSplitPanelSizes(initialPanelSizes);
 				setNotes(nextNotes);
-				setMode(initialMode as EditorMode);
+				setMode(modeForWorkspace(initialMode as EditorMode, workspaceId));
+				setLocalSavedAt(latestUpdatedAt([localSceneDraft, localNotesDraft, localStateDraft]));
 				setInstalledLibrarySources(nextInstalledSources);
 				setHasScene(true);
 				setSource(restoredLocal || isLocalFallback ? "local" : "github");
@@ -668,7 +708,16 @@ export function EditorClient({
 				clearTimeout(notesTimer.current);
 			}
 		};
-	}, [currentDraftKey, currentLibraryDraftKey, currentNotesDraftKey, data, sketchError, sketchLoading, projectId, sketchId]);
+	}, [currentDraftKey, currentLibraryDraftKey, currentNotesDraftKey, data, sketchError, sketchLoading, projectId, sketchId, workspaceId]);
+
+	/** Notes when a draft reached IndexedDB; for guest projects, also bumps the list's updatedAt. */
+	const touchGuestProject = guestProject.touch;
+	const recordDraftSaved = useCallback((savedAt: string, isContentChange: boolean) => {
+		setLocalSavedAt(savedAt);
+		if (isGuest && isContentChange) {
+			touchGuestProject();
+		}
+	}, [isGuest, touchGuestProject]);
 
 	const queueSceneDraftSave = useCallback((nextScene: SketchScene) => {
 		if (sceneTimer.current) {
@@ -682,10 +731,12 @@ export function EditorClient({
 			}).then((record) => {
 				if (record) {
 					setStatus(`Canvas draft saved ${new Date(record.updatedAt).toLocaleTimeString()}`);
+					recordDraftSaved(record.updatedAt, pendingContentChangeRef.current);
+					pendingContentChangeRef.current = false;
 				}
 			});
 		}, 500);
-	}, [currentDraftKey]);
+	}, [currentDraftKey, recordDraftSaved]);
 
 	const queueNotesDraftSave = useCallback((nextNotes: string) => {
 		if (notesTimer.current) {
@@ -699,10 +750,11 @@ export function EditorClient({
 			}).then((record) => {
 				if (record) {
 					setStatus(`Docs draft saved ${new Date(record.updatedAt).toLocaleTimeString()}`);
+					recordDraftSaved(record.updatedAt, true);
 				}
 			});
 		}, 500);
-	}, [currentNotesDraftKey]);
+	}, [currentNotesDraftKey, recordDraftSaved]);
 
 	const handleSceneChange = useCallback((elements: readonly unknown[], appState: AppState, files: BinaryFiles) => {
 		if (!isOwner) return;
@@ -714,6 +766,13 @@ export function EditorClient({
 		});
 
 		sceneRef.current = nextScene;
+
+		// Excalidraw also reports scrolls and selections; only element edits count as an edit.
+		const elementsVersion = sceneElementsVersion(elements);
+		if (elementsVersion !== elementsVersionRef.current) {
+			elementsVersionRef.current = elementsVersion;
+			pendingContentChangeRef.current = true;
+		}
 
 		if (!sceneDirtyRef.current) {
 			sceneDirtyRef.current = true;
@@ -805,7 +864,8 @@ export function EditorClient({
 	 */
 	async function handleManualSave(options: { overwrite?: boolean } = {}) {
 		const scene = sceneRef.current;
-		if (!scene || (!data && !workspace)) return;
+		// The guest workspace never commits: its projects reach GitHub only through local sync.
+		if (isGuest || !scene || (!data && !workspace)) return;
 
 		setSaving(true);
 		setSaveError(null);
@@ -839,7 +899,7 @@ export function EditorClient({
 			const nextHistory = appendProjectHistoryLog(
 				data?.state?.history,
 				`Saved changes (mode: ${mode})`,
-				auth?.user?.displayName || auth?.user?.primaryEmail
+				authorName
 			);
 			const nextState = {
 				viewMode: mode,
@@ -877,7 +937,7 @@ export function EditorClient({
 			});
 
 			try {
-				await deleteLocalProject(workspaceId, projectId, auth?.user?.id);
+				await deleteLocalProject(workspaceId, projectId, scopeUserId);
 			} catch (err) {
 				console.warn("Could not delete local staged project from registry:", err);
 			}
@@ -961,7 +1021,7 @@ export function EditorClient({
 	}
 
 	async function handleRestoreProject(sha: string) {
-		if (restoringSha || !data) return;
+		if (isGuest || restoringSha || !data) return;
 
 		setRestoringSha(sha);
 		setStatus("Restoring project version");
@@ -994,9 +1054,10 @@ export function EditorClient({
 	}
 
 	const loadOfflineCommits = useCallback(async () => {
-		const list = await getOfflineCommits(workspaceId, projectId, auth?.user?.id);
+		if (isGuest) return;
+		const list = await getOfflineCommits(workspaceId, projectId, scopeUserId);
 		setOfflineCommits(list);
-	}, [workspaceId, projectId, auth?.user?.id]);
+	}, [isGuest, workspaceId, projectId, scopeUserId]);
 
 	useEffect(() => {
 		void loadOfflineCommits();
@@ -1004,12 +1065,12 @@ export function EditorClient({
 
 	const handleOfflineCommit = useCallback(async () => {
 		const scene = sceneRef.current;
-		if (!scene || (!data && !workspace)) return;
+		if (isGuest || !scene || (!data && !workspace)) return;
 		if (!commitMessage.trim()) return;
 
 		const commitId = crypto.randomUUID();
 		const timestamp = new Date().toISOString();
-		const authorName = auth?.user?.displayName || auth?.user?.primaryEmail || "Local User";
+		const commitAuthor = authorName || "Local User";
 
 		const project = buildProjectFile(projectId, sketchId, data?.project);
 		const projectMetadata = mergeProjectsMetadata({
@@ -1030,7 +1091,7 @@ export function EditorClient({
 		const nextHistory = appendProjectHistoryLog(
 			data?.state?.history,
 			`Commit: ${commitMessage.trim()}`,
-			authorName
+			commitAuthor
 		);
 		const nextState = {
 			viewMode: mode,
@@ -1045,7 +1106,7 @@ export function EditorClient({
 			baseCommitSha: data?.workspace?.latestCommitSha ?? workspace?.latestCommitSha ?? null,
 			message: commitMessage.trim(),
 			timestamp,
-			author: authorName,
+			author: commitAuthor,
 			files: [
 				{
 					path: projectFilePath(projectId),
@@ -1071,7 +1132,7 @@ export function EditorClient({
 		};
 
 		try {
-			await saveOfflineCommit(workspaceId, projectId, commit, auth?.user?.id);
+			await saveOfflineCommit(workspaceId, projectId, commit, scopeUserId);
 			setCommitMessage("");
 			setSceneDirty(false);
 			setNotesDirty(false);
@@ -1083,10 +1144,10 @@ export function EditorClient({
 			console.error("Failed to stash offline commit:", err);
 			setSaveError("Failed to save local commit draft.");
 		}
-	}, [workspaceId, projectId, sketchId, commitMessage, data, workspace, auth, mode, splitPanelSizes, loadOfflineCommits]);
+	}, [isGuest, workspaceId, projectId, sketchId, scopeUserId, commitMessage, data, workspace, authorName, mode, splitPanelSizes, loadOfflineCommits]);
 
 	const handleSyncOfflineCommits = useCallback(async () => {
-		if (offlineCommits.length === 0 || syncingOffline) return;
+		if (isGuest || offlineCommits.length === 0 || syncingOffline) return;
 
 		setSyncingOffline(true);
 		setStatus(`Syncing ${offlineCommits.length} local commits`);
@@ -1105,7 +1166,7 @@ export function EditorClient({
 			}
 
 			try {
-				await deleteLocalProject(workspaceId, projectId, auth?.user?.id);
+				await deleteLocalProject(workspaceId, projectId, scopeUserId);
 			} catch (err) {
 				console.warn("Could not delete local staged project from registry:", err);
 			}
@@ -1116,7 +1177,7 @@ export function EditorClient({
 				deleteDraft(currentStateDraftKey),
 			]);
 
-			await clearOfflineCommits(workspaceId, projectId, auth?.user?.id);
+			await clearOfflineCommits(workspaceId, projectId, scopeUserId);
 			setOfflineCommits([]);
 			setStatus("Offline commits synced to GitHub");
 			await mutateSketch();
@@ -1132,15 +1193,17 @@ export function EditorClient({
 		} finally {
 			setSyncingOffline(false);
 		}
-	}, [workspaceId, projectId, offlineCommits, syncingOffline, currentDraftKey, currentNotesDraftKey, currentStateDraftKey, mutateSketch]);
+	}, [isGuest, workspaceId, projectId, scopeUserId, offlineCommits, syncingOffline, currentDraftKey, currentNotesDraftKey, currentStateDraftKey, mutateSketch]);
 
+	const isSignedIn = identity.isSignedIn;
 	const handleForkClick = useCallback(() => {
-		if (!auth?.authenticated) {
-			redirectToSignIn();
+		// Forking copies into a repository, so it needs a session and a repository source.
+		if (!isSignedIn || isGuest) {
+			setSharingPrompt("Forking");
 			return;
 		}
 		setShowForkModal(true);
-	}, [auth]);
+	}, [isSignedIn, isGuest]);
 
 	const handleForkSubmit = useCallback(async () => {
 		if (!targetWorkspaceId || !targetProjectSlug || forking) return;
@@ -1186,7 +1249,11 @@ export function EditorClient({
 		}
 	}, [workspacesData, targetWorkspaceId]);
 
-	const projectRecord = data?.project && typeof data.project === "object" ? (data.project as { title?: unknown; updatedAt?: unknown }) : null;
+	const projectRecord: { title?: unknown; updatedAt?: unknown } | null = isGuest
+		? guestProject.project
+		: data?.project && typeof data.project === "object"
+			? (data.project as { title?: unknown; updatedAt?: unknown })
+			: null;
 	const title =
 		typeof projectRecord?.title === "string" && projectRecord.title.trim() ? projectRecord.title.trim() : humanizeSlug(projectId);
 	const revisedAt = typeof projectRecord?.updatedAt === "string" ? new Date(projectRecord.updatedAt) : null;
@@ -1201,6 +1268,10 @@ export function EditorClient({
 			: "GitHub-backed visual doc";
 	const loading = authLoading;
 	const error = loadError || (sketchError instanceof Error ? sketchError.message : null);
+	// Nothing to show for a repository project and nobody signed in (not even an offline
+	// fallback session): ask them to sign in instead of redirecting.
+	const needsSignIn = !isGuest && !authLoading && !userId && !initialData && Boolean(error);
+	const guestProjectMissing = isGuest && !initialData && loadError === PROJECT_NOT_FOUND_MESSAGE;
 	const dirty = sceneDirty || notesDirty;
 	const panelLayout = mode === "libraries" || mode === "history" || mode === "source-control"
 		? {
@@ -1261,37 +1332,11 @@ export function EditorClient({
 				onChange={handleSceneChange}
 				onLibraryChange={handleLibraryChange}
 				excalidrawAPI={(api) => {
+					// Excalidraw hands over its API before its own component has mounted, so the
+					// scene must not be updated here. The theme effect above adjusts colours once
+					// `excalidrawApi` is set and the canvas is live.
 					excalidrawApiRef.current = api;
 					setExcalidrawApi(api);
-					if (api) {
-						const isDark = (resolvedTheme ?? "dark") === "dark";
-						const targetBg = isDark ? "#000000" : "#ffffff";
-						const targetStroke = isDark ? "#ffffff" : "#1e1e1e";
-						const appState = api.getAppState();
-						const currentBg = (appState.viewBackgroundColor || "").trim().toLowerCase();
-						const isDefaultOrNeutralBg =
-							!currentBg ||
-							currentBg === "#ffffff" ||
-							currentBg === "#fff" ||
-							currentBg === "#121212" ||
-							currentBg === "#1a1a1a" ||
-							currentBg === "#000000" ||
-							currentBg === "#000" ||
-							currentBg === "#f8f9fa" ||
-							currentBg === "transparent";
-						if (isDefaultOrNeutralBg && (currentBg !== targetBg || appState.currentItemStrokeColor !== targetStroke)) {
-							const currentElements = api.getSceneElements();
-							const updatedElements = ensureVisibleStrokeColors(currentElements, isDark);
-							api.updateScene({
-								elements: updatedElements,
-								appState: {
-									viewBackgroundColor: targetBg,
-									currentItemStrokeColor: targetStroke,
-								},
-							});
-							api.refresh();
-						}
-					}
 				}}
 				theme={(resolvedTheme ?? "dark") === "dark" ? "dark" : "light"}
 				viewModeEnabled={!isOwner}
@@ -1428,12 +1473,13 @@ export function EditorClient({
 		<HistoryPanel
 			workspaceId={workspaceId}
 			projectId={projectId}
-			userId={auth?.user?.id}
+			userId={userId ?? undefined}
 			selectedPreviewSha={selectedPreviewSha}
 			onPreviewShaChange={setSelectedPreviewSha}
 			onRestore={handleRestoreProject}
 			restoringSha={restoringSha}
 			workspace={data?.workspace ?? workspace}
+			onShareBlocked={isSignedIn ? undefined : () => setSharingPrompt("Sharing")}
 			onClose={() => setEditorMode(lastPrimaryModeRef.current)}
 		/>
 	);
@@ -1443,8 +1489,8 @@ export function EditorClient({
 		{ id: "split", label: "Split", icon: PanelsTopLeft },
 		{ id: "docs", label: "Notes", icon: FileText },
 	] as const;
-	const repoName = data?.workspace?.repoName ?? workspace?.repoName ?? "Workspace";
-	const workState = dirty ? "draft" : !data || status.includes("Offline") ? "local" : "synced";
+	const repoName = isGuest ? workspaceLabel(LOCAL_WORKSPACE) : data?.workspace?.repoName ?? workspace?.repoName ?? "Workspace";
+	const workState = isGuest ? "local" : dirty ? "draft" : !data || status.includes("Offline") ? "local" : "synced";
 
 	return (
 		<main className="relative flex h-screen min-h-screen flex-col bg-background">
@@ -1500,8 +1546,10 @@ export function EditorClient({
 
 				<div className="flex min-w-0 items-center gap-1">
 					<PanelToggle label="Libraries" icon={BookOpen} active={mode === "libraries"} onClick={() => toggleDrawer("libraries")} />
-					<PanelToggle label="History" icon={Clock} active={mode === "history"} onClick={() => toggleDrawer("history")} />
-					{isOwner ? (
+					{isGuest ? null : (
+						<PanelToggle label="History" icon={Clock} active={mode === "history"} onClick={() => toggleDrawer("history")} />
+					)}
+					{isOwner && !isGuest ? (
 						<PanelToggle
 							label="Commits"
 							icon={GitBranch}
@@ -1512,20 +1560,24 @@ export function EditorClient({
 
 					<span className="mx-1 hidden h-4 w-px bg-input sm:block" aria-hidden="true" />
 
-					<span className="hidden px-1 sm:inline-flex" aria-live="polite">
-						{saving ? (
-							<span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-								<Loader2 className="size-3 animate-spin" />
-								Saving
-							</span>
-						) : initialData ? (
-							<StateMark state={workState} label={workState === "local" ? "In this browser" : undefined} />
-						) : null}
-					</span>
+					{isGuest ? null : (
+						<span className="hidden px-1 sm:inline-flex" aria-live="polite">
+							{saving ? (
+								<span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+									<Loader2 className="size-3 animate-spin" />
+									Saving
+								</span>
+							) : initialData ? (
+								<StateMark state={workState} label={workState === "local" ? "In this browser" : undefined} />
+							) : null}
+						</span>
+					)}
 
 					<ThemeToggle />
 
-					{isOwner ? (
+					{isGuest ? (
+						initialData ? <GuestSaveBar savedAt={localSavedAt} isSignedIn={isSignedIn} /> : null
+					) : isOwner ? (
 						<Button
 							disabled={!hasScene || saving || (!dirty && !!data)}
 							onClick={() => void handleManualSave()}
@@ -1550,19 +1602,25 @@ export function EditorClient({
 					className="absolute top-12 left-2 z-30 w-[min(26rem,calc(100%-1rem))] rounded-lg border border-rule bg-card p-2 shadow-(--float-shadow) sm:left-3"
 				>
 					<TitleBlock>
-						<TitleBlockRow label="Repository" mono>
-							{activeWorkspace ? `${activeWorkspace.repoOwner}/${activeWorkspace.repoName}` : "Not connected"}
+						<TitleBlockRow label="Repository" mono={!isGuest}>
+							{isGuest
+								? "None yet, stored in this browser"
+								: activeWorkspace
+									? `${activeWorkspace.repoOwner}/${activeWorkspace.repoName}`
+									: "Not connected"}
 						</TitleBlockRow>
 						<TitleBlockRow label="Folder" mono>projects/{projectId}</TitleBlockRow>
-						<TitleBlockRow label="Branch" mono>
-							{activeWorkspace ? `${activeWorkspace.defaultBranch} @ ${shortSha(activeWorkspace.latestCommitSha)}` : "Unknown"}
-						</TitleBlockRow>
+						{isGuest ? null : (
+							<TitleBlockRow label="Branch" mono>
+								{activeWorkspace ? `${activeWorkspace.defaultBranch} @ ${shortSha(activeWorkspace.latestCommitSha)}` : "Unknown"}
+							</TitleBlockRow>
+						)}
 						{revisedLabel ? <TitleBlockRow label="Revised">{revisedLabel}</TitleBlockRow> : null}
 						<TitleBlockRow label="State">
-							<StateMark state={workState} />
+							<StateMark state={workState} label={isGuest ? "Saved on this device" : undefined} />
 						</TitleBlockRow>
 					</TitleBlock>
-					<p className="legend-label mt-2.5 px-0.5">Save writes, in this folder</p>
+					<p className="legend-label mt-2.5 px-0.5">{isGuest ? "Backing up to GitHub writes" : "Save writes, in this folder"}</p>
 					<ul className="mt-1 space-y-0.5 px-0.5 pb-0.5">
 						{[sketchFilePath(projectId, sketchId), notesFilePath(projectId), projectFilePath(projectId)].map((file) => (
 							<li key={file} className="datum truncate text-muted-foreground" title={file}>
@@ -1574,7 +1632,11 @@ export function EditorClient({
 			) : null}
 
 			<section className="min-h-0 flex-1 bg-background">
-				{authLoading ? (
+				{needsSignIn ? (
+					<RepositorySignInNotice />
+				) : guestProjectMissing ? (
+					<LocalProjectMissingNotice />
+				) : authLoading && !isGuest ? (
 					<div className="grid h-full place-items-center text-sm text-muted-foreground">
 						<div className="flex items-center gap-2">
 							<Loader2 className="size-4 animate-spin" />
@@ -1594,7 +1656,7 @@ export function EditorClient({
 							<h2 className="text-base font-bold">This project could not be opened</h2>
 							<p className="mt-1.5 text-sm text-muted-foreground">{error}</p>
 							<Button variant="outline" size="sm" className="mt-4" asChild>
-								<Link href="/app">Back to projects</Link>
+								<Link href={isGuest ? `/app?workspace=${workspaceId}` : "/app"}>Back to projects</Link>
 							</Button>
 						</div>
 					</div>
@@ -1695,6 +1757,20 @@ export function EditorClient({
 					</div>
 				) : null}
 			</section>
+
+			<SharingPrompt
+				open={sharingPrompt !== null}
+				onOpenChange={(open) => {
+					if (!open) setSharingPrompt(null);
+				}}
+				isSignedIn={isSignedIn}
+				action={sharingPrompt ?? "Sharing"}
+				description={
+					isGuest
+						? undefined
+						: "Sign in with GitHub to fork this project into one of your repositories or share links to it."
+				}
+			/>
 
 			<Dialog open={showForkModal} onOpenChange={setShowForkModal}>
 				<DialogContent className="sm:max-w-md">

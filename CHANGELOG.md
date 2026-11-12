@@ -5,7 +5,8 @@ Notable changes to Sketchflow. Dates are year-month-day.
 ## Unreleased
 
 ### Added
-- **Try it without an account.** `/try` opens a canvas and notes editor that saves only in the browser, with file downloads. After signing in, the projects page offers to import the sketch as a project.
+- **Local first, no account needed.** The whole app works signed out. Projects are saved in the browser under a "This device" workspace. Signing in with GitHub is optional and offers to copy those projects into a repository you choose. `/try` now opens the app.
+- **GitHub sign-in through Better Auth.** One consent screen grants repository access; the session and token are kept in encrypted cookies, not in a database.
 - **Conflict handling.** When a save finds the project changed on GitHub, you choose which version becomes the latest; the other stays available.
 - **Survey Sheet design system.** New tokens, type, mark and components, documented in `DESIGN.md`, with product context in `PRODUCT.md`.
 - **State marks and title blocks.** Five symbols say where work lives (synced, unsaved draft, local only, sync paused, sync failed), and every project shows its folder, branch and revision.

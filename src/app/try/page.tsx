@@ -1,12 +1,7 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { TryClient } from "@/components/try-client";
-
-export const metadata: Metadata = {
-	title: "Try it",
-	description: "Draw and write in Sketchflow without an account. Your sketch stays in this browser.",
-};
-
+// /try used to be a separate scratch editor. Sketchflow now works without signing in, so the
+// page opens the app itself; a leftover scratch sketch becomes a project on "This device".
 export default function TryPage() {
-	return <TryClient />;
+	redirect("/app");
 }

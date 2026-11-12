@@ -30,8 +30,9 @@ Most whiteboard tools keep your diagrams in their database. Sketchflow keeps the
 ## What it does
 
 - **Canvas and notes side by side.** An Excalidraw canvas next to a BlockNote editor, per project.
-- **Try it without an account.** `/try` opens a real editor that saves only in the browser; sign in later and import the sketch as a project.
-- **Local first.** Edits are written to IndexedDB as you work, so the editor does not wait on the network. Drafts are scoped per signed-in user.
+- **No account needed.** The whole app works signed out. Projects are saved in the browser under a "This device" workspace.
+- **GitHub is optional.** Sign in when you want a backup or a share link; Sketchflow offers to copy the projects from this device into a repository you choose.
+- **Local first.** Edits are written to IndexedDB as you work, so the editor does not wait on the network. Repository drafts are scoped per signed-in user.
 - **Snapshot commits.** A save writes the sketch, notes and project metadata in one Git commit through the GitHub Git Data API. Nothing is committed per stroke.
 - **Conflict handling.** A save is refused if the branch moved since your draft was based on it, and you choose which version becomes the latest. Nothing is overwritten silently.
 - **Project history and restore.** List the commits that touched a project, preview an old version, and restore it as a new commit.

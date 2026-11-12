@@ -1,19 +1,22 @@
 import { deleteDraft, getDraft } from "@/lib/indexeddb";
 import type { SketchScene } from "@/lib/api";
+import { LOCAL_WORKSPACE_ID, createLocalProject, listGuestProjects } from "@/lib/local-workspace";
 import { draftKey } from "@/lib/storage-keys";
 
 /**
- * The scratch sketch behind /try. It lives only in this browser, under the signed-out
- * "local" scope, until the visitor signs in and imports it into a project.
+ * The scratch sketch older builds kept behind /try. That page now opens the guest workspace,
+ * so a leftover draft is moved into a guest project once and then removed.
  */
-export const TRY_DRAFT_KEY = draftKey("try", "scratch", "sketch");
-export const TRY_NOTES_KEY = `${TRY_DRAFT_KEY}:notes`;
+const TRY_DRAFT_KEY = draftKey("try", "scratch", "sketch");
+const TRY_NOTES_KEY = `${TRY_DRAFT_KEY}:notes`;
+const MIGRATED_PROJECT_TITLE = "Scratch sketch";
 
 /** `touched` is set once the visitor has actually drawn or typed, as opposed to just viewing the sample. */
-export type TrySceneDraft = { scene: SketchScene; updatedAt: string; touched?: boolean };
-export type TryNotesDraft = { notes: string; updatedAt: string };
+type TrySceneDraft = { scene: SketchScene; updatedAt: string; touched?: boolean };
+type TryNotesDraft = { notes: string; updatedAt: string };
 
-export const TRY_SAMPLE_NOTES = `# My first sketch
+/** The sample notes /try started with; notes equal to these were never edited. */
+const TRY_SAMPLE_NOTES = `# My first sketch
 
 Draw on the left, write here. Everything you do is kept in this browser.
 
@@ -43,4 +46,38 @@ export async function clearTryDraft() {
 export function tryDraftHasContent(draft: { scene: SketchScene | null; notes: string | null }) {
 	const hasElements = Array.isArray(draft.scene?.elements) && draft.scene.elements.length > 0;
 	return hasElements || Boolean(draft.notes?.trim());
+}
+
+async function runTryDraftMigration() {
+	const draft = await readTryDraft();
+	if (!draft.touched || !tryDraftHasContent(draft)) {
+		return false;
+	}
+
+	const existing = await listGuestProjects();
+	await createLocalProject({
+		workspaceId: LOCAL_WORKSPACE_ID,
+		title: MIGRATED_PROJECT_TITLE,
+		visibility: "private",
+		takenIds: existing.map((project) => project.id),
+		scene: draft.scene,
+		notes: draft.notes,
+	});
+	await clearTryDraft();
+	return true;
+}
+
+let pendingMigration: Promise<boolean> | null = null;
+
+/**
+ * Moves a leftover /try sketch into the guest workspace as "Scratch sketch". Runs at most once
+ * per page load, so a double-mounted effect cannot create two copies. Resolves true when a
+ * project was created.
+ */
+export function migrateTryDraftToGuestProject() {
+	pendingMigration ??= runTryDraftMigration().catch((error: unknown) => {
+		pendingMigration = null;
+		throw error;
+	});
+	return pendingMigration;
 }

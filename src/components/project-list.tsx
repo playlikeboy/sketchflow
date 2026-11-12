@@ -4,6 +4,7 @@ import { ArrowUpRight, Code2, FileText, FolderOpen, Globe } from "lucide-react";
 import { StateMark } from "@/components/state-mark";
 import { Button } from "@/components/ui/button";
 import type { Workspace } from "@/lib/api";
+import { isLocalWorkspace } from "@/lib/local-workspace";
 import type { WorkspaceProject } from "@/lib/project-metadata";
 import {
 	DEFAULT_SKETCH_ID,
@@ -54,9 +55,20 @@ export function ProjectList({
 				</thead>
 				<tbody>
 					{projects.map((project) => {
-						const canShare = workspace.visibility === "public" && project.visibility === "public";
+						// The guest workspace has no repository: no GitHub links and no sharing.
+						const onDevice = isLocalWorkspace(workspace.id);
+						const canShare = !onDevice && workspace.visibility === "public" && project.visibility === "public";
 						const editorHref = sketchHref(workspace.id, project.id, firstSketchId(project));
-						const links = (
+						const titleOpensGithub = primary === "notes" && !onDevice;
+						const links = onDevice ? (
+							primary === "notes" ? (
+								<Button variant="ghost" size="icon-sm" asChild>
+									<Link href={editorHref} aria-label={`Open ${project.title} in the editor`} title="Open in editor">
+										<ArrowUpRight />
+									</Link>
+								</Button>
+							) : null
+						) : (
 							<>
 										{primary === "notes" ? (
 											<Button variant="ghost" size="icon-sm" asChild>
@@ -108,9 +120,9 @@ export function ProjectList({
 							<tr key={project.id} className="group border-b border-rule last:border-b-0 hover:bg-muted/60">
 								<td className="max-w-[22rem] px-3 py-2.5 align-top">
 									<Link
-										href={primary === "notes" ? repoFileHref(workspace, project.notesFile) : editorHref}
-										target={primary === "notes" ? "_blank" : undefined}
-										rel={primary === "notes" ? "noopener noreferrer" : undefined}
+										href={titleOpensGithub ? repoFileHref(workspace, project.notesFile) : editorHref}
+										target={titleOpensGithub ? "_blank" : undefined}
+										rel={titleOpensGithub ? "noopener noreferrer" : undefined}
 										className="font-semibold text-foreground underline-offset-4 hover:text-primary hover:underline"
 									>
 										{project.title}
