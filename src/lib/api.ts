@@ -1,5 +1,6 @@
 import type { ProjectsMetadata, WorkspaceProject } from "@/lib/project-metadata";
 import type { ExcalidrawLibrariesResponse } from "@/lib/excalidraw-libraries";
+import type { GithubErrorCode } from "@/lib/github-errors";
 import { getStoredGithubToken } from "@/lib/github-token";
 
 export type Workspace = {
@@ -38,9 +39,13 @@ export type GithubStatus =
 	  }
 	| {
 			connected: false;
-			reason: "github_not_connected" | "github_token_unavailable";
+			/** Why GitHub cannot be used right now. Only some reasons are fixed by signing in again. */
+			reason: GithubErrorCode;
 			message: string;
 			scopes: string[];
+			/** ISO time a rate limit lifts, when GitHub said. */
+			retryAt?: string;
+			missingScopes?: string[];
 	  };
 
 export type BootstrapResponse = {
@@ -127,10 +132,19 @@ export class ApiError extends Error {
 		message: string,
 		readonly status: number,
 		readonly code?: string,
+		/** ISO time after which a rate-limited request may be tried again. */
+		readonly retryAt?: string,
 	) {
 		super(message);
 		this.name = "ApiError";
 	}
+}
+
+function readStringField(data: unknown, field: string) {
+	if (!data || typeof data !== "object" || !(field in data)) return undefined;
+
+	const value = (data as Record<string, unknown>)[field];
+	return typeof value === "string" ? value : undefined;
 }
 
 export async function apiJson<T>(url: string, init: ApiInit = {}) {
@@ -152,8 +166,7 @@ export async function apiJson<T>(url: string, init: ApiInit = {}) {
 			data && typeof data === "object" && "error" in data && typeof data.error === "string"
 				? data.error
 				: `Request failed with status ${response.status}`;
-		const code = data && typeof data === "object" && "code" in data && typeof data.code === "string" ? data.code : undefined;
-		throw new ApiError(message, response.status, code);
+		throw new ApiError(message, response.status, readStringField(data, "code"), readStringField(data, "retryAt"));
 	}
 
 	return data as T;

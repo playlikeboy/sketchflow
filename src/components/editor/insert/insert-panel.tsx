@@ -64,7 +64,8 @@ export function InsertPanel({ api, isDark, onClose }: InsertPanelProps) {
 
 			<Tabs value={active.id} onValueChange={setActiveTab} className="min-h-0 flex-1 gap-0">
 				<div className="border-b border-rule px-3 py-2">
-					<TabsList className="h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0">
+					{/* The shared TabsList fixes its height for one row; this one may wrap to two. */}
+					<TabsList className="w-full flex-wrap justify-start gap-1 bg-transparent p-0 group-data-horizontal/tabs:h-auto">
 						{TABS.map((tab) => (
 							<TabsTrigger key={tab.id} value={tab.id} className="h-7 flex-none gap-1.5 px-2 text-xs">
 								<tab.icon className="size-3.5" aria-hidden="true" />

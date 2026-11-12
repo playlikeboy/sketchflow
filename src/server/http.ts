@@ -41,12 +41,13 @@ export function jsonOk<T>(data: T, init?: ResponseInit) {
 	return NextResponse.json(data, init);
 }
 
-function errorCode(error: unknown) {
-	if (error && typeof error === "object" && "code" in error && typeof error.code === "string") {
-		return { code: error.code };
-	}
+// The machine-readable parts of an error the browser acts on: what went wrong, and for a
+// GitHub rate limit, when it is worth trying again.
+function errorDetails(error: object) {
+	const code = "code" in error && typeof error.code === "string" ? { code: error.code } : {};
+	const retryAt = "retryAt" in error && typeof error.retryAt === "string" ? { retryAt: error.retryAt } : {};
 
-	return {};
+	return { ...code, ...retryAt };
 }
 
 export function jsonError(error: unknown) {
@@ -66,7 +67,7 @@ export function jsonError(error: unknown) {
 	}
 
 	if (error instanceof HttpError) {
-		return NextResponse.json({ error: error.message, ...errorCode(error) }, { status: error.status });
+		return NextResponse.json({ error: error.message, ...errorDetails(error) }, { status: error.status });
 	}
 
 	console.error(error);

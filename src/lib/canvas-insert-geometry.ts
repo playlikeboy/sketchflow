@@ -36,6 +36,34 @@ export type Bounds = { minX: number; minY: number; maxX: number; maxY: number; w
 type ElementBinding = { elementId: string; [key: string]: unknown };
 type BoundElementRef = { id: string; type: string };
 
+/** How far each further insert is shifted when the spot is already taken. */
+export const CASCADE_STEP = 32;
+const CASCADE_LIMIT = 12;
+const SAME_SPOT_TOLERANCE = 8;
+
+/**
+ * Where to centre a new insert so it does not land exactly on top of something already
+ * centred there. Each occupied spot shifts the insert down and to the right by one step, the
+ * way pasted items cascade. `step` is in scene units; pass a zoom-adjusted value so the shift
+ * looks the same at any zoom.
+ */
+export function freeInsertCenter(center: Point, elements: readonly SceneElement[], step = CASCADE_STEP): Point {
+	const occupied = elements
+		.filter((element) => element.isDeleted !== true)
+		.map((element) => {
+			const extent = elementsBounds([element]) as Bounds;
+			return { x: extent.minX + extent.width / 2, y: extent.minY + extent.height / 2 };
+		});
+	const isTaken = (point: Point) =>
+		occupied.some((spot) => Math.abs(spot.x - point.x) <= SAME_SPOT_TOLERANCE && Math.abs(spot.y - point.y) <= SAME_SPOT_TOLERANCE);
+
+	let candidate = center;
+	for (let attempt = 0; attempt < CASCADE_LIMIT && isTaken(candidate); attempt += 1) {
+		candidate = { x: candidate.x + step, y: candidate.y + step };
+	}
+	return candidate;
+}
+
 /** The scene point at the centre of the visible canvas. */
 export function viewportCenter(state: ViewportState): Point {
 	const zoom = state.zoom.value || 1;
@@ -177,6 +205,28 @@ export function prepareElementsForInsert(elements: readonly SceneElement[], opti
 
 		return scaled;
 	});
+}
+
+const SVG_ROOT_TAG = /<svg\b[^>]*>/i;
+const SVG_SIZE_ATTRIBUTE = (name: string) => new RegExp(`\\s${name}\\s*=\\s*["'][^"']*["']`, "i");
+
+/**
+ * Returns the SVG with a pixel `width` and `height` on its root element. An SVG that only has a
+ * viewBox (or a percentage size) has no intrinsic size, and some browsers refuse to draw it.
+ */
+export function withExplicitSvgSize(svg: string, size: { width: number; height: number }) {
+	const tag = svg.match(SVG_ROOT_TAG)?.[0];
+	if (!tag) return svg;
+
+	const hasPixelSize = (name: string) => {
+		const value = tag.match(new RegExp(`\\s${name}\\s*=\\s*["']([^"']*)["']`, "i"))?.[1];
+		return value !== undefined && SVG_LENGTH.test(value);
+	};
+	if (hasPixelSize("width") && hasPixelSize("height")) return svg;
+
+	const stripped = tag.replace(SVG_SIZE_ATTRIBUTE("width"), "").replace(SVG_SIZE_ATTRIBUTE("height"), "");
+	const sized = stripped.replace(/^<svg\b/i, `<svg width="${size.width}" height="${size.height}"`);
+	return svg.replace(tag, sized);
 }
 
 const SVG_LENGTH = /^\s*([0-9]*\.?[0-9]+)\s*(px)?\s*$/i;

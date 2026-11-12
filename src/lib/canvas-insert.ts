@@ -7,10 +7,13 @@
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 import {
+	CASCADE_STEP,
 	DEFAULT_INSERT_SIZE,
 	fitSize,
+	freeInsertCenter,
 	prepareElementsForInsert,
 	svgDimensions,
+	withExplicitSvgSize,
 	viewportCenter,
 	type SceneElement,
 } from "@/lib/canvas-insert-geometry";
@@ -24,6 +27,16 @@ const EMBEDDED_JPEG_QUALITY = 0.85;
 
 function createId() {
 	return crypto.randomUUID().replace(/-/g, "").slice(0, 20);
+}
+
+/**
+ * The centre of the view, nudged if a previous insert is still sitting exactly there, so
+ * several inserts in a row cascade instead of stacking on one spot.
+ */
+function insertCenter(api: ExcalidrawImperativeAPI) {
+	const appState = api.getAppState();
+	const zoom = appState.zoom.value || 1;
+	return freeInsertCenter(viewportCenter(appState), api.getSceneElements() as unknown as SceneElement[], CASCADE_STEP / zoom);
 }
 
 async function addToScene(api: ExcalidrawImperativeAPI, elements: SceneElement[]) {
@@ -49,7 +62,7 @@ export type InsertOptions = {
  */
 export async function insertElements(api: ExcalidrawImperativeAPI, elements: readonly SceneElement[], options: InsertOptions = {}) {
 	const prepared = prepareElementsForInsert(elements, {
-		center: viewportCenter(api.getAppState()),
+		center: insertCenter(api),
 		targetSize: options.targetSize ?? DEFAULT_INSERT_SIZE,
 		createId,
 	});
@@ -77,7 +90,7 @@ export async function insertImage(api: ExcalidrawImperativeAPI, input: InsertIma
 	const { convertToExcalidrawElements } = await import("@excalidraw/excalidraw");
 	const fileId = createId();
 	const size = fitSize({ width: input.width, height: input.height }, input.targetSize ?? DEFAULT_INSERT_SIZE);
-	const center = viewportCenter(api.getAppState());
+	const center = insertCenter(api);
 
 	api.addFiles([{ id: fileId, dataURL: input.dataUrl, mimeType: input.mimeType, created: Date.now() } as unknown as BinaryFile]);
 
@@ -99,7 +112,8 @@ export async function insertImage(api: ExcalidrawImperativeAPI, input: InsertIma
 /** Encodes SVG markup as a data URL, and reports its intrinsic size (24×24 when it declares none). */
 export function svgToImage(svg: string) {
 	const size = svgDimensions(svg) ?? { width: 24, height: 24 };
-	const bytes = new TextEncoder().encode(svg);
+	// Firefox will not draw an SVG onto a canvas unless its root states a width and height.
+	const bytes = new TextEncoder().encode(withExplicitSvgSize(svg, size));
 	const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
 	return { dataUrl: `data:image/svg+xml;base64,${btoa(binary)}`, mimeType: "image/svg+xml" as const, ...size };
 }

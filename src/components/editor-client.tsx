@@ -11,7 +11,6 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import {
 	ArrowLeft,
-	BookOpen,
 	Clock,
 	FileText,
 	ChevronDown,
@@ -36,8 +35,7 @@ import { QuickConnect } from "@/components/editor/quick-connect";
 import { GuestSaveBar } from "@/components/editor/guest-save-bar";
 import { SharingPrompt } from "@/components/editor/sharing-prompt";
 import { useGuestProject } from "@/components/editor/use-guest-project";
-import { ExcalidrawLibraryPanel } from "@/components/excalidraw-library-panel";
-import { GithubAccessCard } from "@/components/github-access-card";
+import { GithubProblemNotice } from "@/components/github-problem-notice";
 import { HistoryPanel } from "@/components/history-panel";
 import { ProjectDocEditor } from "@/components/project-doc-editor";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -55,14 +53,18 @@ import {
 import { Input } from "@/components/ui/input";
 
 import { ApiError, commitWorkspaceFiles, restoreProjectVersion, type SketchLoadResponse, type SketchScene } from "@/lib/api";
-import type { ExcalidrawLibrary } from "@/lib/excalidraw-libraries";
+import { githubErrorCopy, githubProblemFromError, type GithubProblem } from "@/lib/github-errors";
 import { deleteDraft, getDraft, setDraft, deleteLocalProject, type OfflineCommit, getOfflineCommits, saveOfflineCommit, clearOfflineCommits } from "@/lib/indexeddb";
 import { LOCAL_WORKSPACE, isLocalWorkspace, storageUserId, workspaceLabel } from "@/lib/local-workspace";
 import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
 import { draftKey, humanizeSlug, normalizeScene, notesFilePath, projectFilePath, sketchFilePath, slugify } from "@/lib/sketchflow";
 import { useGithubStatus, useSketch, useProjectHistorySnapshot, useWorkspaces } from "@/lib/swr-hooks";
 import { useAppIdentity } from "@/lib/use-app-identity";
+import { keepImageColoursOnDarkCanvas } from "@/lib/excalidraw-image-colours";
 import { cn } from "@/lib/utils";
+
+// Installed before Excalidraw first draws, so photos keep their colours on the dark canvas.
+keepImageColoursOnDarkCanvas();
 
 const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
 	ssr: false,
@@ -359,11 +361,11 @@ export function EditorClient({
 	const [sheetInfoOpen, setSheetInfoOpen] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [saveError, setSaveError] = useState<string | null>(null);
+	// Set when the failed save was GitHub's doing, so the notice can offer the step that fixes it.
+	const [saveProblem, setSaveProblem] = useState<GithubProblem | null>(null);
 	const [conflict, setConflict] = useState(false);
 	const [restoringSha, setRestoringSha] = useState<string | null>(null);
 	const [mode, setMode] = useState<EditorMode>("split");
-	const [installedLibrarySources, setInstalledLibrarySources] = useState<string[]>([]);
-	const [installingLibrarySource, setInstallingLibrarySource] = useState<string | null>(null);
 	const sceneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const notesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
@@ -557,10 +559,6 @@ export function EditorClient({
 	}, [workspaceId]);
 
 	useEffect(() => {
-		installedLibrarySourcesRef.current = installedLibrarySources;
-	}, [installedLibrarySources]);
-
-	useEffect(() => {
 		const api = excalidrawApi || excalidrawApiRef.current;
 		if (api && hasScene) {
 			const isDark = (resolvedTheme ?? "dark") === "dark";
@@ -618,6 +616,7 @@ export function EditorClient({
 
 			setLoadError(null);
 			setSaveError(null);
+			setSaveProblem(null);
 			setInitialData(null);
 			setSelectedPreviewSha(null);
 			setHasScene(false);
@@ -681,7 +680,6 @@ export function EditorClient({
 				setNotes(nextNotes);
 				setMode(modeForWorkspace(initialMode as EditorMode, workspaceId));
 				setLocalSavedAt(latestUpdatedAt([localSceneDraft, localNotesDraft, localStateDraft]));
-				setInstalledLibrarySources(nextInstalledSources);
 				setHasScene(true);
 				setSource(restoredLocal || isLocalFallback ? "local" : "github");
 				setStatus(
@@ -820,50 +818,6 @@ export function EditorClient({
 		});
 	}, [currentLibraryDraftKey, isOwner]);
 
-	const handleInstallLibrary = useCallback(async (library: ExcalidrawLibrary) => {
-		if (!excalidrawApiRef.current) {
-			setStatus("Canvas is still loading");
-			return;
-		}
-
-		setInstallingLibrarySource(library.source);
-		setStatus(`Importing ${library.name}`);
-
-		try {
-			const response = await fetch(`/api/excalidraw/libraries/file?source=${encodeURIComponent(library.source)}`);
-			if (!response.ok) {
-				throw new Error("Library pack could not be downloaded");
-			}
-
-			const blob = await response.blob();
-			const { loadLibraryFromBlob } = await import("@excalidraw/excalidraw");
-			const libraryItems = await loadLibraryFromBlob(blob, "published");
-			const updatedLibraryItems = await excalidrawApiRef.current.updateLibrary({
-				libraryItems,
-				merge: true,
-				openLibraryMenu: true,
-				defaultStatus: "published",
-			});
-			const nextInstalledSources = Array.from(new Set([...installedLibrarySourcesRef.current, library.source]));
-			installedLibrarySourcesRef.current = nextInstalledSources;
-			setInstalledLibrarySources(nextInstalledSources);
-			await setDraft<LibraryDraftValue>(currentLibraryDraftKey, {
-				libraryItems: updatedLibraryItems,
-				installedSources: nextInstalledSources,
-				updatedAt: new Date().toISOString(),
-			});
-			setStatus(`Imported ${library.name}`);
-		} catch (libraryError) {
-			setStatus(
-				libraryError instanceof Error
-					? libraryError.message
-					: "Library import failed",
-			);
-		} finally {
-			setInstallingLibrarySource(null);
-		}
-	}, [currentLibraryDraftKey]);
-
 	/**
 	 * `overwrite` commits on top of whatever is on the branch now. It is only used after the
 	 * user has been told the project changed on GitHub and chose to keep their own version.
@@ -875,6 +829,7 @@ export function EditorClient({
 
 		setSaving(true);
 		setSaveError(null);
+		setSaveProblem(null);
 		setConflict(false);
 		setStatus("Committing to GitHub");
 
@@ -990,13 +945,15 @@ export function EditorClient({
 				setStatus("Local draft saved");
 				return;
 			}
-			const nextMessage =
-				saveError instanceof ApiError && saveError.code?.startsWith("github_")
-					? "GitHub sync needs a fresh connection. Your local draft is safe."
+			const problem = githubProblemFromError(saveError);
+			setSaveProblem(problem);
+			setSaveError(
+				problem
+					? githubErrorCopy(problem.code, { retryAt: problem.retryAt }).message
 					: saveError instanceof Error
 						? saveError.message
-						: "Sketch was not saved";
-			setSaveError(nextMessage);
+						: "Sketch was not saved.",
+			);
 			setStatus("Local draft saved");
 		} finally {
 			setSaving(false);
@@ -1158,6 +1115,7 @@ export function EditorClient({
 		setSyncingOffline(true);
 		setStatus(`Syncing ${offlineCommits.length} local commits`);
 		setSaveError(null);
+		setSaveProblem(null);
 
 		try {
 			let expectedHeadSha = data?.workspace?.latestCommitSha ?? workspace?.latestCommitSha ?? null;
@@ -1188,13 +1146,15 @@ export function EditorClient({
 			setStatus("Offline commits synced to GitHub");
 			await mutateSketch();
 		} catch (err) {
-			const nextMessage =
-				err instanceof ApiError && err.code?.startsWith("github_")
-					? "GitHub sync needs a fresh connection. Your local commits are safe."
+			const problem = githubProblemFromError(err);
+			setSaveProblem(problem);
+			setSaveError(
+				problem
+					? githubErrorCopy(problem.code, { retryAt: problem.retryAt }).message
 					: err instanceof Error
 						? err.message
-						: "Sync failed";
-			setSaveError(nextMessage);
+						: "Sync failed.",
+			);
 			setStatus("Offline sync paused");
 		} finally {
 			setSyncingOffline(false);
@@ -1719,17 +1679,27 @@ export function EditorClient({
 											{saveError} Your changes are still in this browser.
 										</p>
 									</div>
-									<Button variant="ghost" size="icon-xs" onClick={() => setSaveError(null)} aria-label="Dismiss">
+									<Button
+										variant="ghost"
+										size="icon-xs"
+										onClick={() => {
+											setSaveError(null);
+											setSaveProblem(null);
+										}}
+										aria-label="Dismiss"
+									>
 										<X />
 									</Button>
 								</div>
-								{saveError.toLowerCase().includes("github") ? (
+								{saveProblem ? (
 									<div className="mt-3">
-										<GithubAccessCard
+										<GithubProblemNotice
 											compact
-											onRecovered={async () => {
+											{...saveProblem}
+											onRetry={async () => {
 												await mutateGithubStatus();
 												setSaveError(null);
+												setSaveProblem(null);
 											}}
 										/>
 									</div>

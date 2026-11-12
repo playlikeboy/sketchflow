@@ -6,7 +6,7 @@ const contentSecurityPolicy = [
 	"style-src 'self' 'unsafe-inline'",
 	"img-src 'self' data: blob: https:",
 	"font-src 'self' data: https://esm.sh https://unpkg.com",
-	"connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://cdn.jsdelivr.net https://esm.sh https://unpkg.com https://libraries.excalidraw.com",
+	"connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://cdn.jsdelivr.net https://esm.sh https://unpkg.com https://libraries.excalidraw.com https://images.unsplash.com",
 	"worker-src 'self' blob:",
 	"object-src 'none'",
 	"base-uri 'self'",

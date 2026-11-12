@@ -1,14 +1,38 @@
+import {
+	githubErrorCopy,
+	isRepositoryScope,
+	missingGithubScopes,
+	type GithubErrorCode,
+} from "@/lib/github-errors";
 import { GithubAccessTokenError, requireGithubAccessToken } from "@/server/auth";
 import { upsertGithubConnection, upsertUser } from "@/server/db/repositories";
 import { getGithubOAuthScopes } from "@/server/env";
-import { GithubApiError, getAuthenticatedGithubUser } from "@/server/github";
+import { GithubApiError, getAuthenticatedGithubUserWithScopes } from "@/server/github";
 import { jsonError, jsonOk } from "@/server/http";
+
+type Disconnected = {
+	reason: GithubErrorCode;
+	retryAt?: string;
+	missingScopes?: string[];
+};
+
+// The client depends on `connected: false` plus a `reason`; everything else explains it.
+function disconnected({ reason, retryAt, missingScopes }: Disconnected) {
+	return jsonOk({
+		connected: false,
+		reason,
+		message: githubErrorCopy(reason, { retryAt }).message,
+		scopes: getGithubOAuthScopes(),
+		...(retryAt ? { retryAt } : {}),
+		...(missingScopes ? { missingScopes } : {}),
+	});
+}
 
 export async function GET(request: Request) {
 	try {
 		const scopes = getGithubOAuthScopes();
 		const { accessToken, user, source } = await requireGithubAccessToken(request);
-		const githubUser = await getAuthenticatedGithubUser(accessToken);
+		const { githubUser, grantedScopes } = await getAuthenticatedGithubUserWithScopes(accessToken);
 
 		await upsertUser(user);
 
@@ -21,6 +45,15 @@ export async function GET(request: Request) {
 				githubUserId: String(githubUser.id),
 				scopes,
 			});
+		}
+
+		// Only the sign-in token is held to the configured scopes, and only the ones that gate
+		// repository access. A pasted token is the user's own choice of permissions, and
+		// fine-grained tokens report no scopes at all (`grantedScopes` is null for those).
+		const missingScopes =
+			source === "github-oauth" ? missingGithubScopes(scopes.filter(isRepositoryScope), grantedScopes) : [];
+		if (missingScopes.length > 0) {
+			return disconnected({ reason: "github_missing_scope", missingScopes });
 		}
 
 		return jsonOk({
@@ -36,21 +69,11 @@ export async function GET(request: Request) {
 		});
 	} catch (error) {
 		if (error instanceof GithubAccessTokenError) {
-			return jsonOk({
-				connected: false,
-				reason: error.code,
-				message: error.message,
-				scopes: getGithubOAuthScopes(),
-			});
+			return disconnected({ reason: error.code });
 		}
 
 		if (error instanceof GithubApiError) {
-			return jsonOk({
-				connected: false,
-				reason: "github_token_unavailable",
-				message: "Refresh GitHub access or paste a local token with repository access.",
-				scopes: getGithubOAuthScopes(),
-			});
+			return disconnected({ reason: error.code, retryAt: error.retryAt });
 		}
 
 		return jsonError(error);

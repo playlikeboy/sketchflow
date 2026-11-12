@@ -3,9 +3,11 @@ import { expect, test } from "bun:test";
 import {
 	elementsBounds,
 	fitSize,
+	freeInsertCenter,
 	prepareElementsForInsert,
 	svgDimensions,
 	viewportCenter,
+	withExplicitSvgSize,
 	type SceneElement,
 } from "../src/lib/canvas-insert-geometry";
 
@@ -107,4 +109,33 @@ test("reads an SVG's size from its attributes or its viewBox", () => {
 	expect(svgDimensions('<svg role="img" viewBox="0 0 24 24"><path d="M0 0"/></svg>')).toEqual({ width: 24, height: 24 });
 	expect(svgDimensions('<svg width="100%" viewBox="0 0 300 150"></svg>')).toEqual({ width: 300, height: 150 });
 	expect(svgDimensions("<div></div>")).toBeNull();
+});
+
+test("gives an SVG that only has a viewBox an explicit pixel size, and leaves sized ones alone", () => {
+	const viewBoxOnly = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0"/></svg>';
+	const percent = '<svg width="100%" height="100%" viewBox="0 0 300 150"></svg>';
+	const sized = '<svg width="48" height="24" viewBox="0 0 48 24"></svg>';
+
+	expect(withExplicitSvgSize(viewBoxOnly, { width: 24, height: 24 })).toContain('<svg width="24" height="24" xmlns=');
+	expect(withExplicitSvgSize(percent, { width: 300, height: 150 })).toBe('<svg width="300" height="150" viewBox="0 0 300 150"></svg>');
+	expect(withExplicitSvgSize(sized, { width: 48, height: 24 })).toBe(sized);
+	expect(withExplicitSvgSize("<div></div>", { width: 1, height: 1 })).toBe("<div></div>");
+});
+
+test("cascades a new insert away from a spot where an earlier insert is still centred", () => {
+	const center = { x: 500, y: 400 };
+	const first = rect("a", 450, 350, 100, 100);
+	const second = rect("b", 482, 382, 100, 100);
+
+	expect(freeInsertCenter(center, [])).toEqual(center);
+	expect(freeInsertCenter(center, [first])).toEqual({ x: 532, y: 432 });
+	expect(freeInsertCenter(center, [first, second])).toEqual({ x: 564, y: 464 });
+});
+
+test("does not move an insert for shapes that merely overlap the centre or were deleted", () => {
+	const center = { x: 500, y: 400 };
+	const bigBackdrop = rect("frame", 0, 0, 800, 700);
+	const deleted = rect("gone", 450, 350, 100, 100, { isDeleted: true });
+
+	expect(freeInsertCenter(center, [bigBackdrop, deleted])).toEqual(center);
 });
