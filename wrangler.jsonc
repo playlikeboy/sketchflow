@@ -35,7 +35,12 @@
 		"pattern": "sketchflow.space",
 		"custom_domain": true
 	},
-	"upload_source_maps": true
+	"upload_source_maps": true,
+	// Wrangler's bundler wraps functions in a `__name` helper to keep their names. next-themes
+	// copies its theme function's source into an inline script on every page, where that helper
+	// does not exist, so the script threw "__name is not defined" and the theme was only applied
+	// after the page had already painted. Nothing here reads function names at run time.
+	"keep_names": false
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
