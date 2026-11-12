@@ -230,7 +230,7 @@ test("a failed commit keeps that project on the device while the others sync and
 	const guests = [guestProject("One", "one"), guestProject("Two", "two"), guestProject("Three", "three")];
 	const { deps, removed, currentGuests } = fakeDeps({
 		guests,
-		failCommitFor: (call) => (call.message.includes('"Two"') ? new ApiError("GitHub is down", 502) : null),
+		failCommitFor: (call) => (call.message.includes('"Two"') ? new ApiError("GitHub is down", 502, "github_unavailable") : null),
 	});
 
 	// Act
@@ -238,7 +238,7 @@ test("a failed commit keeps that project on the device while the others sync and
 
 	// Assert
 	expect(results.map((result) => result.status)).toEqual(["synced", "failed", "synced"]);
-	expect(results[1].error).toContain("isn't responding");
+	expect(results[1].error).toContain("not responding");
 	expect(removed).toEqual(["one", "three"]);
 	expect(currentGuests().map((guest) => guest.id)).toEqual(["two"]);
 });

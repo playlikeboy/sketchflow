@@ -8,7 +8,11 @@ import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import type { SketchScene } from "@/lib/api";
 import { normalizeScene } from "@/lib/sketchflow";
+import { keepImageColoursOnDarkCanvas } from "@/lib/excalidraw-image-colours";
 import { cn } from "@/lib/utils";
+
+// Installed before Excalidraw first draws, so photos keep their colours on the dark canvas.
+keepImageColoursOnDarkCanvas();
 
 const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
   ssr: false,

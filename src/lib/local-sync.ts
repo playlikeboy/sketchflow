@@ -14,6 +14,7 @@ import {
 	type Workspace,
 	type WorkspaceProjectsResponse,
 } from "@/lib/api";
+import { githubErrorCopy, githubProblemFromError, needsGithubReconnect } from "@/lib/github-errors";
 import { deleteLocalProject, getDraft, purgeProjectDrafts } from "@/lib/indexeddb";
 import { LOCAL_WORKSPACE_ID, defaultNotes, listGuestProjects, uniqueProjectId } from "@/lib/local-workspace";
 import {
@@ -246,21 +247,22 @@ export async function readGuestProjectContent(
 
 /** True when the GitHub session is gone and signing in again is the fix. */
 export function needsSignIn(error: unknown) {
-	return (
-		error instanceof ApiError &&
-		(error.status === 401 || error.code === "github_not_connected" || error.code === "github_token_unavailable")
-	);
+	const problem = githubProblemFromError(error);
+	if (problem) return needsGithubReconnect(problem.code);
+	return error instanceof ApiError && error.status === 401;
 }
 
 export function describeSyncError(error: unknown): string {
+	// GitHub's own failures (rate limit, access denied, outage, ...) each have precise wording.
+	const problem = githubProblemFromError(error);
+	if (problem) return githubErrorCopy(problem.code, { retryAt: problem.retryAt }).message;
+
 	if (error instanceof ApiError) {
 		if (error.status === 401) return "Your GitHub session has expired. Sign in again, then retry.";
-		if (needsSignIn(error)) return "Sketchflow can't reach GitHub for your account. Sign in again, then retry.";
 		if (error.status === 409) return "The repository changed while syncing. Try again.";
 		if (error.status === 429) return "Too many saves in a short time. Wait a minute, then try again.";
-		if (error.status === 403) return "GitHub refused the change. Check that you can write to this repository.";
 		if (error.status === 404) return "This repository workspace wasn't found. It may have been removed.";
-		if (error.status >= 500) return "GitHub isn't responding right now. Try again in a moment.";
+		if (error.status >= 500) return "Sketchflow's server had a problem. Try again in a moment.";
 		return error.message;
 	}
 	if (error instanceof TypeError) return "Sketchflow couldn't reach the server. Check your connection, then try again.";

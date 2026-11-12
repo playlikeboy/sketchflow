@@ -35,7 +35,8 @@ The user's GitHub repository is the database. Sketchflow stores no sketch conten
 - A save is one multi-file Git commit. If the branch moved since the draft was based on it, the commit is rejected instead of overwriting.
 - History lists the commits that touched a project, previews an old version, and restores it as a new commit.
 - Projects in public repositories have read-only share and embed pages, and can be forked into another workspace.
-- Community Excalidraw shape libraries can be browsed and installed.
+- An Insert panel adds community shape libraries, starter diagrams (and pasted Mermaid), company logos, Unsplash photos, stickers and uploaded images, always at the centre of the view at one consistent size.
+- A selected shape shows "+" handles that add a connected shape; frames can be presented as slides.
 
 ## Capabilities and Constraints
 

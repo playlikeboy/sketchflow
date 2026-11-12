@@ -15,6 +15,7 @@ export const metadata: Metadata = {
 const topics = [
 	{ id: "basics", title: "The basics" },
 	{ id: "try", title: "Using it without an account" },
+	{ id: "insert", title: "Adding things to the canvas" },
 	{ id: "saving", title: "Saving your work" },
 	{ id: "states", title: "What the state marks mean" },
 	{ id: "history", title: "History and restore" },
@@ -103,6 +104,31 @@ export default function HelpPage() {
 							When you want a backup, sign in with GitHub and choose a repository. Sketchflow then offers to copy
 							the projects from this device into it. You choose which ones; nothing is uploaded on its own.
 							Sharing a project needs a repository, so it needs sign-in too.
+						</p>
+					</Topic>
+
+					<Topic id="insert" title="Adding things to the canvas">
+						<p>
+							<strong>Insert</strong> in the editor&apos;s top bar opens one panel for everything you can add:
+							shape libraries, starter diagrams, company logos, photos, stickers and your own images. Whatever you
+							pick lands in the middle of the view at a sensible size, ready to move.
+						</p>
+						<p>
+							<strong>Diagrams</strong> has starters such as a flowchart, a sequence diagram and a mind map, and
+							turns pasted Mermaid text into shapes you can edit. <strong>Photos</strong> come from Unsplash and
+							are credited to their photographers. Images you upload stay in your browser and are stored inside
+							the sketch.
+						</p>
+						<p>
+							To grow a diagram quickly, select a rectangle, diamond or ellipse and click one of the
+							<strong> +</strong> handles on its sides. That adds a matching shape joined by an arrow that follows
+							when either shape moves. Holding <span className="datum">Ctrl</span> (or{" "}
+							<span className="datum">Cmd</span>) and pressing an arrow key does the same from the keyboard.
+						</p>
+						<p>
+							<strong>Present</strong> shows each frame as a slide. Draw frames with the frame tool (
+							<span className="datum">F</span>), then use the arrow keys to move between them and{" "}
+							<span className="datum">Esc</span> to finish.
 						</p>
 					</Topic>
 

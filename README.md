@@ -109,6 +109,7 @@ Fill in `.env.local`:
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth App client secret |
 | `DATABASE_URL` | Neon Postgres connection string |
 | `NEXT_PUBLIC_APP_URL` | Base URL, `http://localhost:3000` in development |
+| `UNSPLASH_ACCESS_KEY` | Optional. Enables photo search in the editor's Insert panel |
 | `GITHUB_API_VERSION` | GitHub REST API version, default `2022-11-28` |
 | `GITHUB_OAUTH_SCOPES` | Scopes requested from GitHub, default `repo,read:user,user:email` |
 | `SKETCHFLOW_REPO_NAME` | Default name for a new workspace repository |

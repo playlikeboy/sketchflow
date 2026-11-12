@@ -32,6 +32,7 @@ These are the same names the deploy workflow checks for.
 | `GITHUB_CLIENT_ID` | no | Client id of your GitHub OAuth App |
 | `GITHUB_CLIENT_SECRET` | **secret** | Client secret of your GitHub OAuth App |
 | `DATABASE_URL` | **secret** | Neon connection string |
+| `UNSPLASH_ACCESS_KEY` | **secret**, optional | Unsplash Access Key. Enables photo search in the Insert panel; without it that tab says it is not set up |
 | `GITHUB_API_VERSION` | no | `2022-11-28` |
 | `GITHUB_OAUTH_SCOPES` | no | `repo,read:user,user:email` |
 | `SKETCHFLOW_REPO_NAME` | no | Default name for new workspace repositories |

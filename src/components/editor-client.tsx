@@ -11,7 +11,6 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import {
 	ArrowLeft,
-	BookOpen,
 	Clock,
 	FileText,
 	ChevronDown,
@@ -21,6 +20,8 @@ import {
 	Loader2,
 	Maximize2,
 	PanelsTopLeft,
+	Plus,
+	Presentation,
 	Save,
 	X,
 } from "lucide-react";
@@ -28,11 +29,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 
 import { LocalProjectMissingNotice, RepositorySignInNotice } from "@/components/editor/editor-notices";
+import { InsertPanel } from "@/components/editor/insert/insert-panel";
+import { PresentationMode } from "@/components/editor/presentation-mode";
+import { QuickConnect } from "@/components/editor/quick-connect";
 import { GuestSaveBar } from "@/components/editor/guest-save-bar";
 import { SharingPrompt } from "@/components/editor/sharing-prompt";
 import { useGuestProject } from "@/components/editor/use-guest-project";
-import { ExcalidrawLibraryPanel } from "@/components/excalidraw-library-panel";
-import { GithubAccessCard } from "@/components/github-access-card";
+import { GithubProblemNotice } from "@/components/github-problem-notice";
 import { HistoryPanel } from "@/components/history-panel";
 import { ProjectDocEditor } from "@/components/project-doc-editor";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -50,14 +53,18 @@ import {
 import { Input } from "@/components/ui/input";
 
 import { ApiError, commitWorkspaceFiles, restoreProjectVersion, type SketchLoadResponse, type SketchScene } from "@/lib/api";
-import type { ExcalidrawLibrary } from "@/lib/excalidraw-libraries";
+import { githubErrorCopy, githubProblemFromError, type GithubProblem } from "@/lib/github-errors";
 import { deleteDraft, getDraft, setDraft, deleteLocalProject, type OfflineCommit, getOfflineCommits, saveOfflineCommit, clearOfflineCommits } from "@/lib/indexeddb";
 import { LOCAL_WORKSPACE, isLocalWorkspace, storageUserId, workspaceLabel } from "@/lib/local-workspace";
 import { PROJECTS_METADATA_PATH, mergeProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
 import { draftKey, humanizeSlug, normalizeScene, notesFilePath, projectFilePath, sketchFilePath, slugify } from "@/lib/sketchflow";
 import { useGithubStatus, useSketch, useProjectHistorySnapshot, useWorkspaces } from "@/lib/swr-hooks";
 import { useAppIdentity } from "@/lib/use-app-identity";
+import { keepImageColoursOnDarkCanvas } from "@/lib/excalidraw-image-colours";
 import { cn } from "@/lib/utils";
+
+// Installed before Excalidraw first draws, so photos keep their colours on the dark canvas.
+keepImageColoursOnDarkCanvas();
 
 const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
 	ssr: false,
@@ -83,7 +90,6 @@ type NotesDraftValue = {
 
 type LibraryDraftValue = {
 	libraryItems: LibraryItems;
-	installedSources: string[];
 	updatedAt: string;
 };
 
@@ -354,11 +360,11 @@ export function EditorClient({
 	const [sheetInfoOpen, setSheetInfoOpen] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [saveError, setSaveError] = useState<string | null>(null);
+	// Set when the failed save was GitHub's doing, so the notice can offer the step that fixes it.
+	const [saveProblem, setSaveProblem] = useState<GithubProblem | null>(null);
 	const [conflict, setConflict] = useState(false);
 	const [restoringSha, setRestoringSha] = useState<string | null>(null);
 	const [mode, setMode] = useState<EditorMode>("split");
-	const [installedLibrarySources, setInstalledLibrarySources] = useState<string[]>([]);
-	const [installingLibrarySource, setInstallingLibrarySource] = useState<string | null>(null);
 	const sceneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const notesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const excalidrawApiRef = useRef<ExcalidrawImperativeAPI | null>(null);
@@ -366,7 +372,10 @@ export function EditorClient({
 	const notesRef = useRef("");
 	const sceneDirtyRef = useRef(false);
 	const notesDirtyRef = useRef(false);
-	const installedLibrarySourcesRef = useRef<string[]>([]);
+	// Excalidraw's own library, kept so a remounted canvas gets it back.
+	const libraryItemsRef = useRef<LibraryItems | undefined>(undefined);
+	// Which action failed last, so "Try again" on the notice repeats that action.
+	const lastFailedSaveRef = useRef<"save" | "offline-sync" | null>(null);
 	const sourceRef = useRef<"github" | "local">("github");
 	const hydrateRef = useRef(false);
 	const elementsVersionRef = useRef(0);
@@ -378,6 +387,7 @@ export function EditorClient({
 	// The guest workspace ("This device") lives only in IndexedDB: no server requests, no
 	// commits, and its drafts always use the "local" storage scope, whoever is signed in.
 	const isGuest = isLocalWorkspace(workspaceId);
+	const [presenting, setPresenting] = useState(false);
 	const scopeUserId = storageUserId(workspaceId, userId);
 	const remoteUserId = isGuest ? null : userId;
 	const guestProject = useGuestProject(projectId, isGuest);
@@ -421,6 +431,28 @@ export function EditorClient({
 		return signedInUserId === activeWorkspace.stackUserId;
 	}, [isGuest, signedInUserId, activeWorkspace]);
 	const [selectedPreviewSha, setSelectedPreviewSha] = useState<string | null>(null);
+	// The editable canvas is not on screen in Notes view or while an old version is previewed.
+	const canvasHidden = mode === "docs" || Boolean(selectedPreviewSha);
+	const hasLiveCanvas = Boolean(initialData) && !canvasHidden;
+	// Tools that act on the canvas only ever get the canvas that is actually showing.
+	const liveApi = hasLiveCanvas ? excalidrawApi : null;
+
+	// Excalidraw reads `initialData` only when it mounts. Whenever the canvas goes away, hand the
+	// next mount the scene as it is now. Without this, coming back from Notes or from a version
+	// preview restored the scene from page load and saved that over the newer work.
+	useEffect(() => {
+		if (!canvasHidden) return;
+		setInitialData((current) =>
+			current && sceneRef.current ? toInitialData(sceneRef.current, resolvedTheme, libraryItemsRef.current) : current,
+		);
+	}, [canvasHidden, resolvedTheme]);
+
+	// Presenting needs the canvas; never leave it switched on while the canvas is gone.
+	useEffect(() => {
+		if (presenting && !hasLiveCanvas) {
+			setPresenting(false);
+		}
+	}, [presenting, hasLiveCanvas]);
 	const {
 		data: snapshotData,
 		isLoading: snapshotLoading,
@@ -551,10 +583,6 @@ export function EditorClient({
 	}, [workspaceId]);
 
 	useEffect(() => {
-		installedLibrarySourcesRef.current = installedLibrarySources;
-	}, [installedLibrarySources]);
-
-	useEffect(() => {
 		const api = excalidrawApi || excalidrawApiRef.current;
 		if (api && hasScene) {
 			const isDark = (resolvedTheme ?? "dark") === "dark";
@@ -612,6 +640,7 @@ export function EditorClient({
 
 			setLoadError(null);
 			setSaveError(null);
+			setSaveProblem(null);
 			setInitialData(null);
 			setSelectedPreviewSha(null);
 			setHasScene(false);
@@ -660,7 +689,6 @@ export function EditorClient({
 				const nextNotes = localNotesDraft?.value?.notes ?? nextData?.notes ?? fallbackNotes(projectId, sketchId);
 				const restoredLocal = Boolean(localSceneDraft?.value?.scene || localNotesDraft?.value?.notes || localStateDraft?.value?.state);
 				const nextLibraryItems = localLibraryDraft?.value?.libraryItems;
-				const nextInstalledSources = localLibraryDraft?.value?.installedSources ?? [];
 
 				if (!mounted) return;
 
@@ -668,14 +696,13 @@ export function EditorClient({
 				elementsVersionRef.current = sceneElementsVersion(nextScene.elements ?? []);
 				pendingContentChangeRef.current = false;
 				notesRef.current = nextNotes;
-				installedLibrarySourcesRef.current = nextInstalledSources;
+				libraryItemsRef.current = nextLibraryItems;
 				sourceRef.current = restoredLocal || isLocalFallback ? "local" : "github";
 				setInitialData(toInitialData(nextScene, resolvedTheme, nextLibraryItems));
 				setSplitPanelSizes(initialPanelSizes);
 				setNotes(nextNotes);
 				setMode(modeForWorkspace(initialMode as EditorMode, workspaceId));
 				setLocalSavedAt(latestUpdatedAt([localSceneDraft, localNotesDraft, localStateDraft]));
-				setInstalledLibrarySources(nextInstalledSources);
 				setHasScene(true);
 				setSource(restoredLocal || isLocalFallback ? "local" : "github");
 				setStatus(
@@ -807,56 +834,12 @@ export function EditorClient({
 
 	const handleLibraryChange = useCallback((libraryItems: LibraryItems) => {
 		if (!isOwner) return;
+		libraryItemsRef.current = libraryItems;
 		void setDraft<LibraryDraftValue>(currentLibraryDraftKey, {
 			libraryItems,
-			installedSources: installedLibrarySourcesRef.current,
 			updatedAt: new Date().toISOString(),
 		});
 	}, [currentLibraryDraftKey, isOwner]);
-
-	const handleInstallLibrary = useCallback(async (library: ExcalidrawLibrary) => {
-		if (!excalidrawApiRef.current) {
-			setStatus("Canvas is still loading");
-			return;
-		}
-
-		setInstallingLibrarySource(library.source);
-		setStatus(`Importing ${library.name}`);
-
-		try {
-			const response = await fetch(`/api/excalidraw/libraries/file?source=${encodeURIComponent(library.source)}`);
-			if (!response.ok) {
-				throw new Error("Library pack could not be downloaded");
-			}
-
-			const blob = await response.blob();
-			const { loadLibraryFromBlob } = await import("@excalidraw/excalidraw");
-			const libraryItems = await loadLibraryFromBlob(blob, "published");
-			const updatedLibraryItems = await excalidrawApiRef.current.updateLibrary({
-				libraryItems,
-				merge: true,
-				openLibraryMenu: true,
-				defaultStatus: "published",
-			});
-			const nextInstalledSources = Array.from(new Set([...installedLibrarySourcesRef.current, library.source]));
-			installedLibrarySourcesRef.current = nextInstalledSources;
-			setInstalledLibrarySources(nextInstalledSources);
-			await setDraft<LibraryDraftValue>(currentLibraryDraftKey, {
-				libraryItems: updatedLibraryItems,
-				installedSources: nextInstalledSources,
-				updatedAt: new Date().toISOString(),
-			});
-			setStatus(`Imported ${library.name}`);
-		} catch (libraryError) {
-			setStatus(
-				libraryError instanceof Error
-					? libraryError.message
-					: "Library import failed",
-			);
-		} finally {
-			setInstallingLibrarySource(null);
-		}
-	}, [currentLibraryDraftKey]);
 
 	/**
 	 * `overwrite` commits on top of whatever is on the branch now. It is only used after the
@@ -869,6 +852,7 @@ export function EditorClient({
 
 		setSaving(true);
 		setSaveError(null);
+		setSaveProblem(null);
 		setConflict(false);
 		setStatus("Committing to GitHub");
 
@@ -984,13 +968,16 @@ export function EditorClient({
 				setStatus("Local draft saved");
 				return;
 			}
-			const nextMessage =
-				saveError instanceof ApiError && saveError.code?.startsWith("github_")
-					? "GitHub sync needs a fresh connection. Your local draft is safe."
+			const problem = githubProblemFromError(saveError);
+			lastFailedSaveRef.current = "save";
+			setSaveProblem(problem);
+			setSaveError(
+				problem
+					? githubErrorCopy(problem.code, { retryAt: problem.retryAt }).message
 					: saveError instanceof Error
 						? saveError.message
-						: "Sketch was not saved";
-			setSaveError(nextMessage);
+						: "Sketch was not saved.",
+			);
 			setStatus("Local draft saved");
 		} finally {
 			setSaving(false);
@@ -1042,6 +1029,7 @@ export function EditorClient({
 			setSelectedPreviewSha(null);
 			setStatus("Project restored successfully");
 		} catch (error) {
+			setSaveProblem(null);
 			setSaveError(
 				error instanceof Error
 					? error.message
@@ -1142,6 +1130,7 @@ export function EditorClient({
 			await loadOfflineCommits();
 		} catch (err) {
 			console.error("Failed to stash offline commit:", err);
+			setSaveProblem(null);
 			setSaveError("Failed to save local commit draft.");
 		}
 	}, [isGuest, workspaceId, projectId, sketchId, scopeUserId, commitMessage, data, workspace, authorName, mode, splitPanelSizes, loadOfflineCommits]);
@@ -1152,6 +1141,7 @@ export function EditorClient({
 		setSyncingOffline(true);
 		setStatus(`Syncing ${offlineCommits.length} local commits`);
 		setSaveError(null);
+		setSaveProblem(null);
 
 		try {
 			let expectedHeadSha = data?.workspace?.latestCommitSha ?? workspace?.latestCommitSha ?? null;
@@ -1182,13 +1172,16 @@ export function EditorClient({
 			setStatus("Offline commits synced to GitHub");
 			await mutateSketch();
 		} catch (err) {
-			const nextMessage =
-				err instanceof ApiError && err.code?.startsWith("github_")
-					? "GitHub sync needs a fresh connection. Your local commits are safe."
+			const problem = githubProblemFromError(err);
+			lastFailedSaveRef.current = "offline-sync";
+			setSaveProblem(problem);
+			setSaveError(
+				problem
+					? githubErrorCopy(problem.code, { retryAt: problem.retryAt }).message
 					: err instanceof Error
 						? err.message
-						: "Sync failed";
-			setSaveError(nextMessage);
+						: "Sync failed.",
+			);
 			setStatus("Offline sync paused");
 		} finally {
 			setSyncingOffline(false);
@@ -1325,7 +1318,9 @@ export function EditorClient({
 			</div>
 		)
 	) : initialData ? (
-		<div className="h-full min-h-0">
+		<div className="relative h-full min-h-0">
+			<QuickConnect api={liveApi} enabled={isOwner && !presenting} />
+			<PresentationMode api={liveApi} active={presenting} onExit={() => setPresenting(false)} />
 			<Excalidraw
 				key={currentDraftKey}
 				initialData={initialData}
@@ -1339,7 +1334,8 @@ export function EditorClient({
 					setExcalidrawApi(api);
 				}}
 				theme={(resolvedTheme ?? "dark") === "dark" ? "dark" : "light"}
-				viewModeEnabled={!isOwner}
+				viewModeEnabled={!isOwner || presenting}
+				zenModeEnabled={presenting}
 				UIOptions={{
 					tools: {
 						image: isOwner,
@@ -1462,10 +1458,9 @@ export function EditorClient({
 		</div>
 	);
 	const libraryPanel = (
-		<ExcalidrawLibraryPanel
-			installedSources={installedLibrarySources}
-			installingSource={installingLibrarySource}
-			onInstall={handleInstallLibrary}
+		<InsertPanel
+			api={isOwner ? liveApi : null}
+			isDark={(resolvedTheme ?? "dark") === "dark"}
 			onClose={() => setEditorMode(lastPrimaryModeRef.current)}
 		/>
 	);
@@ -1545,7 +1540,20 @@ export function EditorClient({
 				</div>
 
 				<div className="flex min-w-0 items-center gap-1">
-					<PanelToggle label="Libraries" icon={BookOpen} active={mode === "libraries"} onClick={() => toggleDrawer("libraries")} />
+					{isOwner ? (
+						<PanelToggle
+							label="Insert"
+							icon={Plus}
+							active={mode === "libraries"}
+							onClick={() => {
+								setSelectedPreviewSha(null);
+								toggleDrawer("libraries");
+							}}
+						/>
+					) : null}
+					{hasLiveCanvas ? (
+						<PanelToggle label="Present" icon={Presentation} active={presenting} onClick={() => setPresenting((current) => !current)} />
+					) : null}
 					{isGuest ? null : (
 						<PanelToggle label="History" icon={Clock} active={mode === "history"} onClick={() => toggleDrawer("history")} />
 					)}
@@ -1708,17 +1716,33 @@ export function EditorClient({
 											{saveError} Your changes are still in this browser.
 										</p>
 									</div>
-									<Button variant="ghost" size="icon-xs" onClick={() => setSaveError(null)} aria-label="Dismiss">
+									<Button
+										variant="ghost"
+										size="icon-xs"
+										onClick={() => {
+											setSaveError(null);
+											setSaveProblem(null);
+										}}
+										aria-label="Dismiss"
+									>
 										<X />
 									</Button>
 								</div>
-								{saveError.toLowerCase().includes("github") ? (
+								{saveProblem ? (
 									<div className="mt-3">
-										<GithubAccessCard
+										<GithubProblemNotice
 											compact
-											onRecovered={async () => {
+											{...saveProblem}
+											onRetry={async () => {
 												await mutateGithubStatus();
 												setSaveError(null);
+												setSaveProblem(null);
+												// Repeat whichever action failed; it reports its own outcome.
+												if (lastFailedSaveRef.current === "offline-sync") {
+													await handleSyncOfflineCommits();
+												} else {
+													await handleManualSave();
+												}
 											}}
 										/>
 									</div>
@@ -1750,7 +1774,7 @@ export function EditorClient({
 									style={{ width: `${mode === "split" ? splitPanelSizes[1] : sidePanelSizes[1]}%` }}
 									className="h-full min-h-0 overflow-hidden"
 								>
-									{mode === "libraries" ? libraryPanel : mode === "history" ? historyPanel : mode === "source-control" ? sourceControlPanel : docsPanel}
+									{mode === "libraries" && isOwner ? libraryPanel : mode === "history" ? historyPanel : mode === "source-control" ? sourceControlPanel : docsPanel}
 								</div>
 							</div>
 						)}

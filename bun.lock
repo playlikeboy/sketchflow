@@ -9,6 +9,7 @@
         "@blocknote/react": "^0.51.4",
         "@blocknote/shadcn": "0.51.4",
         "@excalidraw/excalidraw": "^0.18.1",
+        "@excalidraw/mermaid-to-excalidraw": "2.2.2",
         "@fontsource-variable/atkinson-hyperlegible-mono": "^5.3.0",
         "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
         "@neondatabase/serverless": "^1.1.0",

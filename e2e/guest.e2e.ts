@@ -100,3 +100,41 @@ test.describe("after connecting GitHub", () => {
 		await expect(page.getByRole("heading", { name: /on this device isn't backed up/ })).toHaveCount(0);
 	});
 });
+
+test("a drawing is still there after switching to Notes and back", async ({ page }) => {
+	await mockApi(page, { signedIn: false });
+	await createGuestProject(page, "Remount check");
+	const savedElements = () =>
+		page.evaluate(async () => {
+			const [, projectId, sketchId] = location.pathname.match(/projects\/([^/]+)\/sketches\/([^/]+)/) ?? [];
+			const db = await new Promise<IDBDatabase>((resolve, reject) => {
+				const request = indexedDB.open("sketchflow");
+				request.onsuccess = () => resolve(request.result);
+				request.onerror = () => reject(request.error);
+			});
+			const record = await new Promise<{ value?: { scene?: { elements?: { isDeleted?: boolean }[] } } } | undefined>((resolve) => {
+				const request = db.transaction("drafts", "readonly").objectStore("drafts").get(`sketchflow:local:local:${projectId}:${sketchId}`);
+				request.onsuccess = () => resolve(request.result);
+			});
+			db.close();
+			return (record?.value?.scene?.elements ?? []).filter((element) => !element.isDeleted).length;
+		});
+
+	const canvas = page.locator(".excalidraw canvas").last();
+	const box = (await canvas.boundingBox()) as { x: number; y: number };
+	await page.mouse.click(box.x + 60, box.y + 420);
+	await page.keyboard.press("r");
+	await page.mouse.move(box.x + 160, box.y + 220);
+	await page.mouse.down();
+	await page.mouse.move(box.x + 280, box.y + 290, { steps: 6 });
+	await page.mouse.up();
+	await expect.poll(savedElements, { timeout: 10_000 }).toBe(1);
+
+	// The canvas unmounts in Notes view; coming back must not restore the scene from page load.
+	await page.getByRole("button", { name: "Notes", exact: true }).click();
+	await page.getByRole("button", { name: "Split", exact: true }).click();
+	await expect(page.locator(".excalidraw canvas").first()).toBeVisible({ timeout: 20_000 });
+	await page.waitForTimeout(2_500);
+
+	expect(await savedElements()).toBe(1);
+});

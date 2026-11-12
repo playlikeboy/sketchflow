@@ -6,6 +6,9 @@ Notable changes to Sketchflow. Dates are year-month-day.
 
 ### Added
 - **Local first, no account needed.** The whole app works signed out. Projects are saved in the browser under a "This device" workspace. Signing in with GitHub is optional and offers to copy those projects into a repository you choose. `/try` now opens the app.
+- **Insert panel.** One place to add shape libraries, nine starter diagrams, pasted Mermaid, company logos, Unsplash photos, stickers and your own images. Everything lands centred at a consistent size.
+- **Quick connect.** "+" handles on a selected shape add a connected shape.
+- **Presentation mode.** Frames become slides.
 - **GitHub sign-in through Better Auth.** One consent screen grants repository access; the session and token are kept in encrypted cookies, not in a database.
 - **Conflict handling.** When a save finds the project changed on GitHub, you choose which version becomes the latest; the other stays available.
 - **Survey Sheet design system.** New tokens, type, mark and components, documented in `DESIGN.md`, with product context in `PRODUCT.md`.
@@ -14,6 +17,11 @@ Notable changes to Sketchflow. Dates are year-month-day.
 - Rate limits on write routes, security headers, and a report-only Content-Security-Policy.
 - Unit, API handler, smoke and browser tests, all run in CI.
 - `SECURITY.md`, a self-hosting guide, and this changelog.
+
+### Fixed
+- The app no longer asks you to reconnect GitHub for problems that reconnecting cannot fix. Rate limits, a missing repository, blocked access and outages each get their own message, and only an expired sign-in asks you to sign in again.
+- Library shapes are no longer added at unpredictable sizes, and opened libraries are remembered across sketches.
+- Photos and other images keep their real colours on the dark canvas.
 
 ### Changed
 - Connecting an existing repository never overwrites files already in it.

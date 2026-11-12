@@ -15,12 +15,25 @@ import {
 	setStoredGithubToken,
 } from "@/lib/github-token";
 
+const DEFAULT_TITLE = "Sketchflow can't reach GitHub";
+const DEFAULT_DESCRIPTION = "Reconnect so Sketchflow can read and save to your repository.";
+
+/**
+ * The reconnect prompt, with the personal access token fallback. Show it only when signing
+ * in again is the fix; for every other GitHub problem use `GithubProblemNotice`, which
+ * renders this card itself when it is the right answer.
+ */
 export function GithubAccessCard({
 	onRecovered,
 	compact = false,
+	title = DEFAULT_TITLE,
+	description = DEFAULT_DESCRIPTION,
 }: {
 	onRecovered?: () => Promise<void> | void;
 	compact?: boolean;
+	/** Heading and first sentence, when the caller knows more precisely what went wrong. */
+	title?: string;
+	description?: string;
 }) {
 	const [token, setToken] = useState("");
 	const [hasToken, setHasToken] = useState(false);
@@ -85,11 +98,10 @@ export function GithubAccessCard({
 				<div className="min-w-0">
 					<h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
 						<StateGlyph state="error" />
-						Sketchflow can&apos;t reach GitHub
+						{title}
 					</h2>
 					<p className="mt-1 max-w-[60ch] text-sm text-muted-foreground">
-						Reconnect so Sketchflow can read and save to your repository. Anything unsaved stays in this
-						browser in the meantime.
+						{description} Anything unsaved stays in this browser in the meantime.
 					</p>
 				</div>
 				<Button size="sm" disabled={busy === "connect"} onClick={reconnect}>

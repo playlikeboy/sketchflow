@@ -6,17 +6,24 @@ import { FolderOpen, GitCommit, HardDrive, Loader2, Plus, RefreshCw } from "luci
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { GithubAccessCard } from "@/components/github-access-card";
+import { GithubProblemNotice } from "@/components/github-problem-notice";
 import { LocalSyncPanel } from "@/components/local-sync-panel";
 import { EmptyPanel, Notice, ProjectList, ProjectListSkeleton } from "@/components/project-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { syncWorkspaceProjectsMetadata, ApiError, type Workspace } from "@/lib/api";
+import { syncWorkspaceProjectsMetadata, type Workspace } from "@/lib/api";
+import {
+	githubProblemFromError,
+	githubProblemFromStatus,
+	nonGithubErrorMessage,
+	pickGithubProblem,
+	type GithubProblem,
+} from "@/lib/github-errors";
 import { LOCAL_WORKSPACE_ID, createLocalProject, isLocalWorkspace, workspaceLabel } from "@/lib/local-workspace";
 import type { WorkspaceProject } from "@/lib/project-metadata";
 import { slugify } from "@/lib/sketchflow";
 import { migrateTryDraftToGuestProject } from "@/lib/try-draft";
-import { queueCreateProject } from "@/lib/sync-manager";
+import { getSyncGithubProblem, onSyncQueueChange, queueCreateProject, retryFailedSyncActions } from "@/lib/sync-manager";
 import { repoFolderHref, sketchHref } from "@/lib/workspace-routes";
 import { useGithubStatus } from "@/lib/swr-hooks";
 import { useAppWorkspaces, useOfflineWorkspaceProjects } from "@/lib/swr-offline";
@@ -24,22 +31,6 @@ import { useAppIdentity } from "@/lib/use-app-identity";
 
 function shortSha(value: string | null) {
 	return value ? value.slice(0, 7) : "pending";
-}
-
-function friendlyError(message: string) {
-	if (message.toLowerCase().includes("github")) {
-		return "GitHub access needs a refresh.";
-	}
-
-	return message;
-}
-
-function errorCopy(error: unknown) {
-	if (error instanceof ApiError && error.code?.startsWith("github_")) {
-		return "GitHub access needs a refresh.";
-	}
-
-	return error instanceof Error ? friendlyError(error.message) : null;
 }
 
 function matchesSearch(project: WorkspaceProject, query: string) {
@@ -267,7 +258,7 @@ function ProjectsSection({
 				{onDevice ? null : <RepositoryActions workspace={workspace} rebuilding={rebuilding} onRebuild={onRebuild} />}
 			</div>
 
-			{error && !error.toLowerCase().includes("github") ? <Notice>{error}</Notice> : null}
+			{error ? <Notice>{error}</Notice> : null}
 
 			{loading && projects.length === 0 ? (
 				<ProjectListSkeleton />
@@ -333,6 +324,31 @@ function useTemplateDraft(template: string | null, apply: (draft: NewProjectInpu
 	}, [template, apply]);
 }
 
+/** The GitHub problem holding up this user's queued saves, kept current as the queue changes. */
+function useSyncQueueProblem(userId: string | null) {
+	const [problem, setProblem] = useState<GithubProblem | null>(null);
+
+	useEffect(() => {
+		if (!userId) return;
+
+		let active = true;
+		const read = () => {
+			void getSyncGithubProblem(userId).then((next) => {
+				if (active) setProblem(next);
+			});
+		};
+		read();
+		const unsubscribe = onSyncQueueChange(read);
+
+		return () => {
+			active = false;
+			unsubscribe();
+		};
+	}, [userId]);
+
+	return userId ? problem : null;
+}
+
 export function ProjectsHomeClient() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
@@ -344,6 +360,8 @@ export function ProjectsHomeClient() {
 	const [creatingProject, setCreatingProject] = useState(false);
 	const [projectSearch, setProjectSearch] = useState("");
 	const [localError, setLocalError] = useState<string | null>(null);
+	// A GitHub problem raised by something the user just did here, such as rebuilding the index.
+	const [actionProblem, setActionProblem] = useState<GithubProblem | null>(null);
 
 	const { isSignedIn, isLoading: identityLoading, userId } = useAppIdentity();
 	const {
@@ -375,9 +393,20 @@ export function ProjectsHomeClient() {
 		return query ? projects.filter((project) => matchesSearch(project, query)) : projects;
 	}, [projectSearch, projects]);
 
-	const pageError = localError || errorCopy(workspacesError) || (repoWorkspace ? errorCopy(githubError) : null);
-	const githubNeedsAttention =
-		Boolean(repoWorkspace) && (githubStatus?.connected === false || Boolean(pageError?.toLowerCase().includes("github")));
+	const queueProblem = useSyncQueueProblem(repoWorkspace ? userId : null);
+	// GitHub problems are told apart by code, so only a rejected sign-in asks to reconnect.
+	// The page itself keeps working from this browser whichever of them is showing.
+	const pageProblem = repoWorkspace
+		? pickGithubProblem([
+				githubProblemFromStatus(githubStatus),
+				githubProblemFromError(projectsError),
+				githubProblemFromError(githubError),
+				actionProblem,
+			])
+		: null;
+	const githubProblem = pickGithubProblem([pageProblem, queueProblem]);
+	const pageError =
+		localError || nonGithubErrorMessage(workspacesError) || (repoWorkspace ? nonGithubErrorMessage(githubError) : null);
 
 	useTemplateDraft(searchParams.get("template"), (draft) => {
 		setNewProjectTitle(draft.title);
@@ -401,7 +430,13 @@ export function ProjectsHomeClient() {
 
 	async function refresh() {
 		setLocalError(null);
-		await Promise.all([refreshWorkspaces(), repoWorkspace ? mutateGithubStatus() : undefined, mutateProjects()]);
+		setActionProblem(null);
+		await Promise.all([
+			refreshWorkspaces(),
+			repoWorkspace ? mutateGithubStatus() : undefined,
+			mutateProjects(),
+			queueProblem ? retryFailedSyncActions(userId ?? undefined) : undefined,
+		]);
 	}
 
 	async function handleSyncProjectIndex() {
@@ -409,15 +444,18 @@ export function ProjectsHomeClient() {
 
 		setSyncingIndex(true);
 		setLocalError(null);
+		setActionProblem(null);
 
 		try {
 			const response = await syncWorkspaceProjectsMetadata(repoWorkspace.id);
 			await mutateProjects(response, { revalidate: false });
 			await refreshWorkspaces();
 		} catch (syncError) {
-			setLocalError(
-				syncError instanceof Error ? friendlyError(syncError.message) : "Project index could not be updated",
-			);
+			const problem = githubProblemFromError(syncError);
+			setActionProblem(problem);
+			if (!problem) {
+				setLocalError(syncError instanceof Error ? syncError.message : "Project index could not be updated");
+			}
 		} finally {
 			setSyncingIndex(false);
 		}
@@ -457,7 +495,7 @@ export function ProjectsHomeClient() {
 			workspaces={workspaces}
 			selectedWorkspaceId={selectedWorkspace?.id ?? null}
 			onWorkspaceChange={setSelectedWorkspaceId}
-			githubUnreachable={githubNeedsAttention}
+			githubUnreachable={Boolean(pageProblem)}
 			searchValue={projectSearch}
 			onSearchChange={setProjectSearch}
 			searchPlaceholder="Search projects"
@@ -468,11 +506,8 @@ export function ProjectsHomeClient() {
 			}
 		>
 			<div className="mx-auto flex max-w-6xl flex-col gap-5">
-				{githubNeedsAttention ? (
-					<GithubAccessCard onRecovered={refresh} />
-				) : pageError && !pageError.toLowerCase().includes("github") ? (
-					<Notice>{pageError}</Notice>
-				) : null}
+				{githubProblem ? <GithubProblemNotice {...githubProblem} onRetry={refresh} /> : null}
+				{pageError ? <Notice>{pageError}</Notice> : null}
 
 				{isInitialLoading ? (
 					<ProjectListSkeleton />
@@ -504,7 +539,7 @@ export function ProjectsHomeClient() {
 							search={projectSearch}
 							loading={projectsLoading}
 							metadataPresent={metadataPresent}
-							error={repoWorkspace ? errorCopy(projectsError) : null}
+							error={repoWorkspace ? nonGithubErrorMessage(projectsError) : null}
 							rebuilding={syncingIndex}
 							onRebuild={() => void handleSyncProjectIndex()}
 							onClearSearch={() => setProjectSearch("")}

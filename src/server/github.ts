@@ -2,7 +2,8 @@ import "server-only";
 
 import { PROJECTS_METADATA_PATH, buildProjectsMetadata, projectFromProjectJson } from "@/lib/project-metadata";
 import { GITHUB_REST_API_VERSION } from "@/lib/config";
-import { BadRequestError, HttpError } from "@/server/http";
+import { classifyGithubFailure, parseGithubScopes, type GithubErrorCode, type GithubProblem } from "@/lib/github-errors";
+import { BadRequestError, HttpError } from "@/server/errors";
 import {
 	validateGithubFileChange as validateFileChange,
 	validateGithubFilePath as validateFilePath,
@@ -17,6 +18,12 @@ import {
 const GITHUB_API_URL = "https://api.github.com";
 const MAX_FILE_BYTES = 8_000_000;
 const GITHUB_REQUEST_TIMEOUT_MS = 15_000;
+// GitHub rejects REST requests that carry no User-Agent, and Workers do not add one.
+const GITHUB_USER_AGENT = "Sketchflow";
+const GITHUB_RETRY_DELAY_MS = 300;
+const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([502, 503, 504]);
+const STATUS_TIMED_OUT = 504;
+const STATUS_UNREACHABLE = 502;
 
 export type GithubUser = {
 	login: string;
@@ -105,27 +112,27 @@ export type GithubCommitResult = {
 	files: string[];
 };
 
-type GithubApiErrorCode = "github_api_error" | "github_token_unavailable";
+export type GithubApiErrorCode = GithubErrorCode;
 
-function githubApiErrorCode(status: number): GithubApiErrorCode {
-	if (status === 401 || status === 403 || status === 404 || status === 504) {
-		return "github_token_unavailable";
-	}
-
-	return "github_api_error";
-}
-
+/**
+ * A GitHub request that failed. `code` names the reason (see src/lib/github-errors.ts) and
+ * `status` keeps GitHub's HTTP status. Built without a `problem`, the reason is worked out
+ * from the status alone.
+ */
 export class GithubApiError extends HttpError {
 	readonly code: GithubApiErrorCode;
+	readonly retryAt?: string;
 
 	constructor(
 		message: string,
 		status: number,
 		readonly response?: unknown,
+		problem: GithubProblem = classifyGithubFailure({ status, message }),
 	) {
 		super(message, status);
 		this.name = "GithubApiError";
-		this.code = githubApiErrorCode(status);
+		this.code = problem.code;
+		this.retryAt = problem.retryAt;
 	}
 }
 
@@ -146,51 +153,114 @@ function repoApiPath(owner: string, repo: string, suffix = "") {
 	return `/repos/${encodePathPart(owner)}/${encodePathPart(repo)}${suffix}`;
 }
 
-async function githubRequest<T>(accessToken: string, path: string, init: RequestInit = {}) {
+type GithubResponse<T> = {
+	data: T;
+	headers: Headers;
+};
+
+function wait(milliseconds: number) {
+	return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function isAbortError(error: unknown) {
+	return error instanceof Error && error.name === "AbortError";
+}
+
+async function sendGithubRequest(accessToken: string, path: string, init: RequestInit) {
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), GITHUB_REQUEST_TIMEOUT_MS);
-	let response: Response;
 
 	try {
-		response = await fetch(`${GITHUB_API_URL}${path}`, {
+		return await fetch(`${GITHUB_API_URL}${path}`, {
 			...init,
 			signal: init.signal ?? controller.signal,
 			headers: {
 				Accept: "application/vnd.github+json",
 				Authorization: `Bearer ${accessToken}`,
 				"Content-Type": "application/json",
+				"User-Agent": GITHUB_USER_AGENT,
 				"X-GitHub-Api-Version": GITHUB_REST_API_VERSION,
 				...init.headers,
 			},
 		});
 	} catch (error) {
-		if (error instanceof DOMException && error.name === "AbortError") {
-			throw new GithubApiError("GitHub API request timed out", 504);
+		if (isAbortError(error)) {
+			throw new GithubApiError("GitHub API request timed out", STATUS_TIMED_OUT, undefined, { code: "github_unavailable" });
 		}
 
-		throw error;
+		// Only the failure's name and message are logged: the request itself carries the token.
+		console.error("GitHub could not be reached:", error instanceof Error ? `${error.name}: ${error.message}` : "unknown error");
+		throw new GithubApiError("GitHub could not be reached", STATUS_UNREACHABLE, undefined, { code: "github_unavailable" });
 	} finally {
 		clearTimeout(timeout);
 	}
+}
+
+async function githubErrorFromResponse(response: Response) {
+	const errorBody: unknown = await response.json().catch(() => null);
+	const message =
+		errorBody && typeof errorBody === "object" && "message" in errorBody && typeof errorBody.message === "string"
+			? errorBody.message
+			: "GitHub API request failed";
+
+	return new GithubApiError(
+		message,
+		response.status,
+		errorBody,
+		classifyGithubFailure({ status: response.status, message, headers: response.headers }),
+	);
+}
+
+async function attemptGithubRequest<T>(accessToken: string, path: string, init: RequestInit): Promise<GithubResponse<T>> {
+	const response = await sendGithubRequest(accessToken, path, init);
 
 	if (!response.ok) {
-		const errorBody = await response.json().catch(() => null);
-		const message =
-			errorBody && typeof errorBody === "object" && "message" in errorBody && typeof errorBody.message === "string"
-				? errorBody.message
-				: "GitHub API request failed";
-		throw new GithubApiError(message, response.status, errorBody);
+		throw await githubErrorFromResponse(response);
 	}
 
-	if (response.status === 204) {
-		return null as T;
-	}
+	const data = response.status === 204 ? (null as T) : ((await response.json()) as T);
+	return { data, headers: response.headers };
+}
 
-	return (await response.json()) as T;
+// Reads are safe to repeat; a write that timed out may already have been applied.
+function isIdempotentRead(init: RequestInit) {
+	return (init.method ?? "GET").toUpperCase() === "GET";
+}
+
+function isWorthRetrying(error: unknown) {
+	return error instanceof GithubApiError && RETRYABLE_STATUSES.has(error.status);
+}
+
+/** Calls GitHub, repeating a read once after a short pause when GitHub timed out or faltered. */
+async function githubFetch<T>(accessToken: string, path: string, init: RequestInit = {}): Promise<GithubResponse<T>> {
+	try {
+		return await attemptGithubRequest<T>(accessToken, path, init);
+	} catch (error) {
+		if (!isIdempotentRead(init) || !isWorthRetrying(error)) {
+			throw error;
+		}
+
+		await wait(GITHUB_RETRY_DELAY_MS);
+		return attemptGithubRequest<T>(accessToken, path, init);
+	}
+}
+
+async function githubRequest<T>(accessToken: string, path: string, init: RequestInit = {}) {
+	const { data } = await githubFetch<T>(accessToken, path, init);
+	return data;
 }
 
 export async function getAuthenticatedGithubUser(accessToken: string) {
 	return githubRequest<GithubUser>(accessToken, "/user");
+}
+
+/**
+ * The signed-in GitHub user together with the scopes the token was granted. `grantedScopes`
+ * is null for tokens that do not report scopes (fine-grained and GitHub App tokens).
+ */
+export async function getAuthenticatedGithubUserWithScopes(accessToken: string) {
+	const { data, headers } = await githubFetch<GithubUser>(accessToken, "/user");
+	return { githubUser: data, grantedScopes: parseGithubScopes(headers.get("x-oauth-scopes")) };
 }
 
 export async function getGithubRepository(accessToken: string, owner: string, repo: string) {

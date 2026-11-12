@@ -2,61 +2,74 @@
 
 import { getOfflineCommits, clearOfflineCommits } from "@/lib/indexeddb";
 import { getActiveUserId } from "@/lib/github-token";
-import { commitWorkspaceFiles, createWorkspaceProject, syncWorkspaceProjectsMetadata } from "@/lib/api";
+import { ApiError, commitWorkspaceFiles, createWorkspaceProject, syncWorkspaceProjectsMetadata } from "@/lib/api";
+import {
+	githubErrorCopy,
+	githubProblemFromError,
+	isTransientGithubError,
+	needsGithubReconnect,
+	pickGithubProblem,
+	type GithubErrorCode,
+	type GithubProblem,
+} from "@/lib/github-errors";
 
-type QueuedAction =
-	| {
-			id: string;
-			type: "commit";
-			workspaceId: string;
-			projectId: string;
-			userId?: string;
-			payload: {
-				message: string;
-				files: Array<{ path: string; content: string }>;
-				expectedHeadSha?: string | null;
-			};
-			attempts: number;
-			nextAttemptAt: number;
-			status?: "pending" | "failed";
-			lastError?: string;
-			failedAt?: number;
-	  }
-	| {
-			id: string;
-			type: "create_project";
-			workspaceId: string;
-			userId?: string;
-			payload: {
-				title: string;
-				description?: string;
-				projectId?: string;
-				sketchId?: string;
-				visibility?: "private" | "public";
-			};
-			attempts: number;
-			nextAttemptAt: number;
-			status?: "pending" | "failed";
-			lastError?: string;
-			failedAt?: number;
-	  }
-	| {
-			id: string;
-			type: "sync_metadata";
-			workspaceId: string;
-			userId?: string;
-			attempts: number;
-			nextAttemptAt: number;
-			status?: "pending" | "failed";
-			lastError?: string;
-			failedAt?: number;
-	  };
+/** How the last attempt went. The GitHub fields are set only when GitHub was the reason. */
+type AttemptState = {
+	attempts: number;
+	nextAttemptAt: number;
+	status?: "pending" | "failed";
+	lastError?: string;
+	lastErrorCode?: GithubErrorCode;
+	lastRetryAt?: string;
+	failedAt?: number;
+};
+
+type QueuedAction = AttemptState &
+	(
+		| {
+				id: string;
+				type: "commit";
+				workspaceId: string;
+				projectId: string;
+				userId?: string;
+				payload: {
+					message: string;
+					files: Array<{ path: string; content: string }>;
+					expectedHeadSha?: string | null;
+				};
+		  }
+		| {
+				id: string;
+				type: "create_project";
+				workspaceId: string;
+				userId?: string;
+				payload: {
+					title: string;
+					description?: string;
+					projectId?: string;
+					sketchId?: string;
+					visibility?: "private" | "public";
+				};
+		  }
+		| {
+				id: string;
+				type: "sync_metadata";
+				workspaceId: string;
+				userId?: string;
+		  }
+	);
 
 const SYNC_STORE = "sync-queue";
 const PROCESSING_INTERVAL_MS = 2_000;
 const MAX_ATTEMPTS = 10;
 const BASE_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 30_000;
+// A rate limit or a GitHub outage clears by itself, so those saves wait far longer (hours,
+// not minutes) before they are set aside as failed.
+const TRANSIENT_MAX_ATTEMPTS = 40;
+const TRANSIENT_MAX_BACKOFF_MS = 5 * 60_000;
+const RETRY_JITTER_MS = 500;
+const STATUS_UNAUTHORIZED = 401;
 
 type Listener = () => void;
 
@@ -167,6 +180,25 @@ export async function getSyncFailureCount(): Promise<number> {
 	}
 }
 
+/**
+ * The GitHub problem holding up this user's queued saves, or null when there is none. A
+ * problem that needs signing in again is reported ahead of one that will clear by itself.
+ */
+export async function getSyncGithubProblem(userId = getActiveUserId()): Promise<GithubProblem | null> {
+	if (!userId) return null;
+
+	try {
+		const queue = await loadQueue();
+		return pickGithubProblem(
+			queue
+				.filter((action) => action.userId === userId)
+				.map((action) => (action.lastErrorCode ? { code: action.lastErrorCode, retryAt: action.lastRetryAt } : null)),
+		);
+	} catch {
+		return null;
+	}
+}
+
 async function enqueue(action: {
 	type: QueuedAction["type"];
 	workspaceId?: string;
@@ -190,9 +222,76 @@ async function enqueue(action: {
 	return record;
 }
 
-function backoffDelay(attempts: number) {
-	const delay = Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * Math.pow(2, attempts));
-	return delay + Math.random() * 500;
+function backoffDelay(attempts: number, maxBackoffMs: number) {
+	return Math.min(maxBackoffMs, BASE_BACKOFF_MS * Math.pow(2, attempts));
+}
+
+export type SyncFailurePlan = { outcome: "retry"; delayMs: number } | { outcome: "failed" };
+
+/**
+ * Decides what happens to a queued action after a failed attempt (`attempts` counts that one).
+ *   - GitHub needs a fresh sign-in, or the Sketchflow session is gone: stop now. No number of
+ *     retries will fix it, and the user has to act.
+ *   - Rate limited or GitHub unavailable: keep retrying with a long backoff, never sooner
+ *     than the time GitHub asked us to wait.
+ *   - Anything else: the usual short backoff, then give up.
+ */
+export function planSyncFailure(input: {
+	problem: GithubProblem | null;
+	sessionExpired?: boolean;
+	attempts: number;
+	now: number;
+}): SyncFailurePlan {
+	const { problem, attempts, now } = input;
+
+	if (input.sessionExpired || (problem && needsGithubReconnect(problem.code))) {
+		return { outcome: "failed" };
+	}
+
+	if (problem && isTransientGithubError(problem.code)) {
+		if (attempts >= TRANSIENT_MAX_ATTEMPTS) return { outcome: "failed" };
+
+		const untilRetryAt = problem.retryAt ? Date.parse(problem.retryAt) - now : 0;
+		const backoff = backoffDelay(attempts, TRANSIENT_MAX_BACKOFF_MS);
+		return { outcome: "retry", delayMs: Math.max(backoff, Number.isNaN(untilRetryAt) ? 0 : untilRetryAt) };
+	}
+
+	if (attempts >= MAX_ATTEMPTS) return { outcome: "failed" };
+	return { outcome: "retry", delayMs: backoffDelay(attempts, MAX_BACKOFF_MS) };
+}
+
+function failureMessage(error: unknown, problem: GithubProblem | null) {
+	if (problem) return githubErrorCopy(problem.code, { retryAt: problem.retryAt }).message;
+	return error instanceof Error ? error.message : "Sync failed";
+}
+
+/** Stores the outcome of a failed attempt: either the next retry time or a preserved failure. */
+async function recordFailure(action: QueuedAction, error: unknown) {
+	const attempts = action.attempts + 1;
+	const problem = githubProblemFromError(error);
+	const plan = planSyncFailure({
+		problem,
+		sessionExpired: error instanceof ApiError && error.status === STATUS_UNAUTHORIZED,
+		attempts,
+		now: Date.now(),
+	});
+	const attempted: QueuedAction = {
+		...action,
+		attempts,
+		lastError: failureMessage(error, problem),
+		lastErrorCode: problem?.code,
+		lastRetryAt: problem?.retryAt,
+	};
+
+	if (plan.outcome === "failed") {
+		await persistAction({ ...attempted, status: "failed", failedAt: Date.now(), nextAttemptAt: Number.MAX_SAFE_INTEGER });
+		console.warn("[sync-manager] Preserving failed action for recovery", action.id, error);
+	} else {
+		const nextAttemptAt = Date.now() + plan.delayMs + Math.random() * RETRY_JITTER_MS;
+		await persistAction({ ...attempted, status: "pending", nextAttemptAt });
+	}
+
+	notify();
 }
 
 async function processCommit(action: QueuedAction & { type: "commit" }) {
@@ -275,29 +374,7 @@ async function drainQueue(force = false) {
 				await removeAction(action.id);
 				notify();
 			} catch (error) {
-				const attempts = action.attempts + 1;
-				if (attempts >= MAX_ATTEMPTS) {
-					await persistAction({
-						...action,
-						attempts,
-						status: "failed",
-						lastError: error instanceof Error ? error.message : "Sync failed",
-						failedAt: Date.now(),
-						nextAttemptAt: Number.MAX_SAFE_INTEGER,
-					});
-					console.warn("[sync-manager] Preserving failed action for recovery", action, error);
-					notify();
-					continue;
-				}
-
-				await persistAction({
-					...action,
-					attempts,
-					status: "pending",
-					lastError: error instanceof Error ? error.message : "Sync failed",
-					nextAttemptAt: Date.now() + backoffDelay(attempts),
-				});
-				notify();
+				await recordFailure(action, error);
 			}
 		}
 	} finally {
@@ -315,6 +392,8 @@ export async function retryFailedSyncActions(userId = getActiveUserId()) {
 				attempts: 0,
 				status: "pending",
 				lastError: undefined,
+				lastErrorCode: undefined,
+				lastRetryAt: undefined,
 				failedAt: undefined,
 				nextAttemptAt: Date.now(),
 			});

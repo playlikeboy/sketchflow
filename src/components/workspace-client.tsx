@@ -5,7 +5,7 @@ import { ArrowRight, FolderOpen, GitBranch, Loader2, Plus, RefreshCw } from "luc
 import { useMemo, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { GithubAccessCard } from "@/components/github-access-card";
+import { GithubProblemNotice } from "@/components/github-problem-notice";
 import { LocalSyncPanel } from "@/components/local-sync-panel";
 import { EmptyPanel, Notice, ProjectListSkeleton } from "@/components/project-list";
 import { StateMark } from "@/components/state-mark";
@@ -14,6 +14,14 @@ import { Input } from "@/components/ui/input";
 import { WorkspaceAdvancedOptions } from "@/components/workspace-advanced-options";
 import { bootstrapWorkspace, type Workspace } from "@/lib/api";
 import { signInWithGithub } from "@/lib/auth-client";
+import {
+	githubProblemFromError,
+	githubProblemFromStatus,
+	needsGithubReconnect,
+	nonGithubErrorMessage,
+	pickGithubProblem,
+	type GithubProblem,
+} from "@/lib/github-errors";
 import { LOCAL_WORKSPACE, isLocalWorkspace, workspaceLabel } from "@/lib/local-workspace";
 import { repoHref } from "@/lib/workspace-routes";
 import { useGithubStatus } from "@/lib/swr-hooks";
@@ -24,14 +32,6 @@ const DEFAULT_REPO_NAME = "sketchflow-workspace";
 
 function shortSha(value: string | null) {
 	return value ? value.slice(0, 7) : "pending";
-}
-
-function friendlyError(message: string) {
-	if (message.toLowerCase().includes("github")) {
-		return "GitHub access needs a refresh.";
-	}
-
-	return message;
 }
 
 function projectCountLabel(count: number) {
@@ -130,6 +130,8 @@ function AddWorkspaceForm({
 	githubConnected,
 	githubLoading,
 	githubLogin,
+	githubProblem,
+	canCreate,
 	error,
 	bootstrapping,
 	onRecovered,
@@ -138,6 +140,9 @@ function AddWorkspaceForm({
 	githubConnected: boolean;
 	githubLoading: boolean;
 	githubLogin: string;
+	/** What is wrong with GitHub, if anything. Only a rejected sign-in asks to reconnect. */
+	githubProblem: GithubProblem | null;
+	canCreate: boolean;
 	error: string | null;
 	bootstrapping: boolean;
 	onRecovered: () => Promise<void>;
@@ -156,15 +161,15 @@ function AddWorkspaceForm({
 			</p>
 
 			<div className="mt-4 space-y-4">
-				{error && !error.toLowerCase().includes("github") ? <Notice>{error}</Notice> : null}
+				{error ? <Notice>{error}</Notice> : null}
 
-				{githubConnected ? (
+				{githubProblem ? (
+					<GithubProblemNotice compact {...githubProblem} onRetry={onRecovered} />
+				) : githubConnected ? (
 					<StateMark state="synced" label={`GitHub connected as ${githubLogin}`} />
 				) : githubLoading ? (
 					<div className="h-5 w-44 animate-pulse rounded-sm bg-muted" aria-label="Checking GitHub connection" />
-				) : (
-					<GithubAccessCard compact onRecovered={onRecovered} />
-				)}
+				) : null}
 
 				<form
 					className="space-y-3"
@@ -196,7 +201,7 @@ function AddWorkspaceForm({
 						isPrivate={isPrivate}
 						onPrivateChange={setIsPrivate}
 					/>
-					<Button type="submit" disabled={!githubConnected || bootstrapping || !repoName.trim()} className="w-full">
+					<Button type="submit" disabled={!canCreate || bootstrapping || !repoName.trim()} className="w-full">
 						{bootstrapping ? <Loader2 className="animate-spin" /> : <Plus />}
 						{bootstrapping ? "Setting up repository" : "Add workspace"}
 					</Button>
@@ -264,6 +269,8 @@ export function WorkspaceClient() {
 	const [search, setSearch] = useState("");
 	const [bootstrapping, setBootstrapping] = useState(false);
 	const [localError, setLocalError] = useState<string | null>(null);
+	// A GitHub problem raised while adding a workspace, as opposed to one the status check found.
+	const [actionProblem, setActionProblem] = useState<GithubProblem | null>(null);
 	const { isSignedIn, isLoading: identityLoading, userId } = useAppIdentity();
 	const {
 		workspaces,
@@ -274,6 +281,7 @@ export function WorkspaceClient() {
 	} = useAppWorkspaces(userId, selectedWorkspaceId);
 	const {
 		data: githubStatus,
+		error: githubStatusError,
 		isLoading: githubLoading,
 		mutate: mutateGithubStatus,
 	} = useGithubStatus(isSignedIn ? userId : null);
@@ -291,16 +299,24 @@ export function WorkspaceClient() {
 		);
 	}, [search, repoWorkspaces]);
 	const githubConnected = githubStatus?.connected === true;
+	const statusProblem = pickGithubProblem([githubProblemFromStatus(githubStatus), githubProblemFromError(githubStatusError)]);
+	const githubProblem = pickGithubProblem([statusProblem, actionProblem]);
+	// A rate limit or a GitHub hiccup during the status check is no reason to lock the form:
+	// only a sign-in that GitHub rejects makes adding a workspace pointless.
+	const canCreate = githubConnected || Boolean(statusProblem && !needsGithubReconnect(statusProblem.code));
+	const formError = localError || nonGithubErrorMessage(githubStatusError);
 	const loading = identityLoading || workspacesLoading || (isSignedIn && githubLoading);
 
 	async function refresh() {
 		setLocalError(null);
+		setActionProblem(null);
 		await Promise.all([refreshWorkspaces(), isSignedIn ? mutateGithubStatus() : undefined]);
 	}
 
 	async function handleCreateWorkspace(input: { repoName: string; isPrivate: boolean }) {
 		setBootstrapping(true);
 		setLocalError(null);
+		setActionProblem(null);
 
 		try {
 			const response = await bootstrapWorkspace({ repoName: input.repoName, private: input.isPrivate });
@@ -308,7 +324,11 @@ export function WorkspaceClient() {
 			setSelectedWorkspaceId(response.workspace.id);
 			return true;
 		} catch (error) {
-			setLocalError(error instanceof Error ? friendlyError(error.message) : "Workspace creation did not finish");
+			const problem = githubProblemFromError(error);
+			setActionProblem(problem);
+			if (!problem) {
+				setLocalError(error instanceof Error ? error.message : "Workspace creation did not finish");
+			}
 			return false;
 		} finally {
 			setBootstrapping(false);
@@ -327,7 +347,9 @@ export function WorkspaceClient() {
 					githubConnected={githubConnected}
 					githubLoading={githubLoading}
 					githubLogin={githubStatus?.connected ? githubStatus.github.login : ""}
-					error={localError}
+					githubProblem={githubProblem}
+					canCreate={canCreate}
+					error={formError}
 					bootstrapping={bootstrapping}
 					onRecovered={refresh}
 					onCreate={handleCreateWorkspace}
